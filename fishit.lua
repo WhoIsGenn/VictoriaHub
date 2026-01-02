@@ -422,6 +422,12 @@ local function rod()
     end)
 end
 
+local function rod()
+    safeCall("unequipRod", function()
+        net["RE/EquipToolFromHotbar"]:FireServer(1)
+    end)
+end
+
 local function autoon()
     safeCall("autoon", function()
         net["RF/UpdateAutoFishingState"]:InvokeServer(true)
@@ -486,13 +492,25 @@ fishing = Tab3:Section({
     TextSize = 17
 })
 
+-- Gunakan variable untuk tracking
+local lastEquippedSlot = 0
+local isRodEquipped = false
+
 fishing:Toggle({
     Title = "Auto Equip Rod",
     Value = false,
     Callback = function(v)
         _G.AutoEquipRod = v
         if v then 
-            rod() -- Hanya dipanggil sekali saat toggle
+            if not isRodEquipped then
+                rod()
+                isRodEquipped = true
+                lastEquippedSlot = 1
+            end
+        else
+            unequipRod()
+            isRodEquipped = false
+            lastEquippedSlot = 0
         end
     end
 })
