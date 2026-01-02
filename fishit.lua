@@ -1789,8 +1789,8 @@ local Tab7 = Window:Tab({
 })
 
 player = Tab7:Section({ 
-    Title = "Players",
-    Icon = "user",
+    Title = "Player In Game",
+    Icon = "play",
     TextXAlignment = "Left",
     TextSize = 17,
 })
@@ -2010,7 +2010,7 @@ player:Toggle({
 
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = "AntiAFK loaded!",
-                Text = "AntiAFK Actived!",
+                Text = "AntiAFK Actived",
                 Button1 = "Okey",
                 Duration = 5
             })
@@ -2126,9 +2126,15 @@ task.spawn(function()
     end
 end)
 
-local Player = game:GetService("Players").LocalPlayer
+other = Tab2:Section({ 
+    Title = "Players",
+    Icon = "user",
+    TextXAlignment = "Left",
+    TextSize = 17, -- Default Size
+    Opened = true,
+})
 
-player:Slider({
+other:Slider({
     Title = "Speed",
     Desc = "Default 16",
     Step = 1,
@@ -2141,7 +2147,7 @@ player:Slider({
     end
 })
 
-player:Slider({
+other:Slider({
     Title = "Jump",
     Desc = "Default 50",
     Step = 1,
@@ -2160,7 +2166,7 @@ local P = game.Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
 _G.InfiniteJump = false
 
-player:Toggle({
+other:Toggle({
     Title = "Infinite Jump",
     Desc = "activate to use infinite jump",
     Icon = false,
@@ -2182,7 +2188,7 @@ end)
 
 local Player = game:GetService("Players").LocalPlayer
 
-player:Toggle({
+other:Toggle({
     Title = "Noclip",
     Desc = "Walk through walls",
     Icon = false,
@@ -2246,7 +2252,7 @@ local function setFreeze(s)
 	end
 end
 
-player:Toggle({
+other:Toggle({
 	Title="Freeze Character",
 	Value=false,
 	Callback=function(s)
@@ -2280,7 +2286,7 @@ local function toggleAnim(s)
     end
 end
 
-player:Toggle({
+other:Toggle({
     Title = "Disable Animations",
     Value = false,
     Callback = toggleAnim
@@ -2646,7 +2652,7 @@ local function GetConfig()
         InfiniteJump = _G.InfiniteJump or false,
         AutoSell = _G.AutoSell or false,
         InstantCatch = _G.InstantCatch or false,
-        AntiAFK = _G.AntiAFK or true,
+        AntiAFK = _G.AntiAFK or false,
         AutoReconnect = _G.AutoReconnect or false,
     }
 end
