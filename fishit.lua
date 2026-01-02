@@ -389,37 +389,6 @@ other:Toggle({
 	end
 })
 
-P.CharacterAdded:Connect(function(c)
-	if frozen then task.wait(.5); setFreeze(true) end
-end)
-
-local P = game.Players.LocalPlayer
-
-local function toggleAnim(s)
-    local c = P.Character or P.CharacterAdded:Wait()
-    local h = c:FindFirstChildOfClass("Humanoid")
-    local a = c:FindFirstChild("Animate")
-    if not h then return end
-
-    if s then
-        if a then a.Disabled = true end
-        for _,t in ipairs(h:GetPlayingAnimationTracks()) do t:Stop(0) end
-        local an = h:FindFirstChildOfClass("Animator")
-        if an then an:Destroy() end
-    else
-        if a then a.Disabled = false end
-        if not h:FindFirstChildOfClass("Animator") then
-            Instance.new("Animator", h)
-        end
-    end
-end
-
-other:Toggle({
-    Title = "Disable Animations",
-    Value = false,
-    Callback = toggleAnim
-})
-
 _G.AutoFishing = false
 _G.AutoEquipRod = false
 _G.Radar = false
@@ -740,7 +709,7 @@ end
     end
   
 blantant = Tab3:Section({ 
-    Title = "Blantant Featured | Recomended",
+    Title = "Blantant Featured | BETA",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -1077,28 +1046,8 @@ event:Toggle({
 })
 
 local Tab0 = Window:Tab({
-    Title = "Exclusive",
+    Title = "Webhook",
     Icon = "star",
-})
-
-Tab0:Space()
-
-blantant:Button({
-    Title = "X5 V1",
-    Desc = "This Is X5 In Free Script",
-    Locked = false,
-    Callback = function()
-        loadstring(game:HttpGet("https://pastefy.app/pIoVjvmR/raw"))()
-    end
-})
-
-blantant:Button({
-    Title = "X7 OLD",
-    Desc = "OLD METHOD X7",
-    Locked = false,
-    Callback = function()
-        loadstring(game:HttpGet("https://pastefy.app/lrOQwepH/raw"))()
-    end
 })
 
 webhook = Tab0:Section({ 
@@ -2320,10 +2269,41 @@ task.spawn(function()
 end)
 
 graphic = Tab7:Section({ 
-    Title = "Graphics In Game",
+    Title = "miscellaneous",
     Icon = "chart-bar",
     TextXAlignment = "Left",
     TextSize = 17,
+})
+
+P.CharacterAdded:Connect(function(c)
+	if frozen then task.wait(.5); setFreeze(true) end
+end)
+
+local P = game.Players.LocalPlayer
+
+local function toggleAnim(s)
+    local c = P.Character or P.CharacterAdded:Wait()
+    local h = c:FindFirstChildOfClass("Humanoid")
+    local a = c:FindFirstChild("Animate")
+    if not h then return end
+
+    if s then
+        if a then a.Disabled = true end
+        for _,t in ipairs(h:GetPlayingAnimationTracks()) do t:Stop(0) end
+        local an = h:FindFirstChildOfClass("Animator")
+        if an then an:Destroy() end
+    else
+        if a then a.Disabled = false end
+        if not h:FindFirstChildOfClass("Animator") then
+            Instance.new("Animator", h)
+        end
+    end
+end
+
+other:Toggle({
+    Title = "Disable Animations",
+    Value = false,
+    Callback = toggleAnim
 })
 
 local Players = game:GetService("Players")
