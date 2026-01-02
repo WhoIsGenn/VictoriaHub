@@ -12,27 +12,27 @@ return function(Window, Tabs)
     local jobId = game.JobId
     local privateServerId = game.PrivateServerId
 
-    local InfoSection = Tabs.Info:AddSection("Chloe X Information", true)
+    local InfoSection = Tabs.Info:AddSection("Victoria Information", true)
 
     InfoSection:AddParagraph({
-        Title = "Chloe X Alert!",
+        Title = "Victoria Alert!",
         Content = [[
 This script is still under development!
 There is a possibility it may get detected if used in public servers!
-If you have suggestions or found bugs, please report them to <font color="rgb(0,170,255)">Discord Chloe X</font>!<br/>
+If you have suggestions or found bugs, please report them to <font color="rgb(0,170,255)">Discord Victoria</font>!<br/>
 <b>Use at your own risk!</b>
 ]],
         Icon = "water"
     })
 
     InfoSection:AddParagraph({
-        Title = "CHLOE X Discord",
-        Content = "Official link discord Chloe X!",
+        Title = "Victoria Discord",
+        Content = "Official link discord Victoria!",
         Icon = "discord",
         ButtonText = "COPY LINK DISCORD",
         ButtonCallback = function()
             if setclipboard then
-                setclipboard("https://discord.com/invite/PaPvGUE8UC")
+                setclipboard("https://discord.gg/fjafFyYKj")
                 chloex("Succesfully copied link!")
             end
         end
