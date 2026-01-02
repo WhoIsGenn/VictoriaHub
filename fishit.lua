@@ -491,9 +491,22 @@ fishing:Toggle({
     Value = false,
     Callback = function(v)
         _G.AutoEquipRod = v
-        if v then rod() end
+        if v then 
+            rod()
+        else
+            -- Optional: Unequip rod when toggled off
+            net["RF/EquipToolFromHotbar"]:InvokeServer(0)
+        end
     end
 })
+
+-- Loop untuk auto equip jika diperlukan
+while true do
+    if _G.AutoEquipRod then
+        rod()
+    end
+    wait(1) -- Tunggu 1 detik sebelum cek lagi
+end
 
 local mode = "Instant"
 local fishThread
