@@ -2137,25 +2137,43 @@ local animConn
 
 local function applyAnimState()
     local c = P.Character or P.CharacterAdded:Wait()
-    local h = c:WaitForChild("Humanoid", 5)
-    local animator = h:FindFirstChildOfClass("Animator") or Instance.new("Animator", h)
+    local h = c:FindFirstChildOfClass("Humanoid")
+    if not h then return end
+
+    local animator = h:FindFirstChildOfClass("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = h
+    end
 
     if animDisabled then
-        -- STOP SEMUA ANIMATION SEKARANG
+        -- STOP SEMUA ANIM YANG LAGI JALAN
         for _, track in ipairs(h:GetPlayingAnimationTracks()) do
-            track:Stop(0)
-            track:Destroy()
-        end
-
-        -- BLOCK SEMUA ANIMATION BARU (TOOL / FISHING / INTERACTION)
-        if animConn then animConn:Disconnect() end
-        animConn = animator.AnimationPlayed:Connect(function(track)
-            task.wait()
-            if animDisabled and track then
+            pcall(function()
                 track:Stop(0)
                 track:Destroy()
-            end
-        end)
+            end)
+        end
+
+        -- BLOCK ANIM BARU (SAFE MODE)
+        if animConn then
+            animConn:Disconnect()
+            animConn = nil
+        end
+
+        -- GUARD: ga semua Animator punya AnimationPlayed
+        if animator.AnimationPlayed then
+            animConn = animator.AnimationPlayed:Connect(function(track)
+                if animDisabled and track then
+                    task.defer(function()
+                        pcall(function()
+                            track:Stop(0)
+                            track:Destroy()
+                        end)
+                    end)
+                end
+            end)
+        end
     else
         -- ENABLE NORMAL
         if animConn then
@@ -2163,7 +2181,6 @@ local function applyAnimState()
             animConn = nil
         end
 
-        -- Refresh anim system
         local animate = c:FindFirstChild("Animate")
         if animate then
             animate.Disabled = false
@@ -2175,15 +2192,24 @@ local function applyAnimState()
     end
 end
 
--- TOGGLE UI
-player:Toggle({
+-- 🔒 ANTI RESPAWN BUG (SAFE)
+P.CharacterAdded:Connect(function()
+    task.wait(0.4)
+    if animDisabled then
+        pcall(applyAnimState)
+    end
+end)
+
+-- ✅ UI (DIJAMIN KELOAD)
+other:Toggle({
     Title = "Disable Animations",
     Value = false,
     Callback = function(state)
         animDisabled = state
-        applyAnimState()
+        pcall(applyAnimState)
     end
 })
+
 
 -- ANTI RESPAWN BUG
 P.CharacterAdded:Connect(function()
