@@ -1957,96 +1957,123 @@ player = Tab7:Section({
     TextSize = 17,
 })
 
-Players = game:GetService("Players")
-Stats = game:GetService("Stats")
-RunService = game:GetService("RunService")
-UIS = game:GetService("UserInputService")
+-- SERVICES
+local Players = game:GetService("Players")
+local Stats = game:GetService("Stats")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
 
-Player = Players.LocalPlayer
+-- PLAYER
+local Player = Players.LocalPlayer
 
-Gui = Instance.new("ScreenGui")
+-- GUI ROOT
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "PingCPU"
 Gui.ResetOnSpawn = false
-Gui.Parent = Player.PlayerGui
 Gui.DisplayOrder = 999999
+Gui.Parent = Player:WaitForChild("PlayerGui")
 
-Frame = Instance.new("Frame")
-Frame.Size = UDim2.fromOffset(140,50)
-Frame.Position = UDim2.fromScale(0.5,0.02)
-Frame.AnchorPoint = Vector2.new(0.5,0)
+-- FRAME
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.fromOffset(180, 42)
+Frame.Position = UDim2.fromScale(0.5, 0.03)
+Frame.AnchorPoint = Vector2.new(0.5, 0)
 Frame.BackgroundColor3 = Color3.fromRGB(40,40,40)
 Frame.BorderSizePixel = 0
 Frame.Visible = false
 Frame.Parent = Gui
 
-Instance.new("UICorner",Frame).CornerRadius = UDim.new(0,6)
+Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 6)
 
-d=false;sp=nil;ds=nil
-Frame.InputBegan:Connect(function(i)
-	if i.UserInputType==Enum.UserInputType.MouseButton1 then
-		d=true;ds=i.Position;sp=Frame.Position
-	end
-end)
-Frame.InputEnded:Connect(function(i)
-	if i.UserInputType==Enum.UserInputType.MouseButton1 then d=false end
-end)
-UIS.InputChanged:Connect(function(i)
-	if d and i.UserInputType==Enum.UserInputType.MouseMovement then
-		dl=i.Position-ds
-		Frame.Position=UDim2.new(sp.X.Scale,sp.X.Offset+dl.X,sp.Y.Scale,sp.Y.Offset+dl.Y)
-	end
-end)
+-- DRAG SYSTEM (IMPROVED)
+do
+    local dragging, dragStart, startPos
 
-Text = Instance.new("TextLabel")
-Text.Size = UDim2.new(1,0,0,35)
+    Frame.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = i.Position
+            startPos = Frame.Position
+        end
+    end)
+
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(i)
+        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = i.Position - dragStart
+            Frame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+-- TEXT
+local Text = Instance.new("TextLabel")
+Text.Size = UDim2.fromScale(1,1)
 Text.BackgroundTransparency = 1
 Text.Font = Enum.Font.GothamBold
-Text.TextSize = 16
-Text.Text = "PING: -- ms"
+Text.TextSize = 14
+Text.TextColor3 = Color3.fromRGB(255,255,255)
+Text.Text = "PING: -- ms | CPU: --%"
 Text.Parent = Frame
 
-Region = Instance.new("TextLabel")
-Region.Size = UDim2.new(1,0,0,14)
-Region.Position = UDim2.new(0,0,0.7,0)
-Region.BackgroundTransparency = 1
-Region.Font = Enum.Font.Gotham
-Region.TextSize = 12
-Region.TextColor3 = Color3.fromRGB(200,200,200)
-Region.Text = "REGION: ?"
-Region.Parent = Frame
+-- STATS
+local PingStat = Stats.Network.ServerStatsItem["Data Ping"]
 
-PingStat = Stats.Network.ServerStatsItem["Data Ping"]
+-- STATE
+local ON = false
+local lastCPU = 0
+local lastTick = tick()
 
-ON = false
+-- CPU CALC (CLIENT LOAD)
+local function getCPU()
+    local now = tick()
+    local dt = now - lastTick
+    lastTick = now
 
+    -- estimasi beban client (RenderStepped delta)
+    lastCPU = math.clamp((dt / (1/60)) * 100, 0, 100)
+    return math.floor(lastCPU)
+end
+
+-- UPDATE LOOP
 RunService.RenderStepped:Connect(function()
-	if not ON then return end
+    if not ON then return end
 
-	ping = math.floor(PingStat:GetValue())
-	Text.Text = "PING: "..ping.." ms"
+    local ping = math.floor(PingStat:GetValue())
+    local cpu = getCPU()
 
-	if ping < 60 then
-		Text.TextColor3 = Color3.fromRGB(0,255,0)
-		Region.Text = "REGION: SG"
-	elseif ping < 120 then
-		Text.TextColor3 = Color3.fromRGB(255,200,0)
-		Region.Text = "REGION: ASIA"
-	elseif ping < 220 then
-		Text.TextColor3 = Color3.fromRGB(255,140,0)
-		Region.Text = "REGION: EU"
-	else
-		Text.TextColor3 = Color3.fromRGB(255,0,0)
-		Region.Text = "REGION: US"
-	end
+    Text.Text = ("PING: %d ms | CPU: %d%%"):format(ping, cpu)
+
+    -- COLOR BASED ON LOAD
+    if ping < 80 and cpu < 60 then
+        Text.TextColor3 = Color3.fromRGB(0,255,0)
+    elseif ping < 150 and cpu < 80 then
+        Text.TextColor3 = Color3.fromRGB(255,200,0)
+    else
+        Text.TextColor3 = Color3.fromRGB(255,0,0)
+    end
 end)
 
+-- TOGGLE (UI LU)
 player:Toggle({
-	Title = "Ping Display",
-	Default = false,
-	Callback = function(v)
-		ON = v
-		Frame.Visible = v
-	end
+    Title = "Ping & CPU Display",
+    Default = false,
+    Callback = function(v)
+        ON = v
+        Frame.Visible = v
+    end
 })
+
 
 local P = game:GetService("Players").LocalPlayer
 local C = P.Character or P.CharacterAdded:Wait()
