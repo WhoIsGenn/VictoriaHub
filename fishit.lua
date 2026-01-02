@@ -2201,14 +2201,13 @@ P.CharacterAdded:Connect(function()
 end)
 
 -- ✅ UI (DIJAMIN KELOAD)
-other:Toggle({
+player:Toggle({
     Title = "Disable Animations",
     Value = false,
     Callback = function(state)
         animDisabled = state
         pcall(applyAnimState)
-    end
-})
+    end})
 
 
 -- ANTI RESPAWN BUG
