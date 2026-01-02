@@ -1,4 +1,3 @@
--- [[ WEBHOOK LOGGER - START ]] -- --(Info Executed)--
 local WebhookConfig = {
     Url = "https://discord.com/api/webhooks/1455552801705955430/LF6MI_XBA3073CUDZOv-OtJe74KvUVt-fnXKqqGe3LiGc3g6C0NW76qAoONOwcQQGm2D", 
     ScriptName = "Lexshub | Fish It", 
@@ -309,7 +308,7 @@ UIS.JumpRequest:Connect(function()
     if _G.InfiniteJump then
         local h = P.Character and P.Character:FindFirstChildOfClass("Humanoid")
         if h then
-            h:ChangeState(Enum.HumanoidStateType.Jumping)
+            h:ChangeState(Enum.HumanoidStateTng)
         end
     end
 end)
