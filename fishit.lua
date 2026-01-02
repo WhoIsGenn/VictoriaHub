@@ -740,7 +740,7 @@ end
     end
   
 blantant = Tab3:Section({ 
-    Title = "Blantant Featured | Recomended",
+    Title = "Blantant Featured | BETA",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -1077,7 +1077,7 @@ event:Toggle({
 })
 
 local Tab0 = Window:Tab({
-    Title = "Exclusive",
+    Title = "Webhook",
     Icon = "star",
 })
 
@@ -1977,12 +1977,12 @@ Tab6:Toggle({
 })
 
 local Tab7 = Window:Tab({
-    Title = "Settings",
+    Title = "Miscellaneous",
     Icon = "settings",
 })
 
 player = Tab7:Section({ 
-    Title = "Player In Game",
+    Title = "Player Featured",
     Icon = "play",
     TextXAlignment = "Left",
     TextSize = 17,
@@ -2203,7 +2203,7 @@ player:Toggle({
 
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = "AntiAFK loaded!",
-                Text = "Coded By Lexs",
+                Text = "AntiAFK Actived",
                 Button1 = "Okey",
                 Duration = 5
             })
@@ -2320,7 +2320,7 @@ task.spawn(function()
 end)
 
 graphic = Tab7:Section({ 
-    Title = "Graphics In Game",
+    Title = "Graphics Settings",
     Icon = "chart-bar",
     TextXAlignment = "Left",
     TextSize = 17,
@@ -2679,7 +2679,7 @@ local function GetConfig()
         InfiniteJump = _G.InfiniteJump or false,
         AutoSell = _G.AutoSell or false,
         InstantCatch = _G.InstantCatch or false,
-        AntiAFK = _G.AntiAFK or false,
+        AntiAFK = _G.AntiAFK or true,
         AutoReconnect = _G.AutoReconnect or false,
     }
 end
