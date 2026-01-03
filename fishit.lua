@@ -593,7 +593,8 @@ end
 
 -- Running state
 local isSuperInstantRunning = false
-local equipTask = nil
+local fishingThread = nil
+local isCasting = false
 
 -- Auto equip rod (hanya sekali saat start, tidak spam)
 local function autoEquipRod()
@@ -605,31 +606,134 @@ local function autoEquipRod()
     end
 end
 
--- Super instant fishing cycle
+-- Super instant fishing cycle dengan retry logic
 local function superInstantFishingCycle()
-    task.spawn(function()
-        pcall(function()
+    if isCasting then 
+        return -- Skip jika masih casting
+    end
+    
+    isCasting = true
+    
+    local success = pcall(function()
+        -- Step 1: Cancel any existing fishing state
+        local cancelSuccess = pcall(function()
             Remotes.RF_CancelFishing:InvokeServer()
-            Remotes.RF_ChargeFishingRod:InvokeServer(tick())
+        end)
+        
+        task.wait(0.05) -- Small delay untuk ensure cancel selesai
+        
+        -- Step 2: Charge fishing rod dengan retry
+        local chargeSuccess = false
+        local attempts = 0
+        while not chargeSuccess and attempts < 3 and isSuperInstantRunning do
+            chargeSuccess = pcall(function()
+                local result = Remotes.RF_ChargeFishingRod:InvokeServer(math.huge)
+                return result
+            end)
+            if not chargeSuccess then
+                attempts = attempts + 1
+                task.wait(0.05)
+            end
+        end
+        
+        if not chargeSuccess then
+            warn("Failed to charge rod after 3 attempts")
+            isCasting = false
+            return
+        end
+        
+        task.wait(0.05)
+        
+        -- Step 3: Start fishing minigame
+        local minigameSuccess = pcall(function()
             Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.63796997070312, 0.9964792798079721)
-            task.wait(toggleState.completeDelays)
+        end)
+        
+        if not minigameSuccess then
+            warn("Failed to start minigame")
+            isCasting = false
+            return
+        end
+        
+        -- Step 4: Wait then complete
+        task.wait(toggleState.completeDelays)
+        
+        -- Step 5: Complete fishing
+        local completeSuccess = pcall(function()
             Remotes.RE_FishingCompleted:FireServer()
         end)
+        
+        if not completeSuccess then
+            warn("Failed to complete fishing")
+        end
     end)
+    
+    if not success then
+        warn("Fishing cycle error occurred")
+    end
+    
+    isCasting = false
 end
 
 -- Start super instant fishing
 local function startSuperInstantFishing()
     if isSuperInstantRunning then return end
     isSuperInstantRunning = true
+    isCasting = false
     
     -- Equip rod HANYA SEKALI saat mulai
     autoEquipRod()
+    task.wait(0.3) -- Wait untuk rod equipped
     
-    -- Main fishing loop
-    task.spawn(function()
+    -- Cancel fishingThread lama jika ada
+    if fishingThread then
+        task.cancel(fishingThread)
+        fishingThread = nil
+    end
+    
+    -- Main fishing loop dengan heartbeat
+    fishingThread = task.spawn(function()
+        local consecutiveErrors = 0
+        local lastCastTime = tick()
+        
         while isSuperInstantRunning do
-            superInstantFishingCycle()
+            local currentTime = tick()
+            
+            -- Safety check: jika stuck lebih dari 5 detik, force reset
+            if currentTime - lastCastTime > 5 then
+                warn("Fishing appears stuck, forcing reset...")
+                isCasting = false
+                pcall(function()
+                    Remotes.RF_CancelFishing:InvokeServer()
+                end)
+                task.wait(0.2)
+            end
+            
+            -- Execute fishing cycle
+            local cycleSuccess = pcall(function()
+                superInstantFishingCycle()
+            end)
+            
+            if cycleSuccess then
+                consecutiveErrors = 0
+                lastCastTime = tick()
+            else
+                consecutiveErrors = consecutiveErrors + 1
+                warn("Fishing cycle failed, consecutive errors:", consecutiveErrors)
+                
+                -- Jika terlalu banyak error berturut-turut, reset state
+                if consecutiveErrors >= 5 then
+                    warn("Too many errors, resetting fishing state...")
+                    isCasting = false
+                    pcall(function()
+                        Remotes.RF_CancelFishing:InvokeServer()
+                    end)
+                    task.wait(0.5)
+                    consecutiveErrors = 0
+                end
+            end
+            
+            -- Wait before next cast
             task.wait(math.max(_G.ReelSuper, 0.1))
         end
     end)
@@ -640,8 +744,16 @@ end
 -- Stop super instant fishing
 local function stopSuperInstantFishing()
     isSuperInstantRunning = false
+    isCasting = false
+    
+    -- Cancel fishing thread
+    if fishingThread then
+        task.cancel(fishingThread)
+        fishingThread = nil
+    end
     
     -- Cancel any ongoing fishing
+    task.wait(0.1)
     pcall(function()
         Remotes.RF_CancelFishing:InvokeServer()
     end)
