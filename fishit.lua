@@ -608,16 +608,18 @@ end
 
 local function w()
     n = task.spawn(function()
-        if c.d and j then
-    pcall(j.FireServer, j)
-end
+        while c.d do
+            pcall(k.FireServer, k, 1)
+            task.wait(1.5)
+        end
     end)
 
     while c.d do
-    if not c.d then break end
-    p()
-    task.wait(c.e)
-end
+        p()
+        task.wait(c.e)
+        if not c.d then break end
+        task.wait(0.1)
+    end
 end
 
 local function x(y)
@@ -635,7 +637,7 @@ local function x(y)
     end
 end
 
-blantant = Tab3:Section({
+blantant = Tab0:Section({
     Title = "Blantant Featured | Recommended",
     Icon = "fish",
 })
@@ -670,64 +672,43 @@ blantant:Input({
     end
 })
 
-local RS = game:GetService("ReplicatedStorage")
-local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
-local FC = require(RS.Controllers.FishingController)
 
-local oc, orc = FC.RequestFishingMinigameClick, FC.RequestChargeFishingRod
-local ap = false
 
-task.spawn(function()
-    while task.wait() do
-        if ap then
-            Net["RF/UpdateAutoFishingState"]:InvokeServer(true)
-        end
-    end
-end)
-
--- =========================
--- BLATANT V2
--- =========================
-
--- =========================
--- BLATANT V2 (X9 STABLE)
+--- =========================
+-- BLATANT V2 (X9 SAFE)
 -- =========================
 
 local v2 = {
     enabled = false,
-    delay = 1.25,   -- pacing batch
-    complete = 0.30 -- delay complete
+    delay = 1.45, -- sedikit lebih cepat dari V1
 }
 
 local v2Thread
 
-local function v2Cycle()
-    for _ = 1, 3 do -- 3 cycle = X9
-        if not v2.enabled then return end
+local function v2Loop()
+    while v2.enabled do
+        -- cycle 1
+        p()
+        task.wait(0.12)
 
-        pcall(l.InvokeServer, l)                 -- cancel
-        task.wait(0.02)
+        -- cycle 2 (extra spam -> X9)
+        if not v2.enabled then break end
+        p()
 
-        pcall(h.InvokeServer, h, math.huge)      -- charge
-        task.wait(0.02)
-
-        pcall(i.InvokeServer, i, -139.63, 0.996) -- start
-        task.wait(v2.complete)
-
-        pcall(j.FireServer, j)                   -- complete
-        task.wait(0.05)
+        task.wait(v2.delay)
     end
 end
 
 local function startV2()
     if v2Thread then return end
     v2.enabled = true
-    v2Thread = task.spawn(function()
-        while v2.enabled do
-            v2Cycle()
-            task.wait(v2.delay)
-        end
-    end)
+
+    -- matiin V1 biar ga tabrakan
+    if c.d then
+        x(false)
+    end
+
+    v2Thread = task.spawn(v2Loop)
 end
 
 local function stopV2()
@@ -739,18 +720,8 @@ local function stopV2()
     pcall(l.InvokeServer, l)
 end
 
-local function toggleV2(state)
-    if state == v2.enabled then return end
-    if state then
-        if c.d then x(false) end -- matiin V1
-        startV2()
-    else
-        stopV2()
-    end
-end
-
 blantantV2 = Tab3:Section({
-    Title = "Blantant Featured | BETA",
+    Title = "Blantant Featured V2 | BETA",
     Icon = "fish",
 })
 
@@ -783,7 +754,6 @@ blantantV2:Input({
         end
     end
 })
-
 
 item = Tab3:Section({     
     Title = "Item",
