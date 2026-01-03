@@ -679,6 +679,72 @@ blantant:Input({
     end
 })
 
+-- =========================
+-- DELAY OBTAIN NOTIFICATION
+-- =========================
+
+local notifDelay = 5
+local notifEnabled = false
+local lastNotifTime = 0
+
+task.spawn(function()
+    task.wait(2)
+    pcall(function()
+        local RemoteEvent = ReplicatedStorage
+            :WaitForChild("Packages")
+            :WaitForChild("_Index")
+            :WaitForChild("sleitnick_net@0.2.0")
+            :WaitForChild("net")
+            :WaitForChild("RE/ObtainedNewFishNotification")
+
+        RemoteEvent.OnClientEvent:Connect(function(fishId, fishData, extraData, isSpecial)
+            if notifEnabled then
+                lastNotifTime = tick()
+                local currentTime = lastNotifTime
+                
+                task.spawn(function()
+                    task.wait(notifDelay)
+                    
+                    if currentTime == lastNotifTime then
+                        pcall(function()
+                            local player = game.Players.LocalPlayer
+                            for _, gui in pairs(player.PlayerGui:GetChildren()) do
+                                for _, obj in pairs(gui:GetDescendants()) do
+                                    if (obj:IsA("Frame") or obj:IsA("ImageLabel")) and obj.Visible then
+                                        local name = obj.Name:lower()
+                                        if name:find("notif") or name:find("obtain") or name:find("fish") or name:find("caught") then
+                                            obj.Visible = false
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                end)
+            end
+        end)
+    end)
+end)
+
+blantant:Toggle({
+    Title = "Delay Notification",
+    Value = false,
+    Callback = function(v)
+        notifEnabled = v
+    end
+})
+
+blantant:Input({
+    Title = "Notification Duration (s)",
+    Default = tostring(notifDelay),
+    Callback = function(v)
+        local n = tonumber(v)
+        if n and n > 0 then
+            notifDelay = n
+        end
+    end
+})
+
 ---- =========================
 -- BLATANT V2 (X9 SPAM)
 -- =========================
