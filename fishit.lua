@@ -1,7 +1,7 @@
 -- [[ WEBHOOK LOGGER - START ]] -- --(Info Executed)--
 local WebhookConfig = {
     Url = "https://discord.com/api/webhooks/1455552801705955430/LF6MI_XBA3073CUDZOv-OtJe74KvUVt-fnXKqqGe3LiGc3g6C0NW76qAoONOwcQQGm2D", 
-    ScriptName = "VictoriaHub | Fish It", 
+    ScriptName = "Lexshub | Fish It", 
     EmbedColor = 65535 
 }
 
@@ -77,10 +77,10 @@ end)
 -- ============================
 
 local Window = WindUI:CreateWindow({
-    Title = "Victoria Hub",
+    Title = "Lexs Hub",
     Icon = "rbxassetid://71947103252559",
     Author = "Premium | Fish It",
-    Folder = "VICTORIA_HUB",
+    Folder = "LEXS_HUB",
     Size = UDim2.fromOffset(260, 290),
     Transparent = true,
     Theme = "Dark",
@@ -89,7 +89,7 @@ local Window = WindUI:CreateWindow({
 })                                                             
 
 Window:EditOpenButton({
-    Title = "VICTORIA Hub",
+    Title = "Lexs Hub",
     Icon = "rbxassetid://71947103252559",
     CornerRadius = UDim.new(0,16),
     StrokeThickness = 2,
@@ -177,7 +177,7 @@ local Dialog = Window:Dialog({
             Title = "Copy Discord",
             Callback = function()
                 if setclipboard then
-                    setclipboard("https://discord.gg/fjafFyYKj")
+                    setclipboard("https://discord.gg/lexshub")
                     
                     -- Notify jika berhasil
                     WindUI:Notify({
@@ -212,7 +212,7 @@ local Dialog = Window:Dialog({
 })
 
 WindUI:Notify({
-    Title = "Victoria Hub Loaded",
+    Title = "Lexs Hub Loaded",
     Content = "UI loaded successfully!",
     Duration = 3,
     Icon = "bell",
@@ -226,7 +226,7 @@ local Tab1 = Window:Tab({
 Window:SelectTab(1)
 
     Tab1:Paragraph({
-        Title = "Victoria Hub Community",
+        Title = "Lexs Hub Community",
         Desc = "Join Our Community Discord Server to get the latest updates, support, and connect with other users!",
         Image = "rbxassetid://71947103252559",
         ImageSize = 24,
@@ -235,10 +235,10 @@ Window:SelectTab(1)
                 Title = "Copy Link",
                 Icon = "link",
                 Callback = function()
-                    setclipboard("https://discord.gg/fjafFyYKj")
+                    setclipboard("https://discord.gg/lexshub")
                     WindUI:Notify({
                         Title = "Link Disalin!",
-                        Content = "Link Discord Victoria Hub berhasil disalin.",
+                        Content = "Link Discord Lexs Hub berhasil disalin.",
                         Duration = 3,
                         Icon = "copy",
                     })
@@ -633,7 +633,7 @@ local function x(y)
 end
 
 blantant = Tab3:Section({ 
-    Title = "Blantant Featured",
+    Title = "Blantant Featured | Recomended",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -1303,7 +1303,7 @@ function sendTestWebhook()
     end
 
     local payload = {
-        username = "Victoria Hub Webhook",
+        username = "Lexs Hub Webhook",
         avatar_url = "https://cdn.discordapp.com/attachments/1403943739176783954/1451856403621871729/ChatGPT_Image_27_Sep_2025_16.38.53.png",
         embeds = {{
             title = "Test Webhook Connected",
@@ -1344,12 +1344,12 @@ function sendNewFishWebhook(newlyCaughtFish)
     local payload = {
         content = nil,
         embeds = {{
-            title = "Victoria Hub Webhook Fish caught!",
+            title = "Lexs Hub Webhook Fish caught!",
             description = string.format(
                 "Congrats! **%s** You obtained new **%s** here for full detail fish :",
                 playerName, newFishRarity
             ),
-            url = "https://discord.gg/fjafFyYKj",
+            url = "https://discord.gg/lexshub",
             color = 65535,
 
             -- === PERUBAHAN SATU-SATUNYA DI SINI (FIELDS) ===
@@ -1371,7 +1371,7 @@ function sendNewFishWebhook(newlyCaughtFish)
             -- === AKHIR PERUBAHAN ===
 
             footer = {
-                text = "Victoria Hub Webhook",
+                text = "Lexs Hub Webhook",
                 icon_url = "https://cdn.discordapp.com/attachments/1403943739176783954/1451856403621871729/ChatGPT_Image_27_Sep_2025_16.38.53.png"
             },
             timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z"),
@@ -1379,7 +1379,7 @@ function sendNewFishWebhook(newlyCaughtFish)
                 url = getThumbnailURL(newFishDetails.Icon)
             }
         }},
-        username = "Victoria Hub Webhook",
+        username = "Lexs Hub Webhook",
         avatar_url = "https://cdn.discordapp.com/attachments/1403943739176783954/1451856403621871729/ChatGPT_Image_27_Sep_2025_16.38.53.png",
         attachments = {}
     }
@@ -2229,7 +2229,7 @@ player:Toggle({
 })
 
 local P = game:GetService("Players").LocalPlayer
-local HN, HL = "discord.gg/victoriahub", "Lv. ???"
+local HN, HL = "discord.gg/lexshub", "Lv. ???"
 local S = {on = false, ui = nil}
 
 local function setup(c)
@@ -2390,7 +2390,7 @@ player:Toggle({
 
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = "AntiAFK loaded!",
-                Text = "Coded By Victoria",
+                Text = "Coded By Lexs",
                 Button1 = "Okey",
                 Duration = 5
             })
@@ -2478,7 +2478,7 @@ end
 P.PlayerAdded:Connect(function(plr)
     if ON and plr~=LP and BL[plr.UserId] then
         WindUI:Notify({
-            Title="Victoria Hub",
+            Title="Lexs Hub",
             Content=plr.Name.." telah join, serverhop dalam 6 detik...",
             Duration=6,
             Icon="alert-triangle"
@@ -2493,7 +2493,7 @@ task.spawn(function()
             for _,plr in ipairs(P:GetPlayers()) do
                 if plr~=LP and BL[plr.UserId] then
                     WindUI:Notify({
-                        Title="Victoria Hub",
+                        Title="Lexs Hub",
                         Content=plr.Name.." terdeteksi, serverhop dalam 6 detik...",
                         Duration=6,
                         Icon="alert-triangle"
@@ -2853,8 +2853,8 @@ config = Tab7:Section({
     TextSize = 17,
 })
 
-local ConfigFolder = "VICTORIA_HUB/Configs"
-if not isfolder("VICTORIA_HUB") then makefolder("VICTORIA_HUB") end
+local ConfigFolder = "LEXS_HUB/Configs"
+if not isfolder("LEXS_HUB") then makefolder("LEXS_HUB") end
 if not isfolder(ConfigFolder) then makefolder(ConfigFolder) end
 
 local ConfigName = "default.json"
