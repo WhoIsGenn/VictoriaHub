@@ -551,98 +551,103 @@ fishing:Slider({
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- ==============================
--- CONFIG (lo bisa edit di sini)
--- ==============================
-local c = {
-    d = false,    -- Blatant aktif
-    e = 1.6,      -- Cancel delay
-    f = 0.37      -- Complete delay
-}
+local c={d=false,e=1.6,f=0.37}
 
--- ==============================
--- INIT NET
--- ==============================
-local g = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+
 local h,i,j,k,l
 pcall(function()
-    h = g:WaitForChild("RF/ChargeFishingRod")
-    i = g:WaitForChild("RF/RequestFishingMinigameStarted")
-    j = g:WaitForChild("RE/FishingCompleted")
-    k = g:WaitForChild("RE/EquipToolFromHotbar")
-    l = g:WaitForChild("RF/CancelFishingInputs")
+    h=g:WaitForChild("RF/ChargeFishingRod")
+    i=g:WaitForChild("RF/RequestFishingMinigameStarted")
+    j=g:WaitForChild("RE/FishingCompleted")
+    k=g:WaitForChild("RE/EquipToolFromHotbar")
+    l=g:WaitForChild("RF/CancelFishingInputs")
 end)
 
-local m, n = nil, nil
+local m=nil
+local n=nil
+local o=nil
 
--- ==============================
--- SAFE INVOKE DENGAN RETRY
--- ==============================
-local function safeInvokeRetry(func, ...)
-    local result
-    repeat
-        local ok, res = pcall(func, ...)
-        if ok then
-            result = res
-            break
+local function p()
+    task.spawn(function()
+        pcall(function()
+            local q,r=l:InvokeServer()
+            if not q then
+                while not q do
+                    local s=l:InvokeServer()
+                    if s then break end
+                    task.wait(0.05)
+                end
+            end
+
+            local t,u=h:InvokeServer(math.huge)
+            if not t then
+                while not t do
+                    local v=h:InvokeServer(math.huge)
+                    if v then break end
+                    task.wait(0.05)
+                end
+            end
+
+            i:InvokeServer(-139.63,0.996)
+        end)
+    end)
+
+    task.spawn(function()
+        task.wait(c.f)
+        if c.d then
+            pcall(j.FireServer,j)
         end
-        task.wait(0.05 + math.random() * 0.05) -- random delay biar server ga flag spam
-    until false
-    return result
+    end)
 end
 
-local function fishingLoopSuper()
-    n = task.spawn(function()
+local function w()
+    n=task.spawn(function()
         while c.d do
-            safeInvokeRetry(k.FireServer, k, 1) -- Auto equip
+            pcall(k.FireServer,k,1)
             task.wait(1.5)
         end
     end)
 
     while c.d do
-        autoFishingStepSuper()
+        p()
         task.wait(c.e)
+        if not c.d then break end
+        task.wait(0.1)
     end
 end
 
--- ==============================
--- TOGGLE FISHING
--- ==============================
-local function toggleFishingSuper(active)
-    c.d = active
-    if active then
+local function x(y)
+    c.d=y
+    if y then
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m = task.spawn(fishingLoopSuper)
+        m=task.spawn(w)
     else
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m, n = nil, nil
-        safeInvokeRetry(l.InvokeServer, l) -- cancel fishing jika matiin
+        m=nil
+        n=nil
+        pcall(l.InvokeServer,l)
     end
 end
 
--- ==============================
--- BLATANT UI
--- ==============================
-blantant = Tab0:Section({
-    Title = "Blatant Featured | Beta",
+blantant = Tab0:Section({ 
+    Title = "Blantant X7 V1 | Recomended",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
     TextSize = 17,
 })
 
--- Toggle Blatant
 blantant:Toggle({
-    Title = "Blatant",
+    Title = "Blantant",
     Value = c.d,
     Callback = function(z2)
-        toggleFishingSuper(z2)
+        x(z2)
     end
 })
 
--- Cancel Delay Input
 blantant:Input({
     Title = "Cancel Delay",
     Placeholder = "1.7",
@@ -655,7 +660,6 @@ blantant:Input({
     end
 })
 
--- Complete Delay Input
 blantant:Input({
     Title = "Complete Delay",
     Placeholder = "1.4",
@@ -668,9 +672,6 @@ blantant:Input({
     end
 })
 
--- ==============================
--- AUTO PERFECTION (Optional)
--- ==============================
 local RS = game:GetService("ReplicatedStorage")
 local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
 local FC = require(RS.Controllers.FishingController)
