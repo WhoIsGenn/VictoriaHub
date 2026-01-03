@@ -549,104 +549,109 @@ fishing:Slider({
     end
 })
 
--- =========================================================
--- BLATANT FORCE SPAM OPTIMIZED + RANDOM BOOST
--- =========================================================
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 
--- ================= SETTINGS =================
-local cfg = {
-    Enabled = false,
+-- Network folder setup
+local netFolder = ReplicatedStorage:WaitForChild('Packages')
+    :WaitForChild('_Index')
+    :WaitForChild('sleitnick_net@0.2.0')
+    :WaitForChild('net')
 
-    ReelDelay = 0.12,        -- jeda antar lempar (0.05–0.15 recommended)
-    RetryDelay = 0.05,       -- retry kalau server nolak
-    CompleteDelay = 0.35,    -- waktu fire FishingCompleted
+-- Remotes
+local Remotes = {}
+Remotes.RF_RequestFishingMinigameStarted = netFolder:WaitForChild("RF/RequestFishingMinigameStarted")
+Remotes.RF_ChargeFishingRod = netFolder:WaitForChild("RF/ChargeFishingRod")
+Remotes.RF_CancelFishing = netFolder:WaitForChild("RF/CancelFishingInputs")
+Remotes.RE_FishingCompleted = netFolder:WaitForChild("RE/FishingCompleted")
+Remotes.RF_AutoFish = netFolder:WaitForChild("RF/UpdateAutoFishingState")
+Remotes.RE_EquipTool = netFolder:WaitForChild("RE/EquipToolFromHotbar")
+
+-- Toggle states
+local toggleState = {
+    autoFishing = false,
+    blatantRunning = false,
+    completeDelays = 0.30,
+    delayStart = 0.2,
 }
 
--- ================= NET =================
-local net = ReplicatedStorage
-    :WaitForChild("Packages")
-    :WaitForChild("_Index")
-    :WaitForChild("sleitnick_net@0.2.0")
-    :WaitForChild("net")
+-- Global settings
+_G.ReelSuper = 1.15
 
-local RF_ChargeRod = net:WaitForChild("RF/ChargeFishingRod")
-local RF_StartMini = net:WaitForChild("RF/RequestFishingMinigameStarted")
-local RF_Cancel = net:WaitForChild("RF/CancelFishingInputs")
-local RE_Completed = net:WaitForChild("RE/FishingCompleted")
-local RE_Equip = net:WaitForChild("RE/EquipToolFromHotbar")
+-- Fishing Controller hook
+local FishingController = require(
+    ReplicatedStorage:WaitForChild('Controllers')
+        :WaitForChild('FishingController')
+)
 
--- ================= RANDOM BOOST =================
-local function getRandomBoost()
-    local r = math.random(1,100)
-
-    if r <= 10 then
-        return math.random(990,1000)/1000 -- PERFECT
-    elseif r <= 35 then
-        return math.random(970,985)/1000  -- AMAZING
-    elseif r <= 70 then
-        return math.random(930,960)/1000  -- GOOD
-    else
-        return math.random(850,920)/1000  -- OK
+local oldCharge = FishingController.RequestChargeFishingRod
+FishingController.RequestChargeFishingRod = function(...)
+    if toggleState.blatantRunning or toggleState.autoFishing then
+        return
     end
+    return oldCharge(...)
 end
 
--- ================= CORE CAST =================
-local function forceCast()
-    local ok = pcall(function()
-        RF_Cancel:InvokeServer()
-        RF_ChargeRod:InvokeServer(math.huge)
-        RF_StartMini:InvokeServer(-139.63, getRandomBoost())
+-- Running state
+local isSuperInstantRunning = false
+local equipTask = nil
+
+-- Auto equip rod (hanya sekali saat start, tidak spam)
+local function autoEquipRod()
+    local success, err = pcall(function()
+        Remotes.RE_EquipTool:FireServer(1)
     end)
-    return ok
+    if not success then
+        warn("Failed to equip rod:", err)
+    end
 end
 
--- ================= COMPLETED FIRE =================
-task.spawn(function()
-    while true do
-        if cfg.Enabled then
-            pcall(RE_Completed.FireServer, RE_Completed)
-            task.wait(cfg.CompleteDelay)
-        else
-            task.wait(0.2)
+-- Super instant fishing cycle
+local function superInstantFishingCycle()
+    task.spawn(function()
+        pcall(function()
+            Remotes.RF_CancelFishing:InvokeServer()
+            Remotes.RF_ChargeFishingRod:InvokeServer(tick())
+            Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.63796997070312, 0.9964792798079721)
+            task.wait(toggleState.completeDelays)
+            Remotes.RE_FishingCompleted:FireServer()
+        end)
+    end)
+end
+
+-- Start super instant fishing
+local function startSuperInstantFishing()
+    if isSuperInstantRunning then return end
+    isSuperInstantRunning = true
+    
+    -- Equip rod HANYA SEKALI saat mulai
+    autoEquipRod()
+    
+    -- Main fishing loop
+    task.spawn(function()
+        while isSuperInstantRunning do
+            superInstantFishingCycle()
+            task.wait(math.max(_G.ReelSuper, 0.1))
         end
-    end
-end)
+    end)
+    
+    print('Super Instant Fishing started')
+end
 
--- ================= AUTO EQUIP =================
-task.spawn(function()
-    while true do
-        if cfg.Enabled then
-            pcall(RE_Equip.FireServer, RE_Equip, 1)
-            task.wait(1.2)
-        else
-            task.wait(0.5)
-        end
-    end
-end)
+-- Stop super instant fishing
+local function stopSuperInstantFishing()
+    isSuperInstantRunning = false
+    
+    -- Cancel any ongoing fishing
+    pcall(function()
+        Remotes.RF_CancelFishing:InvokeServer()
+    end)
+    
+    print('Super Instant Fishing stopped')
+end
 
--- ================= MAIN SPAM LOOP =================
-task.spawn(function()
-    while true do
-        if cfg.Enabled then
-            local success = forceCast()
-
-            if success then
-                task.wait(cfg.ReelDelay)
-            else
-                task.wait(cfg.RetryDelay)
-            end
-        else
-            task.wait(0.15)
-        end
-    end
-end)
-
--- ================= UI =================
-blantant = Tab3:Section({
-    Title = "Blatant Featured | Beta",
+-- UI Setup
+blantant = Tab3:Section({ 
+    Title = "Blantant X8 | Recomended",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -655,35 +660,63 @@ blantant = Tab3:Section({
 
 blantant:Toggle({
     Title = "Blatant Mode",
-    Value = cfg.Enabled,
-    Callback = function(v)
-        cfg.Enabled = v
-        if not v then
-            pcall(RF_Cancel.InvokeServer, RF_Cancel)
+    Value = toggleState.blatantRunning,
+    Callback = function(value)
+        toggleState.blatantRunning = value
+        
+        -- Update server-side auto fishing state
+        pcall(function()
+            Remotes.RF_AutoFish:InvokeServer(value)
+        end)
+
+        if value then
+            startSuperInstantFishing()
+        else
+            stopSuperInstantFishing()
         end
     end
 })
 
 blantant:Input({
     Title = "Reel Delay",
-    Placeholder = "1.9",
-    Default = tostring(cfg.ReelDelay),
-    Callback = function(v)
-        local n = tonumber(v)
-        if n and n > 0 then cfg.ReelDelay = n end
+    Placeholder = "Delay (seconds)",
+    Default = tostring(_G.ReelSuper),
+    Callback = function(input)
+        local num = tonumber(input)
+        if num and num >= 0 then
+            _G.ReelSuper = num
+            print("ReelSuper updated to:", num)
+        else
+            warn("Invalid input for Reel Delay")
+        end
     end
 })
 
 blantant:Input({
-    Title = "Complete Delay",
-    Placeholder = "1.1",
-    Default = tostring(cfg.CompleteDelay),
-    Callback = function(v)
-        local n = tonumber(v)
-        if n and n > 0 then cfg.CompleteDelay = n end
+    Title = "Custom Complete Delay",
+    Placeholder = "Delay (seconds)",
+    Default = tostring(toggleState.completeDelays),
+    Callback = function(input)
+        local num = tonumber(input)
+        if num and num > 0 then
+            toggleState.completeDelays = num
+            print("Complete Delay updated to:", num)
+        else
+            warn("Invalid input for Complete Delay")
+        end
     end
 })
 
+Tab3:Space()
+
+blantant:Button({
+    Title = "X5 V1",
+    Desc = "This Is X5 In Free Script",
+    Locked = false,
+    Callback = function()
+        loadstring(game:HttpGet("https://pastefy.app/pIoVjvmR/raw"))()
+    end
+})
 
 item = Tab3:Section({     
     Title = "Item",
