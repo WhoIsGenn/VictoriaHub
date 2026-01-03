@@ -549,10 +549,98 @@ fishing:Slider({
     end
 })
 
--- Blatant Features
+-local Tab3 = Window:Tab({
+    Title = "Main",
+    Icon = "gamepad-2"
+})
+
+-- ====================
+-- SECTION 1: FISHING REGULAR
+-- ====================
+local fishingSection = Tab3:Section({
+    Title = "Fishing",
+    Icon = "fish",
+    TextXAlignment = "Left",
+    TextSize = 17
+})
+
+fishingSection:Toggle({
+    Title = "Auto Equip Rod",
+    Value = false,
+    Callback = function(v)
+        _G.AutoEquipRod = v
+        if v then rod() end
+    end
+})
+
+local mode = "Instant"
+local fishThread
+local sellThread
+
+fishingSection:Dropdown({
+    Title = "Mode",
+    Values = {"Instant", "Legit"},
+    Value = "Instant",
+    Callback = function(v)
+        mode = v
+    end
+})
+
+fishingSection:Toggle({
+    Title = "Auto Fishing",
+    Value = false,
+    Callback = function(v)
+        _G.AutoFishing = v
+        if v then
+            if mode == "Instant" then
+                _G.Instant = true
+                if fishThread then fishThread = nil end
+                fishThread = task.spawn(function()
+                    while _G.AutoFishing and mode == "Instant" do
+                        instant_cycle()
+                        task.wait(0.35)
+                    end
+                end)
+            else
+                if fishThread then fishThread = nil end
+                fishThread = task.spawn(function()
+                    while _G.AutoFishing and mode == "Legit" do
+                        autoon()
+                        task.wait(1)
+                    end
+                end)
+            end
+        else
+            autooff()
+            _G.Instant = false
+            if fishThread then task.cancel(fishThread) end
+            fishThread = nil
+        end
+    end
+})
+
+fishingSection:Slider({
+    Title = "Instant Fishing Delay",
+    Step = 0.01,
+    Value = {Min = 0.05, Max = 5, Default = 0.65},
+    Callback = function(v)
+        _G.InstantDelay = v
+    end
+})
+
+-- ====================
+-- SECTION 2: BLATANT FEATURES (TERPISAH)
+-- ====================
+local blatantSection = Tab3:Section({
+    Title = "⚡ Blatant Features | Beta",
+    Icon = "zap",
+    TextXAlignment = "Left",
+    TextSize = 17
+})
+
+-- Setup untuk Blatant Mode
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Inisialisasi variabel untuk Blatant mode
 local c={d=false,e=1.6,f=0.37}
 
 local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
@@ -638,7 +726,8 @@ netFolder = ReplicatedStorage:WaitForChild('Packages')
     :WaitForChild('_Index')
     :WaitForChild('sleitnick_net@0.2.0')
     :WaitForChild('net')
-Remotes = {}
+    
+local Remotes = {}
 Remotes.RF_RequestFishingMinigameStarted = netFolder:WaitForChild("RF/RequestFishingMinigameStarted")
 Remotes.RF_ChargeFishingRod = netFolder:WaitForChild("RF/ChargeFishingRod")
 Remotes.RF_CancelFising = netFolder:WaitForChild('RF/CancelFishingInputs')
@@ -647,7 +736,7 @@ Remotes.chargeRod = netFolder:WaitForChild('RF/ChargeFishingRod')
 Remotes.RE_FishingCompleted = netFolder:WaitForChild("RE/FishingCompleted")
 Remotes.RF_AutoFish = netFolder:WaitForChild("RF/UpdateAutoFishingState")
 
-toggleState = {
+local toggleState = {
     autoFishing = false,
     blatantRunning = false,
 }
@@ -677,7 +766,7 @@ local function autoEquipSuper()
         Remotes.RE_EquipTool:FireServer(1)
     end)
     if success then
-        -- Auto equip success
+        -- Success
     end
 end
 
@@ -712,9 +801,9 @@ local function stopSuperInstantFishing()
     print('Super Instant Fishing stopped')
 end
 
--- Tambahkan Blatant features ke dalam section fishing yang sama
-fishing:Toggle({
-    Title = "Blatant Mode (Beta)",
+-- UI Elements untuk Blatant Section
+blatantSection:Toggle({
+    Title = "⚡ Enable Blatant Mode",
     Value = toggleState.blatantRunning,
     Callback = function(value)
         toggleState.blatantRunning = value
@@ -728,32 +817,47 @@ fishing:Toggle({
     end
 })
 
-fishing:Input({
+blatantSection:Slider({
     Title = "Reel Delay",
-    Placeholder = "Delay (seconds)",
-    Default = tostring(_G.ReelSuper),
-    Callback = function(input)
-        local num = tonumber(input)
-        if num and num >= 0 then
-            _G.ReelSuper = num
-            print("ReelSuper updated to:", num)
-        end
+    Min = 0.1,
+    Max = 5,
+    Default = _G.ReelSuper,
+    Rounding = 2,
+    Callback = function(value)
+        _G.ReelSuper = value
+        print("ReelSuper updated to:", value)
     end
 })
 
-fishing:Input({
-    Title = "Custom Complete Delay",
-    Placeholder = "Delay (seconds)",
-    Default = tostring(toggleState.completeDelays),
-    Callback = function(input)
-        local num = tonumber(input)
-        if num and num > 0 then
-            toggleState.completeDelays = num
-        end
+blatantSection:Slider({
+    Title = "Complete Delay",
+    Min = 0.1,
+    Max = 2,
+    Default = toggleState.completeDelays,
+    Rounding = 2,
+    Callback = function(value)
+        toggleState.completeDelays = value
+        print("Complete Delay updated to:", value)
     end
 })
 
-item = Tab3:Section({     
+-- Optional: Tambahkan tombol reset atau info
+blatantSection:Button({
+    Title = "🔄 Refresh Settings",
+    Callback = function()
+        toggleState.blatantRunning = false
+        stopSuperInstantFishing()
+        print("Blatant settings refreshed")
+    end
+})
+
+blatantSection:Label({
+    Title = "⚠️ Warning: Blatant mode is risky!",
+    TextSize = 14,
+    TextColor = Color3.fromRGB(255, 100, 100)
+})
+
+item = Tab4:Section({     
     Title = "Item",
     Icon = "list-collapse",
     TextXAlignment = "Left",
@@ -816,12 +920,12 @@ item:Toggle({
     end
 })
 
-local Tab4 = Window:Tab({
+local Tab5 = Window:Tab({
 	Title = "Auto",
 	Icon = "circle-ellipsis"
 })
 
-sell = Tab4:Section({
+sell = Tab5:Section({
     Title = "Sell",
     Icon = "coins",
     TextXAlignment = "Left",
