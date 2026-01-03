@@ -551,7 +551,7 @@ fishing:Slider({
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local c={d=false,e=1.7,f=0.35}
+local c={d=false,e=1.6,f=0.38}
 
 local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
 
@@ -570,7 +570,7 @@ local o=nil
 
 -- Variabel untuk tracking equip
 local lastEquipTime = 0
-local equipCooldown = 2
+local equipCooldown = 1
 
 -- Function untuk equip rod sekali saja
 local function ensureRodEquipped()
