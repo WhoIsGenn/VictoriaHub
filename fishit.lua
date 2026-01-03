@@ -550,7 +550,7 @@ fishing:Slider({
 })
 
 -- =========================
--- BLATANT (ORIGINAL)
+-- BLATANT X7 V1 (ORIGINAL)
 -- =========================
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -608,18 +608,16 @@ end
 
 local function w()
     n = task.spawn(function()
-        while c.d do
-            pcall(k.FireServer, k, 1)
-            task.wait(1.5)
-        end
+        if c.d and j then
+    pcall(j.FireServer, j)
+end
     end)
 
     while c.d do
-        p()
-        task.wait(c.e)
-        if not c.d then break end
-        task.wait(0.1)
-    end
+    if not c.d then break end
+    p()
+    task.wait(c.e)
+end
 end
 
 local function x(y)
@@ -672,31 +670,74 @@ blantant:Input({
     end
 })
 
+local RS = game:GetService("ReplicatedStorage")
+local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
+local FC = require(RS.Controllers.FishingController)
+
+local oc, orc = FC.RequestFishingMinigameClick, FC.RequestChargeFishingRod
+local ap = false
+
+task.spawn(function()
+    while task.wait() do
+        if ap then
+            Net["RF/UpdateAutoFishingState"]:InvokeServer(true)
+        end
+    end
+end)
+
+blantant:Toggle({
+    Title = "Auto Perfection",
+    Value = false,
+    Callback = function(s)
+        ap = s
+        if s then
+            FC.RequestFishingMinigameClick = function() end
+            FC.RequestChargeFishingRod = function() end
+        else
+            Net["RF/UpdateAutoFishingState"]:InvokeServer(false)
+            FC.RequestFishingMinigameClick = oc
+            FC.RequestChargeFishingRod = orc
+        end
+    end
+})
+
 -- =========================
 -- BLATANT V2
 -- =========================
 
+-- =========================
+-- BLATANT V2 (X9 STABLE)
+-- =========================
+
 local v2 = {
     enabled = false,
-    delay = 0.45,
-    complete = 0.18
+    delay = 1.25,   -- pacing batch
+    complete = 0.30 -- delay complete
 }
 
 local v2Thread
 
 local function v2Cycle()
-    task.spawn(function()
+    for _ = 1, 3 do -- 3 cycle = X9
+        if not v2.enabled then return end
+
         pcall(l.InvokeServer, l)                 -- cancel
+        task.wait(0.02)
+
         pcall(h.InvokeServer, h, math.huge)      -- charge
+        task.wait(0.02)
+
         pcall(i.InvokeServer, i, -139.63, 0.996) -- start
         task.wait(v2.complete)
-        if v2.enabled then
-            pcall(j.FireServer, j)               -- complete
-        end
-    end)
+
+        pcall(j.FireServer, j)                   -- complete
+        task.wait(0.05)
+    end
 end
 
 local function startV2()
+    if v2Thread then return end
+    v2.enabled = true
     v2Thread = task.spawn(function()
         while v2.enabled do
             v2Cycle()
@@ -706,6 +747,7 @@ local function startV2()
 end
 
 local function stopV2()
+    v2.enabled = false
     if v2Thread then
         task.cancel(v2Thread)
         v2Thread = nil
@@ -714,12 +756,9 @@ local function stopV2()
 end
 
 local function toggleV2(state)
-    v2.enabled = state
+    if state == v2.enabled then return end
     if state then
-        -- matiin V1 biar ga tabrakan
-        if c.d then
-            x(false)
-        end
+        if c.d then x(false) end -- matiin V1
         startV2()
     else
         stopV2()
@@ -761,6 +800,36 @@ blantantV2:Input({
     end
 })
 
+local RS = game:GetService("ReplicatedStorage")
+local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
+local FC = require(RS.Controllers.FishingController)
+
+local oc, orc = FC.RequestFishingMinigameClick, FC.RequestChargeFishingRod
+local ap = false
+
+task.spawn(function()
+    while task.wait() do
+        if ap then
+            Net["RF/UpdateAutoFishingState"]:InvokeServer(true)
+        end
+    end
+end)
+
+blantantV2:Toggle({
+    Title = "Auto Perfection",
+    Value = false,
+    Callback = function(s)
+        ap = s
+        if s then
+            FC.RequestFishingMinigameClick = function() end
+            FC.RequestChargeFishingRod = function() end
+        else
+            Net["RF/UpdateAutoFishingState"]:InvokeServer(false)
+            FC.RequestFishingMinigameClick = oc
+            FC.RequestChargeFishingRod = orc
+        end
+    end
+})
 
 item = Tab3:Section({     
     Title = "Item",
