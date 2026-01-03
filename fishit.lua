@@ -669,7 +669,7 @@ local function x(y)
     end
 end
 
-blantant = Tab0:Section({ 
+blantant = Tab3:Section({ 
     Title = "Blantant X7 V1 | Auto Retry",
     Icon = "fish",
     TextTransparency = 0.05,
