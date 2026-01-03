@@ -558,11 +558,8 @@ local toggleState = {
     completeDelayX5 = 0.37,
     cancelDelayX5 = 1.6,
     completeDelayX8 = 0.30,
-    reelDelayX8 = 1.15
+    reelDelayX8 = 0.15 -- super fast
 }
-
-local _G = _G or {}
-_G.ReelSuper = toggleState.reelDelayX8
 
 -- ===== NET REMOTES =====
 local netFolder = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
@@ -579,13 +576,11 @@ local Remotes = {
 local FishingController = require(ReplicatedStorage:WaitForChild('Controllers'):WaitForChild('FishingController'))
 local oldCharge = FishingController.RequestChargeFishingRod
 FishingController.RequestChargeFishingRod = function(...)
-    if toggleState.blatantX5 or toggleState.blatantX8 then
-        return
-    end
+    if toggleState.blatantX5 or toggleState.blatantX8 then return end
     return oldCharge(...)
 end
 
--- ===== SAFE INVOKE =====
+-- ===== SAFE INVOKE RETRY =====
 local function safeInvokeRetry(func, ...)
     local result
     repeat
@@ -599,88 +594,57 @@ local function safeInvokeRetry(func, ...)
     return result
 end
 
--- ===== BLATANT X5 STABLE =====
-local mX5, nX5
-local function autoFishingStepX5()
+-- ===== UNIFIED AUTO FISH FUNCTION =====
+local function autoFishingStep(mode)
+    local completeDelay = (mode == "X5") and toggleState.completeDelayX5 or toggleState.completeDelayX8
     safeInvokeRetry(Remotes.RF_CancelFishing.InvokeServer, Remotes.RF_CancelFishing)
     safeInvokeRetry(Remotes.RF_ChargeFishingRod.InvokeServer, Remotes.RF_ChargeFishingRod, math.huge)
     safeInvokeRetry(Remotes.RF_RequestFishingMinigameStarted.InvokeServer, Remotes.RF_RequestFishingMinigameStarted, -139.63, 0.996)
     task.spawn(function()
-        task.wait(toggleState.completeDelayX5)
-        if toggleState.blatantX5 then
+        task.wait(completeDelay)
+        if (mode == "X5" and toggleState.blatantX5) or (mode == "X8" and toggleState.blatantX8) then
             safeInvokeRetry(Remotes.RE_FishingCompleted.FireServer, Remotes.RE_FishingCompleted)
         end
     end)
 end
 
-local function fishingLoopX5()
-    nX5 = task.spawn(function()
-        while toggleState.blatantX5 do
-            safeInvokeRetry(Remotes.RE_EquipTool.FireServer, Remotes.RE_EquipTool, 1)
-            task.wait(1.5)
-        end
-    end)
-
-    while toggleState.blatantX5 do
-        autoFishingStepX5()
-        task.wait(toggleState.cancelDelayX5)
+-- ===== AUTO EQUIP LOOP =====
+local function autoEquipLoop(mode)
+    while (mode == "X5" and toggleState.blatantX5) or (mode == "X8" and toggleState.blatantX8) do
+        safeInvokeRetry(Remotes.RE_EquipTool.FireServer, Remotes.RE_EquipTool, 1)
+        task.wait(1.5)
     end
 end
 
+-- ===== FISHING LOOP PER MODE =====
+local function fishingLoop(mode)
+    task.spawn(function() autoEquipLoop(mode) end)
+    while (mode == "X5" and toggleState.blatantX5) or (mode == "X8" and toggleState.blatantX8) do
+        autoFishingStep(mode)
+        local delay = (mode == "X5") and toggleState.cancelDelayX5 or toggleState.reelDelayX8
+        task.wait(delay)
+    end
+end
+
+-- ===== TOGGLE BLATANT =====
 local function toggleBlatantX5(active)
     toggleState.blatantX5 = active
     if active then
-        if mX5 then task.cancel(mX5) end
-        if nX5 then task.cancel(nX5) end
-        mX5 = task.spawn(fishingLoopX5)
-    else
-        if mX5 then task.cancel(mX5) end
-        if nX5 then task.cancel(nX5) end
-        mX5, nX5 = nil, nil
-        safeInvokeRetry(Remotes.RF_CancelFishing.InvokeServer, Remotes.RF_CancelFishing)
+        task.spawn(function() fishingLoop("X5") end)
     end
-end
-
--- ===== BLATANT X8 SUPER INSTANT =====
-local isSuperInstantRunning = false
-local function superInstantCycle()
-    task.spawn(function()
-        Remotes.RF_CancelFishing:InvokeServer()
-        Remotes.RF_ChargeFishingRod:InvokeServer(tick())
-        Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.637, 0.996)
-        task.wait(toggleState.completeDelayX8)
-        Remotes.RE_FishingCompleted:FireServer()
-    end)
-end
-
-local function startSuperInstantFishing()
-    if isSuperInstantRunning then return end
-    isSuperInstantRunning = true
-    task.spawn(function()
-        while isSuperInstantRunning do
-            superInstantCycle()
-            task.wait(math.max(_G.ReelSuper, 0.1))
-        end
-    end)
-end
-
-local function stopSuperInstantFishing()
-    isSuperInstantRunning = false
 end
 
 local function toggleBlatantX8(active)
     toggleState.blatantX8 = active
     Remotes.RF_AutoFish:InvokeServer(active)
     if active then
-        startSuperInstantFishing()
-    else
-        stopSuperInstantFishing()
+        task.spawn(function() fishingLoop("X8") end)
     end
 end
 
 -- ===== BLATANT UI =====
 local blatantX5Section = Tab3:Section({
-    Title = "Blatant X5 | Stable",
+    Title = "Blatant X5 | Stable Aggressive",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -714,7 +678,7 @@ blatantX5Section:Input({
 })
 
 local blatantX8Section = Tab3:Section({
-    Title = "Blatant X8 | Super Instant",
+    Title = "Blatant X8 | Super Aggressive",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -729,11 +693,11 @@ blatantX8Section:Toggle({
 
 blatantX8Section:Input({
     Title = "Reel Delay",
-    Placeholder = "1.15",
-    Default = tostring(_G.ReelSuper),
+    Placeholder = "0.15",
+    Default = tostring(toggleState.reelDelayX8),
     Callback = function(input)
         local num = tonumber(input)
-        if num and num >= 0 then _G.ReelSuper = num end
+        if num and num > 0 then toggleState.reelDelayX8 = num end
     end
 })
 
