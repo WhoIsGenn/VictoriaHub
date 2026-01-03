@@ -560,10 +560,6 @@ local c = {
     f = 0.37      -- Complete delay
 }
 
-local hidden = {
-    obtainDelay = 2 -- Delay "obtain fish" hidden, hanya dev yang tau
-}
-
 -- ==============================
 -- INIT NET
 -- ==============================
@@ -595,38 +591,6 @@ local function safeInvokeRetry(func, ...)
     return result
 end
 
--- ==============================
--- NOTIFY OBTAIN FISH (HIDDEN)
--- ==============================
-local function notifyObtainFish()
-    task.spawn(function()
-        task.wait(hidden.obtainDelay)
-        if c.d then
-            -- Bisa diganti pakai RemoteEvent / GUI internal
-            print("You got: ") -- placeholder hidden dev
-        end
-    end)
-end
-
--- ==============================
--- AUTO FISH STEP
--- ==============================
-local function autoFishingStepSuper()
-    safeInvokeRetry(l.InvokeServer, l)                   -- Cancel Fishing Inputs
-    safeInvokeRetry(h.InvokeServer, h, math.huge)       -- Charge Fishing Rod
-    safeInvokeRetry(i.InvokeServer, i, -139.63, 0.996) -- Start Minigame
-    task.spawn(function()
-        task.wait(c.f)
-        if c.d then
-            safeInvokeRetry(j.FireServer, j)           -- Fishing Completed
-            notifyObtainFish()                          -- Hidden notif
-        end
-    end)
-end
-
--- ==============================
--- FISH LOOP
--- ==============================
 local function fishingLoopSuper()
     n = task.spawn(function()
         while c.d do
