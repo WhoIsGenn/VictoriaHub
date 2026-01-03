@@ -551,34 +551,106 @@ fishing:Slider({
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Network folder setup
-local netFolder = ReplicatedStorage:WaitForChild('Packages')
+local c={d=false,e=1.7,f=0.37}
+
+local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+
+local h,i,j,k,l
+pcall(function()
+    h=g:WaitForChild("RF/ChargeFishingRod")
+    i=g:WaitForChild("RF/RequestFishingMinigameStarted")
+    j=g:WaitForChild("RE/FishingCompleted")
+    k=g:WaitForChild("RE/EquipToolFromHotbar")
+    l=g:WaitForChild("RF/CancelFishingInputs")
+end)
+
+local m=nil
+local n=nil
+local o=nil
+
+local function p()
+    task.spawn(function()
+        pcall(function()
+            local q,r=l:InvokeServer()
+            if not q then
+                while not q do
+                    local s=l:InvokeServer()
+                    if s then break end
+                    task.wait(0.05)
+                end
+            end
+
+            local t,u=h:InvokeServer(math.huge)
+            if not t then
+                while not t do
+                    local v=h:InvokeServer(math.huge)
+                    if v then break end
+                    task.wait(0.05)
+                end
+            end
+
+            i:InvokeServer(-139.63,0.996)
+        end)
+    end)
+
+    task.spawn(function()
+        task.wait(c.f)
+        if c.d then
+            pcall(j.FireServer,j)
+        end
+    end)
+end
+
+local function w()
+    n=task.spawn(function()
+        while c.d do
+            pcall(k.FireServer,k,1)
+            task.wait(1.5)
+        end
+    end)
+
+    while c.d do
+        p()
+        task.wait(c.e)
+        if not c.d then break end
+        task.wait(0.1)
+    end
+end
+
+local function x(y)
+    c.d=y
+    if y then
+        if m then task.cancel(m) end
+        if n then task.cancel(n) end
+        m=task.spawn(w)
+    else
+        if m then task.cancel(m) end
+        if n then task.cancel(n) end
+        m=nil
+        n=nil
+        pcall(l.InvokeServer,l)
+    end
+end
+
+netFolder = ReplicatedStorage:WaitForChild('Packages')
     :WaitForChild('_Index')
     :WaitForChild('sleitnick_net@0.2.0')
     :WaitForChild('net')
-
--- Remotes
-local Remotes = {}
+Remotes = {}
 Remotes.RF_RequestFishingMinigameStarted = netFolder:WaitForChild("RF/RequestFishingMinigameStarted")
 Remotes.RF_ChargeFishingRod = netFolder:WaitForChild("RF/ChargeFishingRod")
+Remotes.RF_CancelFising = netFolder:WaitForChild('RF/CancelFishingInputs')
 Remotes.RF_CancelFishing = netFolder:WaitForChild("RF/CancelFishingInputs")
+Remotes.chargeRod = netFolder:WaitForChild('RF/ChargeFishingRod')
 Remotes.RE_FishingCompleted = netFolder:WaitForChild("RE/FishingCompleted")
 Remotes.RF_AutoFish = netFolder:WaitForChild("RF/UpdateAutoFishingState")
-Remotes.RE_EquipTool = netFolder:WaitForChild("RE/EquipToolFromHotbar")
 
--- Toggle states
-local toggleState = {
+toggleState = {
     autoFishing = false,
     blatantRunning = false,
-    completeDelays = 0.30,
-    delayStart = 0.2,
 }
 
--- Global settings
-_G.ReelSuper = 1.15
-
--- Fishing Controller hook
-local FishingController = require(
+FishingController = require(
     ReplicatedStorage:WaitForChild('Controllers')
         :WaitForChild('FishingController')
 )
@@ -588,107 +660,56 @@ FishingController.RequestChargeFishingRod = function(...)
     if toggleState.blatantRunning or toggleState.autoFishing then
         return
     end
-    return oldCharge(...)
+	return oldCharge(...)
 end
 
--- Running state
+local isAutoRunning = false
+
 local isSuperInstantRunning = false
-local hasEquippedRod = false
-
--- Auto equip rod (hanya sekali)
-local function autoEquipRod()
-    if hasEquippedRod then return true end
-    
-    local success = pcall(function()
-        Remotes.RE_EquipTool:FireServer(1)
-    end)
-    
-    if success then
-        hasEquippedRod = true
-        print('✓ Rod equipped')
-        return true
-    end
-    
-    return false
-end
-
--- Super instant fishing cycle dengan better error handling
-local function superInstantFishingCycle()
-    pcall(function()
-        -- Step 1: Cancel previous fishing state
-        pcall(function()
-            Remotes.RF_CancelFishing:InvokeServer()
+_G.ReelSuper = 1.20
+     toggleState.completeDelays = 0.35
+     toggleState.delayStart = 0.1
+    local function autoEquipSuper()
+        local success, err = pcall(function()
+            Remotes.RE_EquipTool:FireServer(1)
         end)
-        
-        -- Step 2: Charge rod dengan fallback
-        local chargeSuccess = false
-        for i = 1, 2 do
-            chargeSuccess = pcall(function()
-                Remotes.RF_ChargeFishingRod:InvokeServer(tick())
-            end)
-            if chargeSuccess then break end
-            task.wait(0.03)
+        if success then
         end
-        
-        if not chargeSuccess then return end
-        
-        -- Step 3: Start fishing minigame
-        pcall(function()
+    end
+
+    local function superInstantFishingCycle()
+        task.spawn(function()
+            Remotes.RF_CancelFishing:InvokeServer()
+            Remotes.RF_ChargeFishingRod:InvokeServer(tick())
             Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.63796997070312, 0.9964792798079721)
-        end)
-        
-        -- Step 4: Wait then complete
-        task.wait(toggleState.completeDelays)
-        
-        -- Step 5: Complete fishing
-        pcall(function()
+            task.wait(toggleState.completeDelays)
             Remotes.RE_FishingCompleted:FireServer()
         end)
-    end)
-end
+    end
 
--- Start super instant fishing
+    local function doSuperFishingFlow()
+        superInstantFishingCycle()
+    end
+
 local function startSuperInstantFishing()
     if isSuperInstantRunning then return end
     isSuperInstantRunning = true
-    hasEquippedRod = false
-    
-    -- Equip rod
-    if not autoEquipRod() then
-        warn('✗ Cannot start - rod equip failed')
-        isSuperInstantRunning = false
-        return
-    end
-    
-    task.wait(0.2)
-    
-    -- Main fishing loop
+
     task.spawn(function()
         while isSuperInstantRunning do
             superInstantFishingCycle()
             task.wait(math.max(_G.ReelSuper, 0.1))
         end
     end)
-    
-    print('🎣 Blatant Fishing started')
 end
 
--- Stop super instant fishing
-local function stopSuperInstantFishing()
-    isSuperInstantRunning = false
-    hasEquippedRod = false
-    
-    task.wait(0.1)
-    pcall(function()
-        Remotes.RF_CancelFishing:InvokeServer()
-    end)
-    
-    print('🛑 Blatant Fishing stopped')
-end
-
--- UI Setup
+    local function stopSuperInstantFishing()
+        isSuperInstantRunning = false
+        print('Super Instant Fishing stopped')
+    end
+  
 blantant = Tab3:Section({ 
-    Title = "Blantant X8 | Recomended",
+    Title = "Blantant Featured | BETA",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -700,10 +721,7 @@ blantant:Toggle({
     Value = toggleState.blatantRunning,
     Callback = function(value)
         toggleState.blatantRunning = value
-        
-        pcall(function()
-            Remotes.RF_AutoFish:InvokeServer(value)
-        end)
+        Remotes.RF_AutoFish:InvokeServer(value)
 
         if value then
             startSuperInstantFishing()
@@ -715,26 +733,25 @@ blantant:Toggle({
 
 blantant:Input({
     Title = "Reel Delay",
-    Placeholder = "Delay between casts (seconds)",
+    Placeholder = "Delay (seconds)",
     Default = tostring(_G.ReelSuper),
     Callback = function(input)
         local num = tonumber(input)
         if num and num >= 0 then
             _G.ReelSuper = num
-            print("Reel Delay:", num .. "s")
+            print("ReelSuper updated to:", num)
         end
     end
 })
 
 blantant:Input({
-    Title = "Complete Delay",
-    Placeholder = "Wait before complete (seconds)",
+    Title = "Custom Complete Delay",
+    Placeholder = "Delay (seconds)",
     Default = tostring(toggleState.completeDelays),
     Callback = function(input)
         local num = tonumber(input)
         if num and num > 0 then
             toggleState.completeDelays = num
-            print("Complete Delay:", num .. "s")
         end
     end
 })
