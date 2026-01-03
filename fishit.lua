@@ -559,153 +559,101 @@ local c = {
 
 local g = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
 
-local h, i, j, k, l
+local h,i,j,k,l
 pcall(function()
-    h = g:WaitForChild("RF/ChargeFishingRod")
-    i = g:WaitForChild("RF/RequestFishingMinigameStarted")
-    j = g:WaitForChild("RE/FishingCompleted")
-    k = g:WaitForChild("RE/EquipToolFromHotbar")
-    l = g:WaitForChild("RF/CancelFishingInputs")
+    h=g:WaitForChild("RF/ChargeFishingRod")
+    i=g:WaitForChild("RF/RequestFishingMinigameStarted")
+    j=g:WaitForChild("RE/FishingCompleted")
+    k=g:WaitForChild("RE/EquipToolFromHotbar")
+    l=g:WaitForChild("RF/CancelFishingInputs")
 end)
 
-local m = nil
-local n = nil
-local o = nil
-local missCount = 0
+local m=nil
+local n=nil
+local o=nil
 
--- FUNGSI ASLI LU TANPA DIUBAH
 local function p()
     task.spawn(function()
         pcall(function()
-            local q, r = l:InvokeServer()
+            local q,r=l:InvokeServer()
             if not q then
                 while not q do
-                    local s = l:InvokeServer()
+                    local s=l:InvokeServer()
                     if s then break end
                     task.wait(0.05)
                 end
             end
 
-            local t, u = h:InvokeServer(math.huge)
+            local t,u=h:InvokeServer(math.huge)
             if not t then
                 while not t do
-                    local v = h:InvokeServer(math.huge)
+                    local v=h:InvokeServer(math.huge)
                     if v then break end
                     task.wait(0.05)
                 end
             end
 
-            i:InvokeServer(-139.63, 0.996)
+            i:InvokeServer(-139.63,0.996)
         end)
     end)
 
     task.spawn(function()
         task.wait(c.f)
         if c.d then
-            pcall(j.FireServer, j)
+            pcall(j.FireServer,j)
         end
     end)
 end
 
--- AUTO RETRY SYSTEM (TAMBAHAN SAJA)
-local function recoveryRetry()
-    print("Miss 3x, doing recovery...")
-    
-    -- Cancel fishing
-    pcall(l.InvokeServer, l)
-    task.wait(0.3)
-    
-    -- Re-equip tool
-    pcall(k.FireServer, k, 1)
-    task.wait(0.7)
-    
-    -- Reset miss counter
-    missCount = 0
-    
-    print("Recovery completed, continuing spam...")
-end
-
--- MODIFIKASI FUNGSI w UNTUK TAMBAH AUTO RETRY
 local function w()
-    n = task.spawn(function()
+    n=task.spawn(function()
         while c.d do
-            pcall(k.FireServer, k, 1)
+            pcall(k.FireServer,k,1)
             task.wait(1.5)
         end
     end)
 
+    local lastFishingTime = 0
+    local isSpamming = false
+
     while c.d do
-        -- Simpan status sebelum fishing
-        local previousMissCount = missCount
+        local startTime = tick()
         
-        -- Panggil fungsi fishing asli lu
+        -- Eksekusi fishing
         p()
         
-        -- Tunggu sebentar untuk cek apakah fishing berhasil atau miss
-        task.wait(0.2)
+        -- TUNGGU SAMPAI FISHING COMPLETE
+        task.wait(c.f + 0.1) -- Tunggu waktu complete fishing + buffer kecil
         
-        -- INI BAGIAN DETECT MISS (SIMPLE VERSION)
-        -- Kalo lu punya cara lain detect miss, bisa ganti disini
-        -- Asumsi: setiap fishing attempt yang gagal nambah missCount
-        -- Ini contoh logic sederhana:
-        if missCount > previousMissCount then
-            print("Miss detected! Count: " .. missCount)
-            
-            -- Kalo udah miss 3x, lakukan recovery
-            if missCount >= 3 then
-                recoveryRetry()
-            end
-        else
-            -- Kalo ga miss, reset counter
-            missCount = 0
-        end
+        -- AUTO LOOP: Jika tidak miss, langsung lanjut TANPA DELAY
+        local currentTime = tick()
+        local timeSinceLastFishing = currentTime - lastFishingTime
         
-        task.wait(c.e)
-        if not c.d then break end
-        task.wait(0.1)
+        -- Reset timer
+        lastFishingTime = currentTime
+        
+        -- LANGSUNG LOOP LAGI TANPA TUNGGU
+        -- Tidak ada task.wait() di sini, langsung ke iterasi berikutnya
     end
-end
-
--- MODIFIKASI FUNGSI p UNTUK TRACK MISS (TAMBAHAN SEDIKIT)
-local original_p = p
-p = function()
-    local success = false
-    
-    -- Panggil fungsi asli tapi dalam pcall untuk track error
-    local ok, result = pcall(function()
-        original_p()
-        success = true
-    end)
-    
-    -- Kalo ada error atau ga success, count sebagai miss
-    if not ok or not success then
-        missCount = missCount + 1
-        print("Fishing attempt failed! Miss count: " .. missCount)
-    end
-    
-    return success
 end
 
 local function x(y)
-    c.d = y
+    c.d=y
     if y then
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        missCount = 0 -- Reset miss counter saat start
-        m = task.spawn(w)
+        m=task.spawn(w)
     else
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m = nil
-        n = nil
-        missCount = 0
-        pcall(l.InvokeServer, l)
+        m=nil
+        n=nil
+        pcall(l.InvokeServer,l)
     end
 end
 
--- UI TETAP SAMA
-blantant = Tab3:Section({ 
-    Title = "Blantant Featured | Beta",
+blantant = Tab0:Section({ 
+    Title = "Blantant X7 V1 | Recomended",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
