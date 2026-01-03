@@ -562,7 +562,11 @@ local toggleState = {
 }
 
 -- ===== REMOTES =====
-local netFolder = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+local netFolder = ReplicatedStorage:WaitForChild("Packages")
+    :WaitForChild("_Index")
+    :WaitForChild("sleitnick_net@0.2.0")
+    :WaitForChild("net")
+
 local Remotes = {
     RF_RequestFishingMinigameStarted = netFolder:WaitForChild("RF/RequestFishingMinigameStarted"),
     RF_ChargeFishingRod = netFolder:WaitForChild("RF/ChargeFishingRod"),
@@ -573,7 +577,11 @@ local Remotes = {
 }
 
 -- ===== FISHING CONTROLLER OVERRIDE =====
-local FishingController = require(ReplicatedStorage:WaitForChild('Controllers'):WaitForChild('FishingController'))
+local FishingController = require(
+    ReplicatedStorage:WaitForChild('Controllers')
+        :WaitForChild('FishingController')
+)
+
 local oldCharge = FishingController.RequestChargeFishingRod
 FishingController.RequestChargeFishingRod = function(...)
     if toggleState.blatantX5 or toggleState.blatantX8 then return end
@@ -594,12 +602,11 @@ local function safeInvokeRetry(func, ...)
     return result
 end
 
--- ===== UNIFIED LOOP FUNCTION WITH INITIAL HIT COUNT =====
+-- ===== FISHING LOOP WITH HIT TOLERANCE =====
 local function fishingLoop(mode, initialHits)
     local completeDelay = (mode == "X5") and toggleState.completeDelayX5 or toggleState.completeDelayX8
     local reelDelay = (mode == "X5") and toggleState.reelDelayX5 or toggleState.reelDelayX8
     local runningFlag = (mode == "X5") and "isX5Running" or "isX8Running"
-
     _G[runningFlag] = true
 
     -- AUTO EQUIP LOOP
@@ -610,18 +617,24 @@ local function fishingLoop(mode, initialHits)
         end
     end)
 
-    -- INITIAL HIT LOOP
-    for i = 1, initialHits do
+    -- INITIAL HIT LOOP DENGAN TOLERANSI MISS
+    for hit = 1, initialHits do
         if not _G[runningFlag] then break end
         safeInvokeRetry(Remotes.RF_CancelFishing.InvokeServer, Remotes.RF_CancelFishing)
         safeInvokeRetry(Remotes.RF_ChargeFishingRod.InvokeServer, Remotes.RF_ChargeFishingRod, tick())
         safeInvokeRetry(Remotes.RF_RequestFishingMinigameStarted.InvokeServer, Remotes.RF_RequestFishingMinigameStarted, -139.637, 0.996)
         task.wait(completeDelay)
-        safeInvokeRetry(Remotes.RE_FishingCompleted.FireServer, Remotes.RE_FishingCompleted)
+        local success = pcall(Remotes.RE_FishingCompleted.FireServer, Remotes.RE_FishingCompleted)
         task.wait(reelDelay)
+
+        -- Jika hit terakhir di batas awal dan miss → recovery / restart
+        if hit == initialHits and not success then
+            print(mode.." hit limit miss → auto recovery")
+            break
+        end
     end
 
-    -- CONTINUOUS LOOP (SPAM TERUS)
+    -- CONTINUOUS LOOP SPAM TERUS
     while _G[runningFlag] do
         safeInvokeRetry(Remotes.RF_CancelFishing.InvokeServer, Remotes.RF_CancelFishing)
         safeInvokeRetry(Remotes.RF_ChargeFishingRod.InvokeServer, Remotes.RF_ChargeFishingRod, tick())
@@ -654,7 +667,7 @@ local function toggleBlatantX8(active)
     end
 end
 
--- ===== BLATANT UI =====
+-- ===== BLATANT X5 UI =====
 local blatantX5Section = Tab3:Section({
     Title = "Blatant X5 | Aggressive Fixed",
     Icon = "fish",
@@ -689,6 +702,7 @@ blatantX5Section:Input({
     end
 })
 
+-- ===== BLATANT X8 UI =====
 local blatantX8Section = Tab3:Section({
     Title = "Blatant X8 | Super Aggressive",
     Icon = "fish",
@@ -722,6 +736,7 @@ blatantX8Section:Input({
         if num and num > 0 then toggleState.completeDelayX8 = num end
     end
 })
+
 
 
 item = Tab3:Section({     
