@@ -551,89 +551,126 @@ fishing:Slider({
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local c={d=false,e=1.6,f=0.37}
+local c = {
+    d = false,
+    e = 1.6,
+    f = 0.37
+}
 
-local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+local g = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
 
-local h,i,j,k,l
+local h, i, j, k, l
 pcall(function()
-    h=g:WaitForChild("RF/ChargeFishingRod")
-    i=g:WaitForChild("RF/RequestFishingMinigameStarted")
-    j=g:WaitForChild("RE/FishingCompleted")
-    k=g:WaitForChild("RE/EquipToolFromHotbar")
-    l=g:WaitForChild("RF/CancelFishingInputs")
+    h = g:WaitForChild("RF/ChargeFishingRod")
+    i = g:WaitForChild("RF/RequestFishingMinigameStarted")
+    j = g:WaitForChild("RE/FishingCompleted")
+    k = g:WaitForChild("RE/EquipToolFromHotbar")
+    l = g:WaitForChild("RF/CancelFishingInputs")
 end)
 
-local m=nil
-local n=nil
-local o=nil
+local m = nil
+local n = nil
+local missCount = 0
 
-local function p()
-    task.spawn(function()
-        pcall(function()
-            local q,r=l:InvokeServer()
-            if not q then
-                while not q do
-                    local s=l:InvokeServer()
-                    if s then break end
-                    task.wait(0.05)
-                end
-            end
-
-            local t,u=h:InvokeServer(math.huge)
-            if not t then
-                while not t do
-                    local v=h:InvokeServer(math.huge)
-                    if v then break end
-                    task.wait(0.05)
-                end
-            end
-
-            i:InvokeServer(-139.63,0.996)
-        end)
-    end)
-
-    task.spawn(function()
-        task.wait(c.f)
-        if c.d then
-            pcall(j.FireServer,j)
+local function fishingAttempt()
+    local success = false
+    
+    -- Cancel dulu
+    pcall(function() l:InvokeServer() end)
+    task.wait(0.1)
+    
+    -- Charge fishing rod
+    for _ = 1, 3 do
+        if not c.d then break end
+        local chargeResult = h:InvokeServer(math.huge)
+        if chargeResult then
+            success = true
+            break
         end
-    end)
+        task.wait(0.1)
+    end
+    
+    if not success then
+        missCount += 1
+        return false
+    end
+    
+    -- Start fishing minigame
+    success = false
+    for _ = 1, 3 do
+        if not c.d then break end
+        local minigameResult = i:InvokeServer(-139.63, 0.996)
+        if minigameResult then
+            success = true
+            break
+        end
+        task.wait(0.1)
+    end
+    
+    if not success then
+        missCount += 1
+        return false
+    end
+    
+    -- Complete fishing setelah delay
+    task.wait(c.f)
+    if c.d then
+        pcall(function() j:FireServer() end)
+        missCount = 0 -- Reset miss count jika berhasil
+        return true
+    end
+    
+    return false
 end
 
 local function w()
-    n=task.spawn(function()
+    -- Auto equip tool loop
+    n = task.spawn(function()
         while c.d do
-            pcall(k.FireServer,k,1)
+            pcall(function() k:FireServer(1) end)
             task.wait(1.5)
         end
     end)
-
+    
+    -- Main fishing loop
     while c.d do
-        p()
-        task.wait(c.e)
-        if not c.d then break end
-        task.wait(0.1)
+        local success = fishingAttempt()
+        
+        -- Cek jika miss 3x, auto retry langsung
+        if missCount >= 3 then
+            print("Miss 3x, retrying...")
+            pcall(function() l:InvokeServer() end)
+            task.wait(0.5)
+            pcall(function() k:FireServer(1) end)
+            task.wait(1)
+            missCount = 0 -- Reset setelah retry
+        end
+        
+        -- Delay antara fishing attempts
+        if c.d then
+            task.wait(c.e)
+        end
     end
 end
 
 local function x(y)
-    c.d=y
+    c.d = y
     if y then
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m=task.spawn(w)
+        missCount = 0
+        m = task.spawn(w)
     else
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m=nil
-        n=nil
-        pcall(l.InvokeServer,l)
+        m = nil
+        n = nil
+        pcall(function() l:InvokeServer() end)
     end
 end
 
-blantant = Tab3:Section({ 
-    Title = "Blantant Featured | Beta",
+blantant = Tab0:Section({ 
+    Title = "Blantant X7 V1 | Auto Retry",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -682,7 +719,9 @@ local ap = false
 task.spawn(function()
     while task.wait() do
         if ap then
-            Net["RF/UpdateAutoFishingState"]:InvokeServer(true)
+            pcall(function()
+                Net["RF/UpdateAutoFishingState"]:InvokeServer(true)
+            end)
         end
     end
 end)
@@ -693,10 +732,16 @@ blantant:Toggle({
     Callback = function(s)
         ap = s
         if s then
-            FC.RequestFishingMinigameClick = function() end
-            FC.RequestChargeFishingRod = function() end
+            FC.RequestFishingMinigameClick = function() 
+                return true
+            end
+            FC.RequestChargeFishingRod = function() 
+                return true
+            end
         else
-            Net["RF/UpdateAutoFishingState"]:InvokeServer(false)
+            pcall(function()
+                Net["RF/UpdateAutoFishingState"]:InvokeServer(false)
+            end)
             FC.RequestFishingMinigameClick = oc
             FC.RequestChargeFishingRod = orc
         end
