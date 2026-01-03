@@ -637,7 +637,7 @@ local function x(y)
     end
 end
 
-blantant = Tab0:Section({
+blantant = Tab3:Section({
     Title = "Blantant Featured | Recommended",
     Icon = "fish",
 })
@@ -672,52 +672,58 @@ blantant:Input({
     end
 })
 
-
-
---- =========================
--- BLATANT V2 (X9 SAFE)
+-- =========================
+-- BLATANT V2
 -- =========================
 
 local v2 = {
     enabled = false,
-    delay = 1.45, -- sedikit lebih cepat dari V1
+    delay = 0.45,
+    complete = 0.18
 }
 
 local v2Thread
 
-local function v2Loop()
-    while v2.enabled do
-        -- cycle 1
-        p()
-        task.wait(0.12)
-
-        -- cycle 2 (extra spam -> X9)
-        if not v2.enabled then break end
-        p()
-
-        task.wait(v2.delay)
-    end
+local function v2Cycle()
+    task.spawn(function()
+        pcall(l.InvokeServer, l)                 -- cancel
+        pcall(h.InvokeServer, h, math.huge)      -- charge
+        pcall(i.InvokeServer, i, -139.63, 0.996) -- start
+        task.wait(v2.complete)
+        if v2.enabled then
+            pcall(j.FireServer, j)               -- complete
+        end
+    end)
 end
 
 local function startV2()
-    if v2Thread then return end
-    v2.enabled = true
-
-    -- matiin V1 biar ga tabrakan
-    if c.d then
-        x(false)
-    end
-
-    v2Thread = task.spawn(v2Loop)
+    v2Thread = task.spawn(function()
+        while v2.enabled do
+            v2Cycle()
+            task.wait(v2.delay)
+        end
+    end)
 end
 
 local function stopV2()
-    v2.enabled = false
     if v2Thread then
         task.cancel(v2Thread)
         v2Thread = nil
     end
     pcall(l.InvokeServer, l)
+end
+
+local function toggleV2(state)
+    v2.enabled = state
+    if state then
+        -- matiin V1 biar ga tabrakan
+        if c.d then
+            x(false)
+        end
+        startV2()
+    else
+        stopV2()
+    end
 end
 
 blantantV2 = Tab3:Section({
@@ -754,6 +760,7 @@ blantantV2:Input({
         end
     end
 })
+
 
 item = Tab3:Section({     
     Title = "Item",
