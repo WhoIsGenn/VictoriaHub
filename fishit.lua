@@ -551,7 +551,7 @@ fishing:Slider({
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local c={d=false,e=1.7,f=0.37}
+local c={d=false,e=1.6,f=0.35}
 
 local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
 
@@ -605,7 +605,7 @@ local function w()
     n=task.spawn(function()
         while c.d do
             pcall(k.FireServer,k,1)
-            task.wait(1.5)
+            task.wait(1.0)
         end
     end)
 
@@ -666,8 +666,8 @@ end
 local isAutoRunning = false
 
 local isSuperInstantRunning = false
-_G.ReelSuper = 1.20
-     toggleState.completeDelays = 0.35
+_G.ReelSuper = 1.15
+     toggleState.completeDelays = 0.30
      toggleState.delayStart = 0.1
     local function autoEquipSuper()
         local success, err = pcall(function()
