@@ -675,6 +675,7 @@ blantant:Input({
 
 
 --- =========================
+--- =========================
 -- BLATANT V2 (X9 SAFE)
 -- =========================
 
@@ -821,39 +822,53 @@ blantantV2:Input({
 })
 
 -- =========================
--- AUTO PERFECTION
+-- AUTO PERFECTION (SAFE VERSION)
 -- =========================
 
+local autoPerfectionSuccess = false
 local RS = game:GetService("ReplicatedStorage")
-local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
-local FC = require(RS.Controllers.FishingController)
+local Net, FC, oc, orc, ap
 
-local oc, orc = FC.RequestFishingMinigameClick, FC.RequestChargeFishingRod
-local ap = false
-
-task.spawn(function()
-    while task.wait() do
-        if ap then
-            Net["RF/UpdateAutoFishingState"]:InvokeServer(true)
-        end
-    end
+pcall(function()
+    Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
+    FC = require(RS.Controllers.FishingController)
+    oc = FC.RequestFishingMinigameClick
+    orc = FC.RequestChargeFishingRod
+    ap = false
+    autoPerfectionSuccess = true
 end)
 
-blantantV2:Toggle({
-    Title = "Auto Perfection",
-    Value = false,
-    Callback = function(s)
-        ap = s
-        if s then
-            FC.RequestFishingMinigameClick = function() end
-            FC.RequestChargeFishingRod = function() end
-        else
-            Net["RF/UpdateAutoFishingState"]:InvokeServer(false)
-            FC.RequestFishingMinigameClick = oc
-            FC.RequestChargeFishingRod = orc
+if autoPerfectionSuccess then
+    task.spawn(function()
+        while task.wait() do
+            if ap then
+                pcall(function()
+                    Net["RF/UpdateAutoFishingState"]:InvokeServer(true)
+                end)
+            end
         end
-    end
-})
+    end)
+
+    blantantV2:Toggle({
+        Title = "Auto Perfection",
+        Value = false,
+        Callback = function(s)
+            ap = s
+            if s then
+                FC.RequestFishingMinigameClick = function() end
+                FC.RequestChargeFishingRod = function() end
+            else
+                pcall(function()
+                    Net["RF/UpdateAutoFishingState"]:InvokeServer(false)
+                end)
+                FC.RequestFishingMinigameClick = oc
+                FC.RequestChargeFishingRod = orc
+            end
+        end
+    })
+else
+    print("[WARNING] Auto Perfection failed to load - FishingController not accessible")
+end
 
 -- =========================
 -- DELAY OBTAIN NOTIFICATION
@@ -861,9 +876,9 @@ blantantV2:Toggle({
 
 local notifDelay = 5
 local notifEnabled = false
-local hookedConnections = {}
+local lastNotifTime = 0
 
-local function setupNotifDelay()
+pcall(function()
     local RemoteEvent = ReplicatedStorage
         :WaitForChild("Packages")
         :WaitForChild("_Index")
@@ -871,37 +886,23 @@ local function setupNotifDelay()
         :WaitForChild("net")
         :WaitForChild("RE/ObtainedNewFishNotification")
 
-    for _, connection in pairs(getconnections(RemoteEvent.OnClientEvent)) do
-        if not table.find(hookedConnections, connection) then
-            table.insert(hookedConnections, connection)
+    RemoteEvent.OnClientEvent:Connect(function(fishId, fishData, extraData, isSpecial)
+        if notifEnabled then
+            lastNotifTime = tick()
+            local currentTime = lastNotifTime
             
-            local originalFunc = connection.Function
-            connection:Disable()
-            
-            RemoteEvent.OnClientEvent:Connect(function(fishId, fishData, extraData, isSpecial)
-                originalFunc(fishId, fishData, extraData, isSpecial)
+            task.spawn(function()
+                task.wait(notifDelay)
                 
-                if notifEnabled then
-                    task.wait(notifDelay)
-                    
+                if currentTime == lastNotifTime then
                     pcall(function()
-                        for _, gui in pairs(game.Players.LocalPlayer.PlayerGui:GetChildren()) do
+                        local player = game.Players.LocalPlayer
+                        for _, gui in pairs(player.PlayerGui:GetChildren()) do
                             for _, obj in pairs(gui:GetDescendants()) do
-                                if obj:IsA("Frame") or obj:IsA("ImageLabel") then
-                                    if obj.Visible and (
-                                        obj.Name:lower():find("notif") or 
-                                        obj.Name:lower():find("obtain") or
-                                        obj.Name:lower():find("fish")
-                                    ) then
-                                        game:GetService("TweenService"):Create(
-                                            obj,
-                                            TweenInfo.new(0.3),
-                                            {BackgroundTransparency = 1}
-                                        ):Play()
-                                        
-                                        task.wait(0.3)
+                                if (obj:IsA("Frame") or obj:IsA("ImageLabel")) and obj.Visible then
+                                    local name = obj.Name:lower()
+                                    if name:find("notif") or name:find("obtain") or name:find("fish") or name:find("caught") then
                                         obj.Visible = false
-                                        obj.BackgroundTransparency = 0
                                     end
                                 end
                             end
@@ -910,12 +911,7 @@ local function setupNotifDelay()
                 end
             end)
         end
-    end
-end
-
-task.spawn(function()
-    task.wait(3)
-    pcall(setupNotifDelay)
+    end)
 end)
 
 blantantV2:Toggle({
@@ -936,7 +932,6 @@ blantantV2:Input({
         end
     end
 })
-
 
 
 item = Tab3:Section({     
