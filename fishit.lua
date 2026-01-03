@@ -551,13 +551,9 @@ fishing:Slider({
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local c = {
-    d = false,
-    e = 1.6,
-    f = 0.37
-}
+local c={d=false,e=1.7,f=0.37}
 
-local g = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
 
 local h,i,j,k,l
 pcall(function()
@@ -609,31 +605,15 @@ local function w()
     n=task.spawn(function()
         while c.d do
             pcall(k.FireServer,k,1)
-            task.wait(1.5)
+            task.wait(1.4)
         end
     end)
 
-    local lastFishingTime = 0
-    local isSpamming = false
-
     while c.d do
-        local startTime = tick()
-        
-        -- Eksekusi fishing
         p()
-        
-        -- TUNGGU SAMPAI FISHING COMPLETE
-        task.wait(c.f + 0.1) -- Tunggu waktu complete fishing + buffer kecil
-        
-        -- AUTO LOOP: Jika tidak miss, langsung lanjut TANPA DELAY
-        local currentTime = tick()
-        local timeSinceLastFishing = currentTime - lastFishingTime
-        
-        -- Reset timer
-        lastFishingTime = currentTime
-        
-        -- LANGSUNG LOOP LAGI TANPA TUNGGU
-        -- Tidak ada task.wait() di sini, langsung ke iterasi berikutnya
+        task.wait(c.e)
+        if not c.d then break end
+        task.wait(0.1)
     end
 end
 
@@ -720,6 +700,17 @@ blantant:Toggle({
             FC.RequestFishingMinigameClick = oc
             FC.RequestChargeFishingRod = orc
         end
+    end
+})
+
+Tab0:Space()
+
+blantant:Button({
+    Title = "Blantant Featured x8 BETA",
+    Desc = "Still development",
+    Locked = false,
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/WhoIsGenn/Fish-It/refs/heads/main/blantantTest.lua"))()
     end
 })
 
