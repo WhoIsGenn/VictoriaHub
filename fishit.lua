@@ -551,17 +551,17 @@ fishing:Slider({
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- ===== CONFIG =====
+-- ===== TOGGLE STATE =====
 local toggleState = {
     blatantX5 = false,
     blatantX8 = false,
     completeDelayX5 = 0.37,
-    cancelDelayX5 = 1.6,
+    reelDelayX5 = 0.5,
     completeDelayX8 = 0.30,
-    reelDelayX8 = 0.15 -- super fast
+    reelDelayX8 = 0.15
 }
 
--- ===== NET REMOTES =====
+-- ===== REMOTES =====
 local netFolder = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
 local Remotes = {
     RF_RequestFishingMinigameStarted = netFolder:WaitForChild("RF/RequestFishingMinigameStarted"),
@@ -572,7 +572,7 @@ local Remotes = {
     RF_AutoFish = netFolder:WaitForChild("RF/UpdateAutoFishingState")
 }
 
--- ===== FISHING CONTROLLER =====
+-- ===== FISHING CONTROLLER OVERRIDE =====
 local FishingController = require(ReplicatedStorage:WaitForChild('Controllers'):WaitForChild('FishingController'))
 local oldCharge = FishingController.RequestChargeFishingRod
 FishingController.RequestChargeFishingRod = function(...)
@@ -594,57 +594,82 @@ local function safeInvokeRetry(func, ...)
     return result
 end
 
--- ===== UNIFIED AUTO FISH FUNCTION =====
-local function autoFishingStep(mode)
-    local completeDelay = (mode == "X5") and toggleState.completeDelayX5 or toggleState.completeDelayX8
-    safeInvokeRetry(Remotes.RF_CancelFishing.InvokeServer, Remotes.RF_CancelFishing)
-    safeInvokeRetry(Remotes.RF_ChargeFishingRod.InvokeServer, Remotes.RF_ChargeFishingRod, math.huge)
-    safeInvokeRetry(Remotes.RF_RequestFishingMinigameStarted.InvokeServer, Remotes.RF_RequestFishingMinigameStarted, -139.63, 0.996)
+-- ===== X8 SUPER AGGRESSIVE =====
+local isX8Running = false
+local function superInstantCycleX8()
     task.spawn(function()
-        task.wait(completeDelay)
-        if (mode == "X5" and toggleState.blatantX5) or (mode == "X8" and toggleState.blatantX8) then
-            safeInvokeRetry(Remotes.RE_FishingCompleted.FireServer, Remotes.RE_FishingCompleted)
+        Remotes.RF_CancelFishing:InvokeServer()
+        Remotes.RF_ChargeFishingRod:InvokeServer(tick())
+        Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.637, 0.996)
+        task.wait(toggleState.completeDelayX8)
+        Remotes.RE_FishingCompleted:FireServer()
+    end)
+end
+
+local function startSuperInstantFishingX8()
+    if isX8Running then return end
+    isX8Running = true
+    task.spawn(function()
+        while isX8Running do
+            superInstantCycleX8()
+            task.wait(math.max(toggleState.reelDelayX8, 0.1))
         end
     end)
 end
 
--- ===== AUTO EQUIP LOOP =====
-local function autoEquipLoop(mode)
-    while (mode == "X5" and toggleState.blatantX5) or (mode == "X8" and toggleState.blatantX8) do
-        safeInvokeRetry(Remotes.RE_EquipTool.FireServer, Remotes.RE_EquipTool, 1)
-        task.wait(1.5)
-    end
-end
-
--- ===== FISHING LOOP PER MODE =====
-local function fishingLoop(mode)
-    task.spawn(function() autoEquipLoop(mode) end)
-    while (mode == "X5" and toggleState.blatantX5) or (mode == "X8" and toggleState.blatantX8) do
-        autoFishingStep(mode)
-        local delay = (mode == "X5") and toggleState.cancelDelayX5 or toggleState.reelDelayX8
-        task.wait(delay)
-    end
-end
-
--- ===== TOGGLE BLATANT =====
-local function toggleBlatantX5(active)
-    toggleState.blatantX5 = active
-    if active then
-        task.spawn(function() fishingLoop("X5") end)
-    end
+local function stopSuperInstantFishingX8()
+    isX8Running = false
 end
 
 local function toggleBlatantX8(active)
     toggleState.blatantX8 = active
     Remotes.RF_AutoFish:InvokeServer(active)
     if active then
-        task.spawn(function() fishingLoop("X8") end)
+        startSuperInstantFishingX8()
+    else
+        stopSuperInstantFishingX8()
+    end
+end
+
+-- ===== X5 AGGRESSIVE FIXED =====
+local isX5Running = false
+local function superInstantCycleX5()
+    task.spawn(function()
+        Remotes.RF_CancelFishing:InvokeServer()
+        Remotes.RF_ChargeFishingRod:InvokeServer(tick())
+        Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.637, 0.996)
+        task.wait(toggleState.completeDelayX5)
+        Remotes.RE_FishingCompleted:FireServer()
+    end)
+end
+
+local function startSuperInstantFishingX5()
+    if isX5Running then return end
+    isX5Running = true
+    task.spawn(function()
+        while isX5Running do
+            superInstantCycleX5()
+            task.wait(math.max(toggleState.reelDelayX5, 0.1))
+        end
+    end)
+end
+
+local function stopSuperInstantFishingX5()
+    isX5Running = false
+end
+
+local function toggleBlatantX5(active)
+    toggleState.blatantX5 = active
+    if active then
+        startSuperInstantFishingX5()
+    else
+        stopSuperInstantFishingX5()
     end
 end
 
 -- ===== BLATANT UI =====
 local blatantX5Section = Tab3:Section({
-    Title = "Blatant X5 | Stable Aggressive",
+    Title = "Blatant X5 | Aggressive Fixed",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -658,12 +683,12 @@ blatantX5Section:Toggle({
 })
 
 blatantX5Section:Input({
-    Title = "Cancel Delay",
-    Placeholder = "1.6",
-    Default = tostring(toggleState.cancelDelayX5),
+    Title = "Reel Delay",
+    Placeholder = "0.5",
+    Default = tostring(toggleState.reelDelayX5),
     Callback = function(val)
         local nVal = tonumber(val)
-        if nVal and nVal > 0 then toggleState.cancelDelayX5 = nVal end
+        if nVal and nVal >= 0 then toggleState.reelDelayX5 = nVal end
     end
 })
 
@@ -673,7 +698,7 @@ blatantX5Section:Input({
     Default = tostring(toggleState.completeDelayX5),
     Callback = function(val)
         local nVal = tonumber(val)
-        if nVal and nVal > 0 then toggleState.completeDelayX5 = nVal end
+        if nVal and nVal >= 0 then toggleState.completeDelayX5 = nVal end
     end
 })
 
@@ -710,6 +735,7 @@ blatantX8Section:Input({
         if num and num > 0 then toggleState.completeDelayX8 = num end
     end
 })
+
 
 
 item = Tab3:Section({     
