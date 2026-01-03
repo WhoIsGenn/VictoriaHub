@@ -551,59 +551,69 @@ fishing:Slider({
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local c={d=false,e=1.6,f=0.37}
-
-local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
-
-local h,i,j,k,l
-pcall(function()
-    h=g:WaitForChild("RF/ChargeFishingRod")
-    i=g:WaitForChild("RF/RequestFishingMinigameStarted")
-    j=g:WaitForChild("RE/FishingCompleted")
-    k=g:WaitForChild("RE/EquipToolFromHotbar")
-    l=g:WaitForChild("RF/CancelFishingInputs")
-end)
-
-local m=nil
-local n=nil
-local o=nil
-
--- ===== FAIL COUNTER =====
-local failCount = 0
+-- ===== SETTINGS =====
+local c = { d = false, e = 1.6, f = 0.37 } -- e = reel delay, f = complete delay
 local MAX_FAIL_BEFORE_RECOVERY = 3
 
-local function spamFishing()
+-- ===== REMOTES =====
+local g = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+local h,i,j,k,l
+pcall(function()
+    h = g:WaitForChild("RF/ChargeFishingRod")
+    i = g:WaitForChild("RF/RequestFishingMinigameStarted")
+    j = g:WaitForChild("RE/FishingCompleted")
+    k = g:WaitForChild("RE/EquipToolFromHotbar")
+    l = g:WaitForChild("RF/CancelFishingInputs")
+end)
+
+-- ===== COUNTER =====
+local failCount = 0
+
+-- ===== FUNCTION SPAWN LEMPAR =====
+local function spamFishingCycle(totalHits)
+    local hit = 1
     while c.d do
-        -- setiap lemparan spawn task baru, tidak menunggu completed
         task.spawn(function()
-            pcall(l.InvokeServer, l) -- cancel fishing
-            pcall(h.InvokeServer, h, tick()) -- charge rod
-            pcall(i.InvokeServer, i, -139.637, 0.996) -- start minigame
+            -- cancel + charge + start minigame
+            pcall(l.InvokeServer,l)
+            pcall(h.InvokeServer,h,tick())
+            pcall(i.InvokeServer,i,-139.637,0.996)
+            
+            -- delay complete
             task.wait(c.f)
-            local success = pcall(j.FireServer, j)
-            if not success then
+            
+            -- fire completed
+            local success = pcall(j.FireServer,j)
+            
+            -- hit terakhir check fail count
+            if hit >= totalHits and not success then
                 failCount = failCount + 1
                 if failCount >= MAX_FAIL_BEFORE_RECOVERY then
                     failCount = 0
-                    print("Recovery triggered due to repeated fails")
+                    print("Recovery triggered at last hit due to miss")
                     if m then task.cancel(m) end
                     if n then task.cancel(n) end
-                    m=task.spawn(spamFishing)
+                    m = task.spawn(function() spamFishingCycle(totalHits) end)
                 end
             else
                 failCount = 0
             end
         end)
-        task.wait(c.e) -- reel delay
+        
+        hit = hit + 1
+        if hit > totalHits then hit = 1 end -- loop hit terus
+        task.wait(c.e)
     end
 end
 
+-- ===== START / STOP BLATANT =====
+local m,n = nil,nil
 local function startBlatantX8(active)
     c.d = active
     if active then
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m=task.spawn(spamFishing)
+        m = task.spawn(function() spamFishingCycle(8) end) -- 8 hits awal
     else
         if m then task.cancel(m) end
         if n then task.cancel(n) end
@@ -613,8 +623,8 @@ local function startBlatantX8(active)
     end
 end
 
--- ===== BLATANT UI =====
-blantant = Tab3:Section({ 
+-- ===== UI =====
+blantant = Tab3:Section({
     Title = "Blatant X8 Ultra Aggressive",
     Icon = "fish",
     TextTransparency = 0.05,
@@ -632,7 +642,7 @@ blantant:Toggle({
 
 blantant:Input({
     Title = "Reel Delay",
-    Placeholder = "1.1",
+    Placeholder = "1.9",
     Default = tostring(c.e),
     Callback = function(input)
         local num = tonumber(input)
@@ -644,7 +654,7 @@ blantant:Input({
 
 blantant:Input({
     Title = "Complete Delay",
-    Placeholder = "0.7",
+    Placeholder = "1.1",
     Default = tostring(c.f),
     Callback = function(input)
         local num = tonumber(input)
@@ -653,9 +663,6 @@ blantant:Input({
         end
     end
 })
-
-
-
 
 item = Tab3:Section({     
     Title = "Item",
