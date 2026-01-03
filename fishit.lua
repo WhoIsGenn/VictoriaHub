@@ -572,22 +572,23 @@ local m = nil
 local n = nil
 local missCount = 0
 
-local function fishingAttempt()
+local function p()
     local success = false
     
-    -- Cancel dulu
-    pcall(function() l:InvokeServer() end)
-    task.wait(0.1)
-    
     -- Charge fishing rod
-    for _ = 1, 3 do
-        if not c.d then break end
-        local chargeResult = h:InvokeServer(math.huge)
-        if chargeResult then
-            success = true
-            break
+    local chargeResult = h:InvokeServer(math.huge)
+    if chargeResult then
+        success = true
+    else
+        -- Retry charge 2x lagi
+        for _ = 1, 2 do
+            task.wait(0.05)
+            chargeResult = h:InvokeServer(math.huge)
+            if chargeResult then
+                success = true
+                break
+            end
         end
-        task.wait(0.1)
     end
     
     if not success then
@@ -596,18 +597,8 @@ local function fishingAttempt()
     end
     
     -- Start fishing minigame
-    success = false
-    for _ = 1, 3 do
-        if not c.d then break end
-        local minigameResult = i:InvokeServer(-139.63, 0.996)
-        if minigameResult then
-            success = true
-            break
-        end
-        task.wait(0.1)
-    end
-    
-    if not success then
+    local minigameResult = i:InvokeServer(-139.63, 0.996)
+    if not minigameResult then
         missCount += 1
         return false
     end
@@ -615,7 +606,7 @@ local function fishingAttempt()
     -- Complete fishing setelah delay
     task.wait(c.f)
     if c.d then
-        pcall(function() j:FireServer() end)
+        pcall(j.FireServer, j)
         missCount = 0 -- Reset miss count jika berhasil
         return true
     end
@@ -624,32 +615,34 @@ local function fishingAttempt()
 end
 
 local function w()
-    -- Auto equip tool loop
     n = task.spawn(function()
         while c.d do
-            pcall(function() k:FireServer(1) end)
+            pcall(k.FireServer, k, 1)
             task.wait(1.5)
         end
     end)
     
-    -- Main fishing loop
     while c.d do
-        local success = fishingAttempt()
+        local success = p()
         
-        -- Cek jika miss 3x, auto retry langsung
+        -- Cek jika miss 3x, auto retry
         if missCount >= 3 then
             print("Miss 3x, retrying...")
-            pcall(function() l:InvokeServer() end)
-            task.wait(0.5)
-            pcall(function() k:FireServer(1) end)
-            task.wait(1)
-            missCount = 0 -- Reset setelah retry
+            pcall(l.InvokeServer, l)
+            task.wait(0.3)
+            pcall(k.FireServer, k, 1)
+            task.wait(0.7)
+            missCount = 0
         end
         
-        -- Delay antara fishing attempts
-        if c.d then
-            task.wait(c.e)
+        -- Spam fishing seperti aslinya
+        if not success then
+            task.wait(0.1) -- Delay pendek kalo fail
+        else
+            task.wait(c.e) -- Delay normal kalo sukses
         end
+        
+        if not c.d then break end
     end
 end
 
@@ -665,12 +658,12 @@ local function x(y)
         if n then task.cancel(n) end
         m = nil
         n = nil
-        pcall(function() l:InvokeServer() end)
+        pcall(l.InvokeServer, l)
     end
 end
 
 blantant = Tab3:Section({ 
-    Title = "Blantant X7 V1 | Auto Retry",
+    Title = "Blantant Featured | Beta",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
