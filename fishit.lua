@@ -566,26 +566,37 @@ pcall(function()
     l = g:WaitForChild("RF/CancelFishingInputs")
 end)
 
+-- ===== CONTROLLER OVERRIDE =====
+local FC = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("FishingController"))
+local oldCharge = FC.RequestChargeFishingRod
+local oldClick = FC.RequestFishingMinigameClick
+
+FC.RequestChargeFishingRod = function(...)
+    if c.d then return end -- kita handle sendiri
+    return oldCharge(...)
+end
+FC.RequestFishingMinigameClick = function(...) end -- disable internal click, kita handle sendiri
+
 -- ===== COUNTER =====
 local failCount = 0
+local m,n = nil,nil
 
--- ===== FUNCTION SPAWN LEMPAR =====
-local function spamFishingCycle(totalHits)
+-- ===== ULTRA SPAM FUNCTION =====
+local function ultraSpamFishing(totalHits)
     local hit = 1
     while c.d do
         task.spawn(function()
-            -- cancel + charge + start minigame
+            -- cancel fishing
             pcall(l.InvokeServer,l)
+            -- charge rod
             pcall(h.InvokeServer,h,tick())
+            -- start minigame
             pcall(i.InvokeServer,i,-139.637,0.996)
-            
-            -- delay complete
+            -- fire completed asap
             task.wait(c.f)
-            
-            -- fire completed
             local success = pcall(j.FireServer,j)
             
-            -- hit terakhir check fail count
+            -- hanya hit terakhir yang bisa trigger recovery
             if hit >= totalHits and not success then
                 failCount = failCount + 1
                 if failCount >= MAX_FAIL_BEFORE_RECOVERY then
@@ -593,7 +604,7 @@ local function spamFishingCycle(totalHits)
                     print("Recovery triggered at last hit due to miss")
                     if m then task.cancel(m) end
                     if n then task.cancel(n) end
-                    m = task.spawn(function() spamFishingCycle(totalHits) end)
+                    m = task.spawn(function() ultraSpamFishing(totalHits) end)
                 end
             else
                 failCount = 0
@@ -601,19 +612,18 @@ local function spamFishingCycle(totalHits)
         end)
         
         hit = hit + 1
-        if hit > totalHits then hit = 1 end -- loop hit terus
+        if hit > totalHits then hit = 1 end
         task.wait(c.e)
     end
 end
 
--- ===== START / STOP BLATANT =====
-local m,n = nil,nil
-local function startBlatantX8(active)
+-- ===== START / STOP =====
+local function startBlatantX8Premium(active)
     c.d = active
     if active then
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m = task.spawn(function() spamFishingCycle(8) end) -- 8 hits awal
+        m = task.spawn(function() ultraSpamFishing(8) end)
     else
         if m then task.cancel(m) end
         if n then task.cancel(n) end
@@ -625,7 +635,7 @@ end
 
 -- ===== UI =====
 blantant = Tab3:Section({
-    Title = "Blatant X8 Ultra Aggressive",
+    Title = "Blatant X8 Ultra Premium",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -636,13 +646,13 @@ blantant:Toggle({
     Title = "Blatant Mode",
     Value = c.d,
     Callback = function(value)
-        startBlatantX8(value)
+        startBlatantX8Premium(value)
     end
 })
 
 blantant:Input({
     Title = "Reel Delay",
-    Placeholder = "1.9",
+    Placeholder = "1.1",
     Default = tostring(c.e),
     Callback = function(input)
         local num = tonumber(input)
@@ -654,7 +664,7 @@ blantant:Input({
 
 blantant:Input({
     Title = "Complete Delay",
-    Placeholder = "1.1",
+    Placeholder = "0.70",
     Default = tostring(c.f),
     Callback = function(input)
         local num = tonumber(input)
