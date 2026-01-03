@@ -549,93 +549,104 @@ fishing:Slider({
     end
 })
 
+-- =========================================================
+-- BLATANT FORCE SPAM OPTIMIZED + RANDOM BOOST
+-- =========================================================
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
--- ===== SETTINGS =====
-local c = { d = false, e = 1.6, f = 0.37 } -- e = reel delay, f = complete delay
-local MAX_FAIL_BEFORE_RECOVERY = 3
+-- ================= SETTINGS =================
+local cfg = {
+    Enabled = false,
 
--- ===== REMOTES =====
-local g = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
-local h,i,j,k,l
-pcall(function()
-    h = g:WaitForChild("RF/ChargeFishingRod")
-    i = g:WaitForChild("RF/RequestFishingMinigameStarted")
-    j = g:WaitForChild("RE/FishingCompleted")
-    k = g:WaitForChild("RE/EquipToolFromHotbar")
-    l = g:WaitForChild("RF/CancelFishingInputs")
+    ReelDelay = 0.12,        -- jeda antar lempar (0.05–0.15 recommended)
+    RetryDelay = 0.05,       -- retry kalau server nolak
+    CompleteDelay = 0.35,    -- waktu fire FishingCompleted
+}
+
+-- ================= NET =================
+local net = ReplicatedStorage
+    :WaitForChild("Packages")
+    :WaitForChild("_Index")
+    :WaitForChild("sleitnick_net@0.2.0")
+    :WaitForChild("net")
+
+local RF_ChargeRod = net:WaitForChild("RF/ChargeFishingRod")
+local RF_StartMini = net:WaitForChild("RF/RequestFishingMinigameStarted")
+local RF_Cancel = net:WaitForChild("RF/CancelFishingInputs")
+local RE_Completed = net:WaitForChild("RE/FishingCompleted")
+local RE_Equip = net:WaitForChild("RE/EquipToolFromHotbar")
+
+-- ================= RANDOM BOOST =================
+local function getRandomBoost()
+    local r = math.random(1,100)
+
+    if r <= 10 then
+        return math.random(990,1000)/1000 -- PERFECT
+    elseif r <= 35 then
+        return math.random(970,985)/1000  -- AMAZING
+    elseif r <= 70 then
+        return math.random(930,960)/1000  -- GOOD
+    else
+        return math.random(850,920)/1000  -- OK
+    end
+end
+
+-- ================= CORE CAST =================
+local function forceCast()
+    local ok = pcall(function()
+        RF_Cancel:InvokeServer()
+        RF_ChargeRod:InvokeServer(math.huge)
+        RF_StartMini:InvokeServer(-139.63, getRandomBoost())
+    end)
+    return ok
+end
+
+-- ================= COMPLETED FIRE =================
+task.spawn(function()
+    while true do
+        if cfg.Enabled then
+            pcall(RE_Completed.FireServer, RE_Completed)
+            task.wait(cfg.CompleteDelay)
+        else
+            task.wait(0.2)
+        end
+    end
 end)
 
--- ===== CONTROLLER OVERRIDE =====
-local FC = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("FishingController"))
-local oldCharge = FC.RequestChargeFishingRod
-local oldClick = FC.RequestFishingMinigameClick
+-- ================= AUTO EQUIP =================
+task.spawn(function()
+    while true do
+        if cfg.Enabled then
+            pcall(RE_Equip.FireServer, RE_Equip, 1)
+            task.wait(1.2)
+        else
+            task.wait(0.5)
+        end
+    end
+end)
 
-FC.RequestChargeFishingRod = function(...)
-    if c.d then return end -- kita handle sendiri
-    return oldCharge(...)
-end
-FC.RequestFishingMinigameClick = function(...) end -- disable internal click, kita handle sendiri
+-- ================= MAIN SPAM LOOP =================
+task.spawn(function()
+    while true do
+        if cfg.Enabled then
+            local success = forceCast()
 
--- ===== COUNTER =====
-local failCount = 0
-local m,n = nil,nil
-
--- ===== ULTRA SPAM FUNCTION =====
-local function ultraSpamFishing(totalHits)
-    local hit = 1
-    while c.d do
-        task.spawn(function()
-            -- cancel fishing
-            pcall(l.InvokeServer,l)
-            -- charge rod
-            pcall(h.InvokeServer,h,tick())
-            -- start minigame
-            pcall(i.InvokeServer,i,-139.637,0.996)
-            -- fire completed asap
-            task.wait(c.f)
-            local success = pcall(j.FireServer,j)
-            
-            -- hanya hit terakhir yang bisa trigger recovery
-            if hit >= totalHits and not success then
-                failCount = failCount + 1
-                if failCount >= MAX_FAIL_BEFORE_RECOVERY then
-                    failCount = 0
-                    print("Recovery triggered at last hit due to miss")
-                    if m then task.cancel(m) end
-                    if n then task.cancel(n) end
-                    m = task.spawn(function() ultraSpamFishing(totalHits) end)
-                end
+            if success then
+                task.wait(cfg.ReelDelay)
             else
-                failCount = 0
+                task.wait(cfg.RetryDelay)
             end
-        end)
-        
-        hit = hit + 1
-        if hit > totalHits then hit = 1 end
-        task.wait(c.e)
+        else
+            task.wait(0.15)
+        end
     end
-end
+end)
 
--- ===== START / STOP =====
-local function startBlatantX8Premium(active)
-    c.d = active
-    if active then
-        if m then task.cancel(m) end
-        if n then task.cancel(n) end
-        m = task.spawn(function() ultraSpamFishing(8) end)
-    else
-        if m then task.cancel(m) end
-        if n then task.cancel(n) end
-        m=nil
-        n=nil
-        pcall(l.InvokeServer,l)
-    end
-end
-
--- ===== UI =====
+-- ================= UI =================
 blantant = Tab3:Section({
-    Title = "Blatant X8 Ultra Premium",
+    Title = "Blatant Featured | Beta",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -644,35 +655,35 @@ blantant = Tab3:Section({
 
 blantant:Toggle({
     Title = "Blatant Mode",
-    Value = c.d,
-    Callback = function(value)
-        startBlatantX8Premium(value)
+    Value = cfg.Enabled,
+    Callback = function(v)
+        cfg.Enabled = v
+        if not v then
+            pcall(RF_Cancel.InvokeServer, RF_Cancel)
+        end
     end
 })
 
 blantant:Input({
     Title = "Reel Delay",
-    Placeholder = "1.1",
-    Default = tostring(c.e),
-    Callback = function(input)
-        local num = tonumber(input)
-        if num and num >= 0 then
-            c.e = num
-        end
+    Placeholder = "1.9",
+    Default = tostring(cfg.ReelDelay),
+    Callback = function(v)
+        local n = tonumber(v)
+        if n and n > 0 then cfg.ReelDelay = n end
     end
 })
 
 blantant:Input({
     Title = "Complete Delay",
-    Placeholder = "0.70",
-    Default = tostring(c.f),
-    Callback = function(input)
-        local num = tonumber(input)
-        if num and num > 0 then
-            c.f = num
-        end
+    Placeholder = "1.1",
+    Default = tostring(cfg.CompleteDelay),
+    Callback = function(v)
+        local n = tonumber(v)
+        if n and n > 0 then cfg.CompleteDelay = n end
     end
 })
+
 
 item = Tab3:Section({     
     Title = "Item",
