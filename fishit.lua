@@ -450,10 +450,10 @@ other:Toggle({
 		setFreeze(s)
 	end
 })
--- LANGSUNG TAMBAHKAN INI SETELAH FREEZE CHARACTER TOGGLE:
 
 local animDisabled = false
 local animConnection = nil
+local originalAnimate = nil  -- Backup animate script
 
 local function toggleAnim(s)
     animDisabled = s
@@ -462,23 +462,51 @@ local function toggleAnim(s)
         if not char then return end
         
         local humanoid = char:FindFirstChildOfClass("Humanoid")
-        local animate = char:FindFirstChild("Animate")
-        
         if not humanoid then return end
         
         if animDisabled then
-            -- DISABLE
-            if animate then animate.Disabled = true end
+            -- DESTROY ANIMATOR (BENER² MATIIN)
+            local animator = humanoid:FindFirstChildOfClass("Animator")
+            if animator then 
+                animator:Destroy() 
+            end
+            
+            -- DESTROY ANIMATE SCRIPT (JANGAN DISABLE DOANG)
+            local animate = char:FindFirstChild("Animate")
+            if animate then
+                originalAnimate = animate:Clone()  -- BACKUP
+                animate:Destroy()  -- DESTROY, BUKAN DISABLE!
+            end
+            
+            -- STOP & REMOVE ALL ANIMATION TRACKS
             for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
                 track:Stop(0)
+                if track.Animation then
+                    track.Animation:Destroy()  -- Destroy animation object
+                end
             end
-            local animator = humanoid:FindFirstChildOfClass("Animator")
-            if animator then animator:Destroy() end
+            
+            -- BLOCK NEW ANIMATIONS
+            humanoid.AnimationPlayed:Connect(function(track)
+                if animDisabled then
+                    track:Stop()
+                    if track.Animation then
+                        track.Animation:Destroy()
+                    end
+                end
+            end)
+            
         else
-            -- ENABLE
-            if animate then animate.Disabled = false end
+            -- RESTORE ANIMATIONS
             if not humanoid:FindFirstChildOfClass("Animator") then
                 Instance.new("Animator", humanoid)
+            end
+            
+            -- RESTORE ANIMATE SCRIPT
+            if originalAnimate and not char:FindFirstChild("Animate") then
+                local newAnimate = originalAnimate:Clone()
+                newAnimate.Parent = char
+                newAnimate.Disabled = false
             end
         end
     end
@@ -2081,7 +2109,7 @@ Gui.DisplayOrder = 2147483647
 Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
 Frame = Instance.new("Frame", Gui)
-Frame.Size = UDim2.fromOffset(215,34)
+Frame.Size = UDim2.fromOffset(205,34)
 Frame.Position = UDim2.fromScale(0.5,0.05)
 Frame.AnchorPoint = Vector2.new(0.5,0)
 Frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
