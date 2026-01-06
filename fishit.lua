@@ -900,66 +900,71 @@ blantant:Button({
 })
 
 -- =====================================================
--- FISH IT – AUTO SCAN NOTIFICATION CONTROLLER (HOLD)
--- Delay logic queue notif (bukan UI, bukan remote)
--- =====================================================
-
--- =====================================================
--- FISH IT – VISUAL LIMIT BYPASS (UNLIMITED STACK)
+-- FISH IT – COMBINED NOTIFICATION OVERRIDE (FINAL)
+-- delay + clone + controller
 -- =====================================================
 
 task.spawn(function()
     local Players = game:GetService("Players")
     local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
-    local HOLD_TIME = 4.5 -- bebas, makin besar makin numpuk
+    -- ===== CONFIG =====
+    local HOLD_EXTRA_TIME = 3.5   -- tahan lebih lama
+    local CLONE_DELAY = 0         -- biarin spawn natural
+    -- ==================
 
-    -- CONTAINER SENDIRI (ANTI LIMIT)
-    local StackGui = Instance.new("ScreenGui")
-    StackGui.Name = "FishStackBypass"
-    StackGui.IgnoreGuiInset = true
-    StackGui.ResetOnSpawn = false
-    StackGui.Parent = PlayerGui
+    local active = {}
 
-    local Holder = Instance.new("Frame")
-    Holder.Size = UDim2.fromScale(1,1)
-    Holder.BackgroundTransparency = 1
-    Holder.Parent = StackGui
-
-    local Layout = Instance.new("UIListLayout")
-    Layout.Padding = UDim.new(0, 6)
-    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    Layout.VerticalAlignment = Enum.VerticalAlignment.Top
-    Layout.Parent = Holder
-
-    local Padding = Instance.new("UIPadding")
-    Padding.PaddingTop = UDim.new(0, 120) -- posisi asli notif
-    Padding.Parent = Holder
-
-    local function isFishNotif(f)
-        return f:IsA("Frame")
-            and f.Name == "NewFrame"
-            and f:FindFirstChildWhichIsA("TextLabel", true)
+    local function isFishNotif(frame)
+        return frame:IsA("Frame")
+            and frame.Name == "NewFrame"
+            and frame:FindFirstChildWhichIsA("TextLabel", true)
     end
 
+    -- =============================
+    -- CONTROLLER: PREVENT RECYCLE
+    -- =============================
+    local function lockFrame(frame)
+        if active[frame] then return end
+        active[frame] = true
+
+        -- tahan lifetime frame asli
+        task.delay(HOLD_EXTRA_TIME, function()
+            if frame and frame.Parent then
+                frame:Destroy()
+            end
+            active[frame] = nil
+        end)
+    end
+
+    -- =============================
+    -- MAIN HOOK
+    -- =============================
     PlayerGui.DescendantAdded:Connect(function(frame)
         if not isFishNotif(frame) then return end
 
-        task.wait() -- tunggu tween bawaan terpasang
+        task.wait() -- biarin Fish It setup tween & layout
 
         if not frame.Parent then return end
 
-        -- CLONE FULL (REAL LOOK)
-        local clone = frame:Clone()
-        clone.Parent = Holder
-        clone.Visible = true
-        clone.ZIndex = 999
+        -- 1️⃣ HOLD FRAME ASLI
+        lockFrame(frame)
 
-        -- biarin anim & fade asli jalan
-        task.delay(HOLD_TIME, function()
-            if clone then
-                clone:Destroy()
-            end
+        -- 2️⃣ CLONE FRAME ASLI
+        task.delay(CLONE_DELAY, function()
+            if not frame or not frame.Parent then return end
+
+            local clone = frame:Clone()
+            clone.Parent = frame.Parent
+            clone.Visible = true
+            clone.ZIndex = frame.ZIndex + 1
+
+            -- 3️⃣ HOLD CLONE (FADE BAWAAN TETAP JALAN)
+            task.delay(HOLD_EXTRA_TIME, function()
+                if clone then
+                    clone:Destroy()
+                end
+            end)
         end)
     end)
 end)
