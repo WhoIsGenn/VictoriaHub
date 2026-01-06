@@ -452,6 +452,7 @@ other:Toggle({
 })
 
 -- WORKING ANIMATION TOGGLE
+-- WORKING ANIMATION TOGGLE (WITH FISHING FIX)
 local animToggled = false
 
 other:Toggle({
@@ -467,9 +468,25 @@ other:Toggle({
             local humanoid = char:FindFirstChild("Humanoid")
             if humanoid then
                 if state then
-                    -- Stop current animations
+                    -- Stop ALL animations (termasuk fishing)
                     for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-                        track:Stop()
+                        -- PRIORITAS: Stop fishing animations first
+                        if track.Animation then
+                            local animName = track.Animation.Name:lower()
+                            if animName:find("fish") or animName:find("cast") or animName:find("reel") then
+                                track:Stop()  -- Stop dulu
+                                track.Animation:Destroy()  -- Destroy animation object
+                                print("Destroyed fishing animation:", animName)
+                            end
+                        end
+                        track:Stop()  -- Stop semua
+                    end
+                    
+                    -- Destroy Animator untuk matiin bener²
+                    local animator = humanoid:FindFirstChildOfClass("Animator")
+                    if animator then
+                        animator:Destroy()
+                        print("Animator destroyed")
                     end
                     
                     -- Disable animate script
@@ -477,11 +494,17 @@ other:Toggle({
                     if animate then
                         animate.Disabled = true
                     end
+                    
                 else
                     -- Enable animate script
                     local animate = char:FindFirstChild("Animate")
                     if animate then
                         animate.Disabled = false
+                    end
+                    
+                    -- Restore Animator
+                    if not humanoid:FindFirstChildOfClass("Animator") then
+                        Instance.new("Animator", humanoid)
                     end
                 end
             end
