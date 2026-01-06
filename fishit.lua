@@ -900,28 +900,26 @@ blantant:Button({
 })
 
 task.spawn(function()
-    task.wait(2) -- 🔑 PENTING: tunggu UI selesai load
+    task.wait(2)
 
     local Players = game:GetService("Players")
     local Player = Players.LocalPlayer
     local PlayerGui = Player:WaitForChild("PlayerGui")
 
-    local HOLD_TIME = 60
-    local MIN_ALPHA = 0.03
+    local HOLD_TIME = 70     -- LAMA BANGET
+    local MIN_ALPHA = 0.15   -- tahan frame, bukan text
 
     local hooked = {}
 
-    local function hookText(label)
-        if hooked[label] then return end
-        hooked[label] = true
-
-        task.wait(0.25)
+    local function hookFrame(frame)
+        if hooked[frame] then return end
+        hooked[frame] = true
 
         task.spawn(function()
             local start = tick()
-            while label.Parent and (tick() - start) < HOLD_TIME do
-                if label.TextTransparency > MIN_ALPHA then
-                    label.TextTransparency = MIN_ALPHA
+            while frame.Parent and (tick() - start) < HOLD_TIME do
+                if frame.BackgroundTransparency > MIN_ALPHA then
+                    frame.BackgroundTransparency = MIN_ALPHA
                 end
                 task.wait(0.05)
             end
@@ -929,11 +927,12 @@ task.spawn(function()
     end
 
     PlayerGui.DescendantAdded:Connect(function(v)
-        if v:IsA("TextLabel") and v.Text and #v.Text > 0 then
-            pcall(hookText, v) -- 🔒 SAFE, GA BUNUH UI
+        if v.Name == "NewFrame" and v:IsA("Frame") then
+            pcall(hookFrame, v)
         end
     end)
 end)
+
 
 item = Tab3:Section({     
     Title = "Item",
