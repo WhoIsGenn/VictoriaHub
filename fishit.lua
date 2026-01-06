@@ -453,63 +453,72 @@ other:Toggle({
 
 local P = game.Players.LocalPlayer
 local animDisabled = false
-local animConn
 
-local function applyAnimState()
-    local char = P.Character
-    if not char then return end
+local function toggleAnim(s)
+    animDisabled = s
+    print("Toggle Animations:", s)
     
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    
-    if animDisabled then
-        -- STOP ALL ANIMATIONS
-        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-            pcall(function()
+    local function updateChar(char)
+        if not char then return end
+        
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        
+        if animDisabled then
+            -- MATIIN: Destroy animator
+            local animator = humanoid:FindFirstChildOfClass("Animator")
+            if animator then
+                animator:Destroy()
+                print("Destroyed animator")
+            end
+            
+            -- Disable animate script
+            local animate = char:FindFirstChild("Animate")
+            if animate then
+                animate.Disabled = true
+                print("Disabled animate script")
+            end
+            
+            -- Stop current animations
+            for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
                 track:Stop(0)
-            end)
+                print("Stopped animation track")
+            end
+            
+        else
+            -- NYALAIN: Create animator baru
+            if not humanoid:FindFirstChildOfClass("Animator") then
+                Instance.new("Animator", humanoid)
+                print("Created new animator")
+            end
+            
+            -- Enable animate script
+            local animate = char:FindFirstChild("Animate")
+            if animate then
+                animate.Disabled = false
+                print("Enabled animate script")
+            end
         end
-        
-        -- DISABLE ANIMATE
-        local animate = char:FindFirstChild("Animate")
-        if animate then
-            animate.Disabled = true
-        end
-        
-        -- REMOVE ANIMATOR
-        local animator = humanoid:FindFirstChildOfClass("Animator")
-        if animator then
-            animator:Destroy()
-        end
-    else
-        -- ENABLE ANIMATIONS
-        local animate = char:FindFirstChild("Animate")
-        if animate then
-            animate.Disabled = false
-        end
-        
-        if not humanoid:FindFirstChildOfClass("Animator") then
-            Instance.new("Animator", humanoid)
-        end
+    end
+    
+    -- Update character sekarang
+    if P.Character then
+        updateChar(P.Character)
+    end
+    
+    -- Untuk character baru
+    if animDisabled then
+        P.CharacterAdded:Connect(function(char)
+            task.wait(0.5)
+            updateChar(char)
+        end)
     end
 end
 
--- CHARACTER ADDED
-P.CharacterAdded:Connect(function()
-    task.wait(0.4)
-    if animDisabled then
-        pcall(applyAnimState)
-    end
-end)
-
--- TOGGLE
 other:Toggle({
     Title = "Disable Animations",
     Value = false,
-    Callback = function(state)
-        animDisabled = state
-        pcall(applyAnimState)
-    end
+    Callback = toggleAnim
 })
 
 _G.AutoFishing = false
