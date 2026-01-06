@@ -1,7 +1,7 @@
 -- [[ WEBHOOK LOGGER - START ]] -- --(Info Executed)--
 local WebhookConfig = {
     Url = "https://discord.com/api/webhooks/1455552801705955430/LF6MI_XBA3073CUDZOv-OtJe74KvUVt-fnXKqqGe3LiGc3g6C0NW76qAoONOwcQQGm2D", 
-    ScriptName = "Victoriahub | Fish It", 
+    ScriptName = "Lexshub | Fish It", 
     EmbedColor = 65535 
 }
 
@@ -81,9 +81,6 @@ _G.HRP = _G.Characters:WaitForChild("HumanoidRootPart")
 _G.Overhead = _G.HRP:WaitForChild("Overhead")
 _G.Header = _G.Overhead:WaitForChild("Content"):WaitForChild("Header")
 _G.LevelLabel = _G.Overhead:WaitForChild("LevelContainer"):WaitForChild("Label")
-Player = Players.LocalPlayer
-_G.XPBar = Player:WaitForChild("PlayerGui"):WaitForChild("XP")
-_G.XPLevel = _G.XPBar:WaitForChild("Frame"):WaitForChild("LevelCount")
 _G.Title = _G.Overhead:WaitForChild("TitleContainer"):WaitForChild("Label")
 _G.TitleEnabled = _G.Overhead:WaitForChild("TitleContainer")
 
@@ -96,12 +93,6 @@ if Player and VirtualUser then
 end
 
 task.spawn(function()
-    if _G.XPBar then
-        _G.XPBar.Enabled = true
-    end
-end)
-
-task.spawn(function()
     TweenService = game:GetService("TweenService")
     RunService = game:GetService("RunService")
 
@@ -109,7 +100,7 @@ task.spawn(function()
         _G.TitleEnabled.Visible = true
         _G.Title.TextScaled = false
         _G.Title.TextSize = 19
-        _G.Title.Text = "Victoria Hub"
+        _G.Title.Text = "Lexs Hub On Top"
 
         -- efek neon/glow (kalau TextLabel pakai UIStroke)
         uiStroke = Instance.new("UIStroke")
@@ -140,10 +131,10 @@ task.spawn(function()
 end)
 
 local Window = WindUI:CreateWindow({
-    Title = "Victoria Hub",
-    Icon = "rbxassetid://134034549147826",
+    Title = "Lexs Hub",
+    Icon = "rbxassetid://71947103252559",
     Author = "Premium | Fish It",
-    Folder = "VICTORIA_HUB",
+    Folder = "LEXS_HUB",
     Size = UDim2.fromOffset(260, 290),
     Transparent = true,
     Theme = "Dark",
@@ -152,8 +143,8 @@ local Window = WindUI:CreateWindow({
 })                                                             
 
 Window:EditOpenButton({
-    Title = "Victoria Hub",
-    Icon = "rbxassetid://134034549147826",
+    Title = "Lexs Hub",
+    Icon = "rbxassetid://71947103252559",
     CornerRadius = UDim.new(0,16),
     StrokeThickness = 2,
     Color = ColorSequence.new( -- gradient
@@ -240,7 +231,7 @@ local Dialog = Window:Dialog({
             Title = "Copy Discord",
             Callback = function()
                 if setclipboard then
-                    setclipboard("https://discord.gg/Victoriahub")
+                    setclipboard("https://discord.gg/lexshub")
                     
                     -- Notify jika berhasil
                     WindUI:Notify({
@@ -275,7 +266,7 @@ local Dialog = Window:Dialog({
 })
 
 WindUI:Notify({
-    Title = "Victoria Hub Loaded",
+    Title = "Lexs Hub Loaded",
     Content = "UI loaded successfully!",
     Duration = 3,
     Icon = "bell",
@@ -289,7 +280,7 @@ local Tab1 = Window:Tab({
 Window:SelectTab(1)
 
     Tab1:Paragraph({
-        Title = "Victoria Hub Community",
+        Title = "Lexs Hub Community",
         Desc = "Join Our Community Discord Server to get the latest updates, support, and connect with other users!",
         Image = "rbxassetid://71947103252559",
         ImageSize = 24,
@@ -298,10 +289,10 @@ Window:SelectTab(1)
                 Title = "Copy Link",
                 Icon = "link",
                 Callback = function()
-                    setclipboard("https://discord.gg/Victoriahub")
+                    setclipboard("https://discord.gg/lexshub")
                     WindUI:Notify({
                         Title = "Link Disalin!",
-                        Content = "Link Discord Victoria Hub berhasil disalin.",
+                        Content = "Link Discord Lexs Hub berhasil disalin.",
                         Duration = 3,
                         Icon = "copy",
                     })
@@ -822,11 +813,11 @@ blantant:Input({
 Tab3:Space()
 
 blantant:Button({
-    Title = "BLANTANT X7 METHOD",
-    Desc = "BLANTANT TESTER X7",
+    Title = "X7 OLD",
+    Desc = "OLD METHOD X7",
     Locked = false,
     Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/WhoIsGenn/VictoriaHub/refs/heads/main/Loader/BlantantTESTER.lua"))()
+        loadstring(game:HttpGet("https://pastefy.app/lrOQwepH/raw"))()
     end
 })
 
@@ -1220,7 +1211,7 @@ function sendTestWebhook()
     end
 
     local payload = {
-        username = "Victoria Hub Webhook",
+        username = "Lexs Hub Webhook",
         avatar_url = "https://cdn.discordapp.com/attachments/1403943739176783954/1451856403621871729/ChatGPT_Image_27_Sep_2025_16.38.53.png",
         embeds = {{
             title = "Test Webhook Connected",
@@ -1261,12 +1252,12 @@ function sendNewFishWebhook(newlyCaughtFish)
     local payload = {
         content = nil,
         embeds = {{
-            title = "Victoria Hub Webhook Fish caught!",
+            title = "Lexs Hub Webhook Fish caught!",
             description = string.format(
                 "Congrats! **%s** You obtained new **%s** here for full detail fish :",
                 playerName, newFishRarity
             ),
-            url = "https://discord.gg/Victoriahub",
+            url = "https://discord.gg/lexshub",
             color = 65535,
 
             -- === PERUBAHAN SATU-SATUNYA DI SINI (FIELDS) ===
@@ -1288,7 +1279,7 @@ function sendNewFishWebhook(newlyCaughtFish)
             -- === AKHIR PERUBAHAN ===
 
             footer = {
-                text = "Victoria Hub Webhook",
+                text = "Lexs Hub Webhook",
                 icon_url = "https://cdn.discordapp.com/attachments/1403943739176783954/1451856403621871729/ChatGPT_Image_27_Sep_2025_16.38.53.png"
             },
             timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z"),
@@ -1296,7 +1287,7 @@ function sendNewFishWebhook(newlyCaughtFish)
                 url = getThumbnailURL(newFishDetails.Icon)
             }
         }},
-        username = "Victoria Hub Webhook",
+        username = "Lexs Hub Webhook",
         avatar_url = "https://cdn.discordapp.com/attachments/1403943739176783954/1451856403621871729/ChatGPT_Image_27_Sep_2025_16.38.53.png",
         attachments = {}
     }
@@ -2005,7 +1996,7 @@ local Tab7 = Window:Tab({
 })
 
 player = Tab7:Section({ 
-    Title = "Player Featured",
+    Title = "Player In Game",
     Icon = "play",
     TextXAlignment = "Left",
     TextSize = 17,
@@ -2054,7 +2045,7 @@ Icon = Instance.new("ImageLabel", Frame)
 Icon.Size = UDim2.fromOffset(22,22)
 Icon.Position = UDim2.fromOffset(14,13)
 Icon.BackgroundTransparency = 1
-Icon.Image = "rbxassetid://134034549147826"
+Icon.Image = "rbxassetid://71947103252559"
 Icon.ZIndex = 1002
 
 Text = Instance.new("TextLabel", Frame)
@@ -2173,7 +2164,7 @@ player:Toggle({
 })
 
 local P = game:GetService("Players").LocalPlayer
-local HN, HL = "discord.gg/victoriahub", "Lv. ???"
+local HN, HL = "discord.gg/lexshub", "Lv. ???"
 local S = {on = false, ui = nil}
 
 local function setup(c)
@@ -2253,7 +2244,7 @@ player:Toggle({
 
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = "AntiAFK loaded!",
-                Text = "AntiAFK Active",
+                Text = "Coded By Lexs",
                 Button1 = "Okey",
                 Duration = 5
             })
@@ -2341,7 +2332,7 @@ end
 P.PlayerAdded:Connect(function(plr)
     if ON and plr~=LP and BL[plr.UserId] then
         WindUI:Notify({
-            Title="Victoria Hub",
+            Title="Lexs Hub",
             Content=plr.Name.." telah join, serverhop dalam 6 detik...",
             Duration=6,
             Icon="alert-triangle"
@@ -2356,7 +2347,7 @@ task.spawn(function()
             for _,plr in ipairs(P:GetPlayers()) do
                 if plr~=LP and BL[plr.UserId] then
                     WindUI:Notify({
-                        Title="Victoria Hub",
+                        Title="Lexs Hub",
                         Content=plr.Name.." terdeteksi, serverhop dalam 6 detik...",
                         Duration=6,
                         Icon="alert-triangle"
@@ -2370,7 +2361,7 @@ task.spawn(function()
 end)
 
 graphic = Tab7:Section({ 
-    Title = "Graphics Featured",
+    Title = "Graphics In Game",
     Icon = "chart-bar",
     TextXAlignment = "Left",
     TextSize = 17,
@@ -2532,7 +2523,7 @@ P.CharacterAdded:Connect(function()
 end)
 
 -- ✅ UI (DIJAMIN KELOAD)
-graphic:Toggle({
+other:Toggle({
     Title = "Disable Animations",
     Value = false,
     Callback = function(state)
@@ -2843,8 +2834,8 @@ config = Tab7:Section({
     TextSize = 17,
 })
 
-local ConfigFolder = "VICTORIA_HUB/Configs"
-if not isfolder("VICTORIA_HUB") then makefolder("VICTORIA_HUB") end
+local ConfigFolder = "LEXS_HUB/Configs"
+if not isfolder("LEXS_HUB") then makefolder("LEXS_HUB") end
 if not isfolder(ConfigFolder) then makefolder(ConfigFolder) end
 
 local ConfigName = "default.json"
