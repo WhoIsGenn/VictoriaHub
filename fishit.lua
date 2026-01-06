@@ -453,58 +453,99 @@ other:Toggle({
 
 local P = game.Players.LocalPlayer
 local animationsDisabled = false
+local originalStates = {}
 
 local function toggleAnimations(state)
     animationsDisabled = state
     
-    local function disableCharAnimations(character)
-        if not character then return end
+    local function processCharacter(char)
+        if not char then return end
         
-        local humanoid = character:WaitForChild("Humanoid", 2)
+        local humanoid = char:WaitForChild("Humanoid", 2)
         if not humanoid then return end
         
-        -- HAPUS ANIMATOR (ini yang bener matiin animasi)
-        local animator = humanoid:FindFirstChildOfClass("Animator")
-        if animator then
-            animator:Destroy()
-        end
-        
-        -- STOP SEMUA ANIMATION TRACKS
-        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-            track:Stop()
-        end
-        
-        -- DISABLE ANIMATE SCRIPT
-        local animate = character:FindFirstChild("Animate")
-        if animate then
-            animate.Disabled = true
-        end
-        
-        -- PREVENT NEW ANIMATIONS
-        humanoid.Running:Connect(function(speed)
-            if animationsDisabled and speed > 0 then
-                -- Stop walk animation
-                for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-                    if track.Animation then
-                        local animName = track.Animation.Name:lower()
-                        if animName:find("walk") or animName:find("run") then
-                            track:Stop()
+        if animationsDisabled then
+            -- BACKUP STATE SEBELUM DISABLE
+            originalStates[char] = {
+                animate = char:FindFirstChild("Animate"),
+                animator = humanoid:FindFirstChildOfClass("Animator")
+            }
+            
+            -- DESTROY ANIMATOR (ini yang bener matiin)
+            local animator = humanoid:FindFirstChildOfClass("Animator")
+            if animator then
+                animator:Destroy()
+            end
+            
+            -- DISABLE ANIMATE SCRIPT
+            local animate = char:FindFirstChild("Animate")
+            if animate then
+                animate.Disabled = true
+            end
+            
+            -- STOP ALL CURRENT ANIMATIONS
+            for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+                track:Stop(0) -- Stop immediately
+            end
+            
+            -- HOOK UNTUK BLOCK NEW ANIMATIONS
+            if not humanoid:GetAttribute("AnimationHook") then
+                humanoid:SetAttribute("AnimationHook", true)
+                
+                humanoid.AnimationPlayed:Connect(function(track)
+                    if animationsDisabled then
+                        task.wait() -- Biar trigger dulu
+                        track:Stop()
+                        
+                        -- Destroy animation object biar ga bisa diputar ulang
+                        if track.Animation then
+                            track.Animation:Destroy()
                         end
                     end
-                end
+                end)
             end
-        end)
+            
+        else
+            -- RESTORE ANIMATIONS
+            local data = originalStates[char]
+            if data then
+                -- RESTORE ANIMATOR
+                if not humanoid:FindFirstChildOfClass("Animator") and data.animator then
+                    local newAnimator = Instance.new("Animator")
+                    newAnimator.Parent = humanoid
+                end
+                
+                -- ENABLE ANIMATE SCRIPT
+                if data.animate then
+                    data.animate.Disabled = false
+                end
+                
+                -- REMOVE HOOK
+                humanoid:SetAttribute("AnimationHook", nil)
+            end
+        end
     end
     
-    -- Apply to current character
+    -- PROCESS CURRENT CHARACTER
     if P.Character then
-        disableCharAnimations(P.Character)
+        processCharacter(P.Character)
     end
     
-    -- Apply to future characters
-    if state then
-        P.CharacterAdded:Connect(function(char)
-            disableCharAnimations(char)
+    -- HOOK FOR NEW CHARACTERS
+    if animationsDisabled then
+        local connection
+        connection = P.CharacterAdded:Connect(function(char)
+            processCharacter(char)
+        end)
+        
+        -- CLEANUP CONNECTION WHEN DISABLED
+        task.spawn(function()
+            while animationsDisabled do
+                task.wait()
+            end
+            if connection then
+                connection:Disconnect()
+            end
         end)
     end
 end
@@ -2092,7 +2133,7 @@ Gui.DisplayOrder = 2147483647
 Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
 Frame = Instance.new("Frame", Gui)
-Frame.Size = UDim2.fromOffset(235,34)
+Frame.Size = UDim2.fromOffset(215,34)
 Frame.Position = UDim2.fromScale(0.5,0.05)
 Frame.AnchorPoint = Vector2.new(0.5,0)
 Frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
