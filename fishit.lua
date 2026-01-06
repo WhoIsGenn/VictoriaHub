@@ -909,7 +909,7 @@ task.spawn(function()
     local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
     -- ===== CONFIG =====
-    local HOLD_EXTRA_TIME = 3.5   -- tahan lebih lama
+    local HOLD_EXTRA_TIME = 5.5   -- tahan lebih lama
     local CLONE_DELAY = 0         -- biarin spawn natural
     -- ==================
 
