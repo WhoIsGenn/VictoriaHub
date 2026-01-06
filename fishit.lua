@@ -452,105 +452,58 @@ other:Toggle({
 })
 
 local P = game.Players.LocalPlayer
-local animationsDisabled = false
-local originalStates = {}
+local disableAnim = false
 
 local function toggleAnimations(state)
-    animationsDisabled = state
+    disableAnim = state
     
-    local function processCharacter(char)
+    local function setupChar(char)
         if not char then return end
-        
-        local humanoid = char:WaitForChild("Humanoid", 2)
+        local humanoid = char:WaitForChild("Humanoid", 3)
         if not humanoid then return end
         
-        if animationsDisabled then
-            -- BACKUP STATE SEBELUM DISABLE
-            originalStates[char] = {
-                animate = char:FindFirstChild("Animate"),
-                animator = humanoid:FindFirstChildOfClass("Animator")
-            }
-            
-            -- DESTROY ANIMATOR (ini yang bener matiin)
+        if disableAnim then
+            -- Destroy animator
             local animator = humanoid:FindFirstChildOfClass("Animator")
-            if animator then
-                animator:Destroy()
-            end
+            if animator then animator:Destroy() end
             
-            -- DISABLE ANIMATE SCRIPT
+            -- Disable Animate
             local animate = char:FindFirstChild("Animate")
-            if animate then
-                animate.Disabled = true
-            end
+            if animate then animate.Disabled = true end
             
-            -- STOP ALL CURRENT ANIMATIONS
+            -- Stop current animations
             for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-                track:Stop(0) -- Stop immediately
+                track:Stop()
             end
             
-            -- HOOK UNTUK BLOCK NEW ANIMATIONS
-            if not humanoid:GetAttribute("AnimationHook") then
-                humanoid:SetAttribute("AnimationHook", true)
-                
-                humanoid.AnimationPlayed:Connect(function(track)
-                    if animationsDisabled then
-                        task.wait() -- Biar trigger dulu
-                        track:Stop()
-                        
-                        -- Destroy animation object biar ga bisa diputar ulang
-                        if track.Animation then
-                            track.Animation:Destroy()
-                        end
-                    end
-                end)
-            end
-            
+            -- Hook to block new animations
+            humanoid.AnimationPlayed:Connect(function(track)
+                if disableAnim then
+                    track:Stop()
+                end
+            end)
         else
-            -- RESTORE ANIMATIONS
-            local data = originalStates[char]
-            if data then
-                -- RESTORE ANIMATOR
-                if not humanoid:FindFirstChildOfClass("Animator") and data.animator then
-                    local newAnimator = Instance.new("Animator")
-                    newAnimator.Parent = humanoid
-                end
-                
-                -- ENABLE ANIMATE SCRIPT
-                if data.animate then
-                    data.animate.Disabled = false
-                end
-                
-                -- REMOVE HOOK
-                humanoid:SetAttribute("AnimationHook", nil)
+            -- Restore
+            if not humanoid:FindFirstChildOfClass("Animator") then
+                Instance.new("Animator", humanoid)
             end
+            local animate = char:FindFirstChild("Animate")
+            if animate then animate.Disabled = false end
         end
     end
     
-    -- PROCESS CURRENT CHARACTER
+    -- Setup current char
     if P.Character then
-        processCharacter(P.Character)
+        setupChar(P.Character)
     end
     
-    -- HOOK FOR NEW CHARACTERS
-    if animationsDisabled then
-        local connection
-        connection = P.CharacterAdded:Connect(function(char)
-            processCharacter(char)
-        end)
-        
-        -- CLEANUP CONNECTION WHEN DISABLED
-        task.spawn(function()
-            while animationsDisabled do
-                task.wait()
-            end
-            if connection then
-                connection:Disconnect()
-            end
-        end)
+    -- Setup future chars
+    if disableAnim then
+        P.CharacterAdded:Connect(setupChar)
     end
 end
 
--- TOGGLE DI WINDUI
+-- WindUI toggle
 other:Toggle({
     Title = "Disable Animations",
     Value = false,
