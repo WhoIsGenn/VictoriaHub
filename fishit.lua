@@ -453,7 +453,7 @@ other:Toggle({
 
 local animDisabled = false
 local animConnection = nil
-local originalAnimate = nil  -- Backup animate script
+local animateBackups = {}  -- Untuk backup animate script
 
 local function toggleAnim(s)
     animDisabled = s
@@ -462,51 +462,46 @@ local function toggleAnim(s)
         if not char then return end
         
         local humanoid = char:FindFirstChildOfClass("Humanoid")
+        local animate = char:FindFirstChild("Animate")
+        
         if not humanoid then return end
         
         if animDisabled then
-            -- DESTROY ANIMATOR (BENER² MATIIN)
+            -- MATIIN BENER² (DESTROY, bukan disable)
+            if animate then
+                -- BACKUP ANIMATE SCRIPT
+                animateBackups[char] = {
+                    Source = animate.Source,
+                    Disabled = animate.Disabled
+                }
+                animate:Destroy()  -- INI YANG BEDA: DESTROY!
+            end
+            
+            -- DESTROY ANIMATOR
             local animator = humanoid:FindFirstChildOfClass("Animator")
             if animator then 
                 animator:Destroy() 
             end
             
-            -- DESTROY ANIMATE SCRIPT (JANGAN DISABLE DOANG)
-            local animate = char:FindFirstChild("Animate")
-            if animate then
-                originalAnimate = animate:Clone()  -- BACKUP
-                animate:Destroy()  -- DESTROY, BUKAN DISABLE!
-            end
-            
-            -- STOP & REMOVE ALL ANIMATION TRACKS
+            -- STOP SEMUA ANIMATION
             for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
                 track:Stop(0)
-                if track.Animation then
-                    track.Animation:Destroy()  -- Destroy animation object
-                end
             end
-            
-            -- BLOCK NEW ANIMATIONS
-            humanoid.AnimationPlayed:Connect(function(track)
-                if animDisabled then
-                    track:Stop()
-                    if track.Animation then
-                        track.Animation:Destroy()
-                    end
-                end
-            end)
             
         else
-            -- RESTORE ANIMATIONS
-            if not humanoid:FindFirstChildOfClass("Animator") then
-                Instance.new("Animator", humanoid)
+            -- NYALAIN LAGI
+            -- RESTORE ANIMATE SCRIPT
+            if animateBackups[char] and not char:FindFirstChild("Animate") then
+                local newAnimate = Instance.new("LocalScript")
+                newAnimate.Name = "Animate"
+                newAnimate.Source = animateBackups[char].Source
+                newAnimate.Disabled = animateBackups[char].Disabled
+                newAnimate.Parent = char
             end
             
-            -- RESTORE ANIMATE SCRIPT
-            if originalAnimate and not char:FindFirstChild("Animate") then
-                local newAnimate = originalAnimate:Clone()
-                newAnimate.Parent = char
-                newAnimate.Disabled = false
+            -- RESTORE ANIMATOR
+            if not humanoid:FindFirstChildOfClass("Animator") then
+                Instance.new("Animator", humanoid)
             end
         end
     end
