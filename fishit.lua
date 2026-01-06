@@ -2058,13 +2058,13 @@ Gui.DisplayOrder = 2147483647
 Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
 Frame = Instance.new("Frame", Gui)
-Frame.Size = UDim2.fromOffset(320,40)
+Frame.Size = UDim2.fromOffset(285,34)
 Frame.Position = UDim2.fromScale(0.5,0.05)
 Frame.AnchorPoint = Vector2.new(0.5,0)
 Frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
 Frame.BackgroundTransparency = 0.7
 Frame.BorderSizePixel = 0
-Frame.Visible = false
+Frame.Visible = true
 Frame.ZIndex = 1000
 Instance.new("UICorner",Frame).CornerRadius = UDim.new(0,24)
 
@@ -2081,48 +2081,58 @@ Gradient.Color = ColorSequence.new{
 }
 
 Icon = Instance.new("ImageLabel", Frame)
-Icon.Size = UDim2.fromOffset(22,22)
-Icon.Position = UDim2.fromOffset(12,10)
+Icon.Size = UDim2.fromOffset(16,16)
+Icon.Position = UDim2.fromOffset(8,9)
 Icon.BackgroundTransparency = 1
 Icon.Image = "rbxassetid://134034549147826"
 Icon.ZIndex = 1002
 
 Text = Instance.new("TextLabel", Frame)
-Text.Size = UDim2.new(1,-40,1,0)
-Text.Position = UDim2.fromOffset(40,0)
+Text.Size = UDim2.new(1,-30,1,0)
+Text.Position = UDim2.fromOffset(30,0)
 Text.BackgroundTransparency = 1
 Text.Font = Enum.Font.GothamBold
-Text.TextSize = 14
+Text.TextSize = 10
 Text.TextXAlignment = Enum.TextXAlignment.Left
 Text.TextYAlignment = Enum.TextYAlignment.Center
 Text.TextColor3 = Color3.fromRGB(230,230,230)
 Text.ZIndex = 1002
 
-dragging = true
+dragging = false
+
 Frame.InputBegan:Connect(function(i)
-	if i.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = true
-		dragStart = i.Position
-		startPos = Frame.Position
-	end
+    -- SUPPORT BOTH MOBILE TOUCH & PC MOUSE
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or 
+       i.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = i.Position
+        startPos = Frame.Position
+    end
 end)
 
 UIS.InputEnded:Connect(function(i)
-	if i.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = false
-	end
+    -- SUPPORT BOTH
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or 
+       i.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
 end)
 
 UIS.InputChanged:Connect(function(i)
-	if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
-		local d = i.Position - dragStart
-		Frame.Position = UDim2.new(
-			startPos.X.Scale,
-			startPos.X.Offset + d.X,
-			startPos.Y.Scale,
-			startPos.Y.Offset + d.Y
-		)
-	end
+    if dragging then
+        -- MOBILE: Touch movement
+        -- PC: Mouse movement
+        if i.UserInputType == Enum.UserInputType.MouseMovement or
+           i.UserInputType == Enum.UserInputType.Touch then
+            local d = i.Position - dragStart
+            Frame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + d.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + d.Y
+            )
+        end
+    end
 end)
 
 ON = true
