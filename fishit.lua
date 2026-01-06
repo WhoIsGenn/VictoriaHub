@@ -899,43 +899,75 @@ blantant:Button({
     end
 })
 
+-- =====================================================
+-- FISH IT – AUTO SCAN NOTIFICATION CONTROLLER (HOLD)
+-- Delay logic queue notif (bukan UI, bukan remote)
+-- =====================================================
+
 task.spawn(function()
-    task.wait(2) -- tunggu UI Fish It & WindUI siap
+    task.wait(2.5) -- tunggu Controllers keload semua
 
-    local Players = game:GetService("Players")
-    local Player = Players.LocalPlayer
-    local PlayerGui = Player:WaitForChild("PlayerGui")
-
-    -- 🔧 SETTING
-    local HOLD_DELAY = 3.5 -- detik tambahan sebelum slot direcycle (naikin ini biar kerasa)
-
-    local busy = {}
-
-    local function holdFrame(frame)
-        if busy[frame] then return end
-        busy[frame] = true
-
-        -- Fish It biasanya destroy / reuse frame
-        -- kita tahan sebentar
-        task.delay(HOLD_DELAY, function()
-            busy[frame] = nil
-        end)
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+    if not Controllers then
+        warn("[HOLD NOTIF] Controllers folder not found")
+        return
     end
 
-    PlayerGui.DescendantAdded:Connect(function(v)
-        if v:IsA("Frame") and v.Name == "NewFrame" then
-            pcall(holdFrame, v)
-        end
-    end)
+    -- 🔧 SETTING (INI YANG KERASA)
+    local QUEUE_DELAY = 2.0  -- naikin 1.5 - 2.0 kalau blatant super cepat
 
-    -- 🔒 BLOCK RECYCLE TERLALU CEPAT
-    PlayerGui.DescendantRemoving:Connect(function(v)
-        if busy[v] then
-            -- tahan recycle
-            task.wait(HOLD_DELAY)
+    local hooked = false
+
+    local function tryHookController(mod, modName)
+        if type(mod) ~= "table" then return end
+
+        for fname, fn in pairs(mod) do
+            if type(fn) == "function" then
+                local lname = tostring(fname):lower()
+
+                -- keyword umum yang dipakai Fish It / hub lain
+                if lname:find("push")
+                or lname:find("enqueue")
+                or lname:find("queue")
+                or lname:find("add")
+                or lname:find("notify")
+                then
+                    -- hindari double hook
+                    if debug.getinfo(fn).short_src:find("hook") then
+                        return
+                    end
+
+                    local old = fn
+                    mod[fname] = function(self, ...)
+                        task.wait(QUEUE_DELAY)
+                        return old(self, ...)
+                    end
+
+                    print("[HOLD NOTIF] Hooked:", modName .. "." .. fname)
+                    hooked = true
+                    return
+                end
+            end
         end
-    end)
+    end
+
+    -- AUTO SCAN SEMUA CONTROLLER
+    for _,moduleScript in ipairs(Controllers:GetChildren()) do
+        if moduleScript:IsA("ModuleScript") then
+            local ok, mod = pcall(require, moduleScript)
+            if ok then
+                tryHookController(mod, moduleScript.Name)
+                if hooked then break end
+            end
+        end
+    end
+
+    if not hooked then
+        warn("[HOLD NOTIF] No notification queue method found")
+    end
 end)
+
 
 
 item = Tab3:Section({     
