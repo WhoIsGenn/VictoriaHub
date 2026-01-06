@@ -899,46 +899,59 @@ blantant:Button({
     end
 })
 
--- ======================================================
--- FISH IT: PURE HOLD TIME (NATIVE FADE, NO STACK LIMIT)
--- ======================================================
+-- ===============================
+-- FISH IT – HOLD OBTAIN TEXT (FINAL FIX)
+-- Hold di FADE-OUT, spawn & anim tetap bawaan
+-- ===============================
 
-task.spawn(function()
-    pcall(function()
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 
-        local Players = game:GetService("Players")
-        local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
 
-        local HOLD_TIME = 25    -- ⏳ ubah ini sesuka lu (detik)
-        local MIN_ALPHA = 0.05  -- seberapa kuat ditahan sebelum fade
+-- 🔧 SETTING
+local HOLD_TIME = 60        -- makin besar = makin numpuk
+local MIN_ALPHA = 0.03      -- terang lama, fade tetap jalan
 
-        local function holdPure(frame)
-            if not frame or not frame:IsA("Frame") then return end
+-- cache biar ga double hook
+local hooked = {}
 
-            local start = tick()
-            while frame.Parent and (tick() - start) < HOLD_TIME do
-                for _, v in ipairs(frame:GetDescendants()) do
-                    if v:IsA("TextLabel") then
-                        v.TextTransparency = math.min(v.TextTransparency, MIN_ALPHA)
-                        v.TextStrokeTransparency = math.min(v.TextStrokeTransparency, MIN_ALPHA)
-                    elseif v:IsA("UIStroke") then
-                        v.Transparency = math.min(v.Transparency, MIN_ALPHA)
-                    end
-                end
-                task.wait(0.05)
+local function hookText(label)
+    if hooked[label] then return end
+    hooked[label] = true
+
+    -- tunggu sampe Fish It SELESAI anim masuk
+    task.wait(0.25)
+
+    -- jangan sentuh popup icon (aman sama remove popup lu)
+    if not label:IsA("TextLabel") then return end
+
+    -- tahan pas mau fade-out
+    task.spawn(function()
+        local start = tick()
+
+        while label.Parent and (tick() - start) < HOLD_TIME do
+            -- cegah transparency naik (fade diperlambat)
+            if label.TextTransparency > MIN_ALPHA then
+                label.TextTransparency = MIN_ALPHA
             end
+            task.wait(0.05)
         end
-
-        -- notif baru (langsung aktif)
-        PlayerGui.DescendantAdded:Connect(function(v)
-            if v.Name == "NewFrame" and v:IsA("Frame") then
-                task.wait() -- biarin anim bawaan muncul
-                holdPure(v)
-            end
-        end)
-
+        -- abis HOLD_TIME → Fish It lanjut fade normal
     end)
+end
+
+-- listen notif bawaan Fish It
+PlayerGui.DescendantAdded:Connect(function(v)
+    if v:IsA("TextLabel") and v.Name == "Text" then
+        -- filter notif obtain (aman, ga sentuh UI lain)
+        if v.Text and #v.Text > 0 then
+            hookText(v)
+        end
+    end
 end)
+
 
 item = Tab3:Section({     
     Title = "Item",
