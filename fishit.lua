@@ -912,7 +912,7 @@ task.spawn(function()
     local Players = game:GetService("Players")
     local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
-    local HOLD_TIME = 3.5 -- bebas, makin besar makin numpuk
+    local HOLD_TIME = 4.5 -- bebas, makin besar makin numpuk
 
     -- CONTAINER SENDIRI (ANTI LIMIT)
     local StackGui = Instance.new("ScreenGui")
