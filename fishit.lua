@@ -452,62 +452,69 @@ other:Toggle({
 })
 
 local P = game.Players.LocalPlayer
-local disableAnim = false
+local animDisabled = false
+local charConnection = nil
 
-local function toggleAnimations(state)
-    disableAnim = state
+local function toggleAnim(s)
+    animDisabled = s
     
-    local function setupChar(char)
+    local function processCharacter(char)
         if not char then return end
-        local humanoid = char:WaitForChild("Humanoid", 3)
-        if not humanoid then return end
         
-        if disableAnim then
-            -- Destroy animator
-            local animator = humanoid:FindFirstChildOfClass("Animator")
-            if animator then animator:Destroy() end
-            
-            -- Disable Animate
-            local animate = char:FindFirstChild("Animate")
-            if animate then animate.Disabled = true end
-            
-            -- Stop current animations
-            for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-                track:Stop()
+        local h = char:FindFirstChildOfClass("Humanoid")
+        local a = char:FindFirstChild("Animate")
+        if not h then return end
+        
+        if animDisabled then
+            -- DISABLE
+            if a then a.Disabled = true end
+            for _, t in ipairs(h:GetPlayingAnimationTracks()) do 
+                t:Stop(0) 
             end
+            local an = h:FindFirstChildOfClass("Animator")
+            if an then an:Destroy() end
             
-            -- Hook to block new animations
-            humanoid.AnimationPlayed:Connect(function(track)
-                if disableAnim then
+            -- BLOCK NEW ANIMATIONS
+            h.AnimationPlayed:Connect(function(track)
+                if animDisabled then
                     track:Stop()
                 end
             end)
         else
-            -- Restore
-            if not humanoid:FindFirstChildOfClass("Animator") then
-                Instance.new("Animator", humanoid)
+            -- ENABLE (RESTORE)
+            if a then a.Disabled = false end
+            if not h:FindFirstChildOfClass("Animator") then
+                Instance.new("Animator", h)
             end
-            local animate = char:FindFirstChild("Animate")
-            if animate then animate.Disabled = false end
         end
     end
     
-    -- Setup current char
+    -- PROCESS CURRENT CHARACTER
     if P.Character then
-        setupChar(P.Character)
+        processCharacter(P.Character)
     end
     
-    -- Setup future chars
-    if disableAnim then
-        P.CharacterAdded:Connect(setupChar)
+    -- HANDLE FUTURE CHARACTERS
+    if animDisabled then
+        -- Connect untuk character baru
+        if charConnection then
+            charConnection:Disconnect()
+        end
+        charConnection = P.CharacterAdded:Connect(processCharacter)
+    else
+        -- Disconnect connection
+        if charConnection then
+            charConnection:Disconnect()
+            charConnection = nil
+        end
     end
 end
 
--- WindUI toggle
+-- TOGGLE TETAP SAMA
 other:Toggle({
     Title = "Disable Animations",
     Value = false,
-    Callback = toggleAnimations
+    Callback = toggleAnim
 })
 
 _G.AutoFishing = false
