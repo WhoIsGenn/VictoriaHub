@@ -451,6 +451,107 @@ other:Toggle({
 	end
 })
 
+-- =========================================================
+--  SAFE DISABLE ANIMATION (ANTI ERROR / ANTI UI BREAK)
+-- =========================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local Player = Players.LocalPlayer
+
+local animDisabled = false
+local animConn = nil
+
+local function applyAnimState()
+    local character = Player.Character or Player.CharacterAdded:Wait()
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    local animator = humanoid:FindFirstChildOfClass("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = humanoid
+    end
+
+    if animDisabled then
+        -- STOP semua anim yang sedang jalan
+        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+            pcall(function()
+                track:Stop(0)
+                track:Destroy()
+            end)
+        end
+
+        -- disconnect lama
+        if animConn then
+            animConn:Disconnect()
+            animConn = nil
+        end
+
+        -- BLOCK anim baru (FULL SAFE)
+        pcall(function()
+            animConn = animator.AnimationPlayed:Connect(function(track)
+                if animDisabled and track then
+                    task.defer(function()
+                        pcall(function()
+                            track:Stop(0)
+                            track:Destroy()
+                        end)
+                    end)
+                end
+            end)
+        end)
+
+    else
+        -- ENABLE NORMAL
+        if animConn then
+            animConn:Disconnect()
+            animConn = nil
+        end
+
+        local animate = character:FindFirstChild("Animate") or character:WaitForChild("Animate", 1)
+        if animate then
+            animate.Disabled = false
+        end
+
+        pcall(function()
+            humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            task.wait()
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end)
+    end
+end
+
+-- ============================
+-- ANTI RESPAWN BUG
+-- ============================
+Player.CharacterAdded:Connect(function()
+    task.wait(0.4)
+    if animDisabled then
+        pcall(applyAnimState)
+    end
+end)
+
+-- ============================
+-- UI (SAFE LOAD)
+-- ============================
+task.spawn(function()
+    while not other do
+        task.wait()
+    end
+
+    other:Toggle({
+        Title = "Disable Animations",
+        Value = false,
+        Callback = function(state)
+            animDisabled = state
+            pcall(applyAnimState)
+        end
+    })
+end)
+
+
 _G.AutoFishing = false
 _G.AutoEquipRod = false
 _G.Radar = false
@@ -1063,83 +1164,9 @@ end
         isSuperInstantRunning = false
         print('Super Instant Fishing stopped')
     end
-    
-    -- =========================================================
---  OBTAIN TEXT HOLD (ACTIVE ONLY WHEN BLATANT ON)
--- =========================================================
-
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
-
--- CONFIG
-local HOLD_OBTAIN_TIME = 0.8
-local OBTAIN_COOLDOWN = 0.15
-local lastHoldTick = 0
-
--- cari popup bawaan game
-local function getPopup()
-    local gui = PlayerGui:FindFirstChild("Small Notification")
-    if not gui then return end
-
-    local display = gui:FindFirstChild("Display")
-    if not display then return end
-
-    return display:FindFirstChild("NewFrame")
-end
-
--- tahan text supaya agak lama menghilang
-local function holdObtainText(frame, holdTime)
-    for _, v in ipairs(frame:GetDescendants()) do
-        if v:IsA("TextLabel") then
-            local start = tick()
-            local conn
-            conn = RunService.RenderStepped:Connect(function()
-                if not v or not v.Parent then
-                    if conn then conn:Disconnect() end
-                    return
-                end
-
-                v.Visible = true
-                v.TextTransparency = 0
-
-                if tick() - start >= holdTime then
-                    conn:Disconnect()
-                end
-            end)
-        end
-    end
-end
-
--- hook obtain fish (UI only)
-local ObtainRemote = ReplicatedStorage
-    :WaitForChild("Packages")
-    :WaitForChild("_Index")
-    :WaitForChild("sleitnick_net@0.2.0")
-    :WaitForChild("net")
-    :WaitForChild("RE/ObtainedNewFishNotification")
-
-ObtainRemote.OnClientEvent:Connect(function()
-    -- ❗ hanya aktif saat blatant ON
-    if not toggleState or not toggleState.blatantRunning then return end
-
-    -- anti spam
-    if tick() - lastHoldTick < OBTAIN_COOLDOWN then return end
-    lastHoldTick = tick()
-
-    task.wait() -- biarin popup spawn normal
-
-    local popup = getPopup()
-    if popup then
-        holdObtainText(popup, HOLD_OBTAIN_TIME)
-    end
-end)
   
 blantant = Tab3:Section({ 
-    Title = "Blantant Featured | Beta",
+    Title = "Blantan Mode | Beta",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -1186,16 +1213,14 @@ blantant:Input({
     end
 })
 
-
-
 Tab3:Space()
 
 blantant:Button({
-    Title = "Blantant Mode",
+    Title = "BLANTANT MODE X7",
     Desc = "TESTER METHOD X7",
     Locked = false,
     Callback = function()
-        loadstring(game:HttpGet("https://pastefy.app/lrOQwepH/raw"))()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/WhoIsGenn/VictoriaHub/refs/heads/main/Loader/BlantantTESTER.lua"))()
     end
 })
 
