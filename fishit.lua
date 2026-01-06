@@ -899,6 +899,70 @@ blantant:Button({
     end
 })
 
+-- ======================================================
+-- HOLD OBTAIN FISH TEXT (SAFE, NO CRASH, UI FRIENDLY)
+-- ======================================================
+
+task.spawn(function()
+    pcall(function()
+
+        local Players = game:GetService("Players")
+        local TweenService = game:GetService("TweenService")
+        local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+        local HOLD_TIME = 8
+        local FADE_TIME = 6
+
+        local function holdText(frame)
+            if not frame or not frame:IsA("Frame") then return end
+
+            task.wait() -- anim bawaan dulu
+
+            -- fade pelan TEXT ONLY (AMAN)
+            for _, v in ipairs(frame:GetDescendants()) do
+                if v:IsA("TextLabel") then
+                    TweenService:Create(
+                        v,
+                        TweenInfo.new(FADE_TIME, Enum.EasingStyle.Linear),
+                        {
+                            TextTransparency = 1,
+                            TextStrokeTransparency = 1
+                        }
+                    ):Play()
+                elseif v:IsA("UIStroke") then
+                    TweenService:Create(
+                        v,
+                        TweenInfo.new(FADE_TIME, Enum.EasingStyle.Linear),
+                        { Transparency = 1 }
+                    ):Play()
+                end
+            end
+
+            -- destroy di akhir (aman)
+            task.delay(HOLD_TIME, function()
+                pcall(function()
+                    frame:Destroy()
+                end)
+            end)
+        end
+
+        -- notif baru
+        PlayerGui.DescendantAdded:Connect(function(v)
+            if v.Name == "NewFrame" and v:IsA("Frame") then
+                holdText(v)
+            end
+        end)
+
+        -- notif lama
+        for _, v in ipairs(PlayerGui:GetDescendants()) do
+            if v.Name == "NewFrame" and v:IsA("Frame") then
+                holdText(v)
+            end
+        end
+
+    end)
+end)
+
 
 item = Tab3:Section({     
     Title = "Item",
