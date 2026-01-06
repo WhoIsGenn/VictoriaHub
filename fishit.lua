@@ -900,69 +900,45 @@ blantant:Button({
 })
 
 -- ======================================================
--- HOLD OBTAIN FISH TEXT (SAFE, NO CRASH, UI FRIENDLY)
+-- FISH IT: PURE HOLD TIME (NATIVE FADE, NO STACK LIMIT)
 -- ======================================================
 
 task.spawn(function()
     pcall(function()
 
         local Players = game:GetService("Players")
-        local TweenService = game:GetService("TweenService")
         local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
-        local HOLD_TIME = 8
-        local FADE_TIME = 6
+        local HOLD_TIME = 25    -- ⏳ ubah ini sesuka lu (detik)
+        local MIN_ALPHA = 0.05  -- seberapa kuat ditahan sebelum fade
 
-        local function holdText(frame)
+        local function holdPure(frame)
             if not frame or not frame:IsA("Frame") then return end
 
-            task.wait() -- anim bawaan dulu
-
-            -- fade pelan TEXT ONLY (AMAN)
-            for _, v in ipairs(frame:GetDescendants()) do
-                if v:IsA("TextLabel") then
-                    TweenService:Create(
-                        v,
-                        TweenInfo.new(FADE_TIME, Enum.EasingStyle.Linear),
-                        {
-                            TextTransparency = 1,
-                            TextStrokeTransparency = 1
-                        }
-                    ):Play()
-                elseif v:IsA("UIStroke") then
-                    TweenService:Create(
-                        v,
-                        TweenInfo.new(FADE_TIME, Enum.EasingStyle.Linear),
-                        { Transparency = 1 }
-                    ):Play()
+            local start = tick()
+            while frame.Parent and (tick() - start) < HOLD_TIME do
+                for _, v in ipairs(frame:GetDescendants()) do
+                    if v:IsA("TextLabel") then
+                        v.TextTransparency = math.min(v.TextTransparency, MIN_ALPHA)
+                        v.TextStrokeTransparency = math.min(v.TextStrokeTransparency, MIN_ALPHA)
+                    elseif v:IsA("UIStroke") then
+                        v.Transparency = math.min(v.Transparency, MIN_ALPHA)
+                    end
                 end
+                task.wait(0.05)
             end
-
-            -- destroy di akhir (aman)
-            task.delay(HOLD_TIME, function()
-                pcall(function()
-                    frame:Destroy()
-                end)
-            end)
         end
 
-        -- notif baru
+        -- notif baru (langsung aktif)
         PlayerGui.DescendantAdded:Connect(function(v)
             if v.Name == "NewFrame" and v:IsA("Frame") then
-                holdText(v)
+                task.wait() -- biarin anim bawaan muncul
+                holdPure(v)
             end
         end)
 
-        -- notif lama
-        for _, v in ipairs(PlayerGui:GetDescendants()) do
-            if v.Name == "NewFrame" and v:IsA("Frame") then
-                holdText(v)
-            end
-        end
-
     end)
 end)
-
 
 item = Tab3:Section({     
     Title = "Item",
