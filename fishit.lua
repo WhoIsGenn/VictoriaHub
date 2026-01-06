@@ -451,35 +451,69 @@ other:Toggle({
 	end
 })
 
-P.CharacterAdded:Connect(function(c)
-	if frozen then task.wait(.5); setFreeze(true) end
-end)
-
 local P = game.Players.LocalPlayer
+local animationsDisabled = false
 
-local function toggleAnim(s)
-    local c = P.Character or P.CharacterAdded:Wait()
-    local h = c:FindFirstChildOfClass("Humanoid")
-    local a = c:FindFirstChild("Animate")
-    if not h then return end
-
-    if s then
-        if a then a.Disabled = true end
-        for _,t in ipairs(h:GetPlayingAnimationTracks()) do t:Stop(0) end
-        local an = h:FindFirstChildOfClass("Animator")
-        if an then an:Destroy() end
-    else
-        if a then a.Disabled = false end
-        if not h:FindFirstChildOfClass("Animator") then
-            Instance.new("Animator", h)
+local function toggleAnimations(state)
+    animationsDisabled = state
+    
+    local function disableCharAnimations(character)
+        if not character then return end
+        
+        local humanoid = character:WaitForChild("Humanoid", 2)
+        if not humanoid then return end
+        
+        -- HAPUS ANIMATOR (ini yang bener matiin animasi)
+        local animator = humanoid:FindFirstChildOfClass("Animator")
+        if animator then
+            animator:Destroy()
         end
+        
+        -- STOP SEMUA ANIMATION TRACKS
+        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+            track:Stop()
+        end
+        
+        -- DISABLE ANIMATE SCRIPT
+        local animate = character:FindFirstChild("Animate")
+        if animate then
+            animate.Disabled = true
+        end
+        
+        -- PREVENT NEW ANIMATIONS
+        humanoid.Running:Connect(function(speed)
+            if animationsDisabled and speed > 0 then
+                -- Stop walk animation
+                for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+                    if track.Animation then
+                        local animName = track.Animation.Name:lower()
+                        if animName:find("walk") or animName:find("run") then
+                            track:Stop()
+                        end
+                    end
+                end
+            end
+        end)
+    end
+    
+    -- Apply to current character
+    if P.Character then
+        disableCharAnimations(P.Character)
+    end
+    
+    -- Apply to future characters
+    if state then
+        P.CharacterAdded:Connect(function(char)
+            disableCharAnimations(char)
+        end)
     end
 end
 
+-- TOGGLE DI WINDUI
 other:Toggle({
     Title = "Disable Animations",
     Value = false,
-    Callback = toggleAnim
+    Callback = toggleAnimations
 })
 
 _G.AutoFishing = false
@@ -2058,7 +2092,7 @@ Gui.DisplayOrder = 2147483647
 Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
 Frame = Instance.new("Frame", Gui)
-Frame.Size = UDim2.fromOffset(285,34)
+Frame.Size = UDim2.fromOffset(235,34)
 Frame.Position = UDim2.fromScale(0.5,0.05)
 Frame.AnchorPoint = Vector2.new(0.5,0)
 Frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
