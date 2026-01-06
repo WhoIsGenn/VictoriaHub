@@ -451,27 +451,16 @@ other:Toggle({
 	end
 })
 
-local Players = game:GetService("Players")
-local P = Players.LocalPlayer
-
 local animDisabled = false
 local animConn
 
 local function applyAnimState()
-    local c = P.Character  -- HAPUS: .CharacterAdded:Wait()
-    if not c then return end  -- TAMBAH CHECK INI!
-    
+    local c = P.Character or P.CharacterAdded:Wait()
     local h = c:FindFirstChildOfClass("Humanoid")
     if not h then return end
 
-    local animator = h:FindFirstChildOfClass("Animator")
-    if not animator then
-        animator = Instance.new("Animator")
-        animator.Parent = h
-    end
-
     if animDisabled then
-        -- STOP SEMUA ANIM YANG LAGI JALAN
+        -- stop semua anim yang lagi jalan
         for _, track in ipairs(h:GetPlayingAnimationTracks()) do
             pcall(function()
                 track:Stop(0)
@@ -479,27 +468,25 @@ local function applyAnimState()
             end)
         end
 
-        -- BLOCK ANIM BARU (SAFE MODE)
+        -- block anim baru
         if animConn then
             animConn:Disconnect()
             animConn = nil
         end
 
-        -- GUARD: ga semua Animator punya AnimationPlayed
-        if animator.AnimationPlayed then
-            animConn = animator.AnimationPlayed:Connect(function(track)
-                if animDisabled and track then
-                    task.defer(function()
-                        pcall(function()
-                            track:Stop(0)
-                            track:Destroy()
-                        end)
+        animConn = h.AnimationPlayed:Connect(function(track)
+            if animDisabled and track then
+                task.defer(function()
+                    pcall(function()
+                        track:Stop(0)
+                        track:Destroy()
                     end)
-                end
-            end)
-        end
+                end)
+            end
+        end)
+
     else
-        -- ENABLE NORMAL
+        -- enable normal
         if animConn then
             animConn:Disconnect()
             animConn = nil
@@ -516,7 +503,7 @@ local function applyAnimState()
     end
 end
 
--- 🔒 ANTI RESPAWN BUG (SAFE)
+-- anti respawn bug
 P.CharacterAdded:Connect(function()
     task.wait(0.4)
     if animDisabled then
@@ -524,7 +511,6 @@ P.CharacterAdded:Connect(function()
     end
 end)
 
--- ✅ UI (DIJAMIN KELOAD)
 other:Toggle({
     Title = "Disable Animations",
     Value = false,
@@ -533,6 +519,7 @@ other:Toggle({
         pcall(applyAnimState)
     end
 })
+
 
 _G.AutoFishing = false
 _G.AutoEquipRod = false
