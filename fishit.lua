@@ -451,96 +451,86 @@ other:Toggle({
 	end
 })
 
--- =========================================================
---  TOTAL DISABLE ANIMATION (SAFE + FULL RESTORE)
--- =========================================================
-
 local Players = game:GetService("Players")
 local P = Players.LocalPlayer
 
 local animDisabled = false
-local savedAnimateState = {}
+local animConn
 
-local function getChar()
-    return P.Character or P.CharacterAdded:Wait()
-end
-
-local function stopAllAnimations(h)
-    for _, track in ipairs(h:GetPlayingAnimationTracks()) do
-        pcall(function()
-            track:Stop(0)
-            track:Destroy()
-        end)
-    end
-end
-
-local function disableAnim()
-    local c = getChar()
+local function applyAnimState()
+    local c = P.Character or P.CharacterAdded:Wait()
     local h = c:FindFirstChildOfClass("Humanoid")
     if not h then return end
-
-    local animate = c:FindFirstChild("Animate")
-
-    -- simpan state animate
-    if animate and savedAnimateState[animate] == nil then
-        savedAnimateState[animate] = animate.Disabled
-    end
-
-    -- MATIKAN TOTAL
-    if animate then
-        animate.Disabled = true
-    end
-
-    stopAllAnimations(h)
 
     local animator = h:FindFirstChildOfClass("Animator")
-    if animator then
-        animator:Destroy()
-    end
-end
-
-local function enableAnim()
-    local c = getChar()
-    local h = c:FindFirstChildOfClass("Humanoid")
-    if not h then return end
-
-    -- RESTORE ANIMATOR
-    if not h:FindFirstChildOfClass("Animator") then
-        Instance.new("Animator", h)
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = h
     end
 
-    -- RESTORE ANIMATE SCRIPT
-    local animate = c:FindFirstChild("Animate")
-    if animate then
-        animate.Disabled = false
-    end
-end
+    if animDisabled then
+        -- STOP SEMUA ANIM YANG LAGI JALAN
+        for _, track in ipairs(h:GetPlayingAnimationTracks()) do
+            pcall(function()
+                track:Stop(0)
+                track:Destroy()
+            end)
+        end
 
-local function toggleAnim(state)
-    animDisabled = state
+        -- BLOCK ANIM BARU (SAFE MODE)
+        if animConn then
+            animConn:Disconnect()
+            animConn = nil
+        end
 
-    if state then
-        disableAnim()
+        -- GUARD: ga semua Animator punya AnimationPlayed
+        if animator.AnimationPlayed then
+            animConn = animator.AnimationPlayed:Connect(function(track)
+                if animDisabled and track then
+                    task.defer(function()
+                        pcall(function()
+                            track:Stop(0)
+                            track:Destroy()
+                        end)
+                    end)
+                end
+            end)
+        end
     else
-        enableAnim()
+        -- ENABLE NORMAL
+        if animConn then
+            animConn:Disconnect()
+            animConn = nil
+        end
+
+        local animate = c:FindFirstChild("Animate")
+        if animate then
+            animate.Disabled = false
+        end
+
+        h:ChangeState(Enum.HumanoidStateType.Physics)
+        task.wait()
+        h:ChangeState(Enum.HumanoidStateType.Running)
     end
 end
 
--- SAFE RESPAWN SUPPORT
+-- 🔒 ANTI RESPAWN BUG (SAFE)
 P.CharacterAdded:Connect(function()
     task.wait(0.4)
     if animDisabled then
-        pcall(disableAnim)
+        pcall(applyAnimState)
     end
 end)
 
--- ================= UI =================
+-- ✅ UI (DIJAMIN KELOAD)
 other:Toggle({
     Title = "Disable Animations",
     Value = false,
-    Callback = toggleAnim
+    Callback = function(state)
+        animDisabled = state
+        pcall(applyAnimState)
+    end
 })
-
 
 _G.AutoFishing = false
 _G.AutoEquipRod = false
