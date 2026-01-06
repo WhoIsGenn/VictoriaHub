@@ -1063,9 +1063,83 @@ end
         isSuperInstantRunning = false
         print('Super Instant Fishing stopped')
     end
+    
+    -- =========================================================
+--  OBTAIN TEXT HOLD (ACTIVE ONLY WHEN BLATANT ON)
+-- =========================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+-- CONFIG
+local HOLD_OBTAIN_TIME = 0.8
+local OBTAIN_COOLDOWN = 0.15
+local lastHoldTick = 0
+
+-- cari popup bawaan game
+local function getPopup()
+    local gui = PlayerGui:FindFirstChild("Small Notification")
+    if not gui then return end
+
+    local display = gui:FindFirstChild("Display")
+    if not display then return end
+
+    return display:FindFirstChild("NewFrame")
+end
+
+-- tahan text supaya agak lama menghilang
+local function holdObtainText(frame, holdTime)
+    for _, v in ipairs(frame:GetDescendants()) do
+        if v:IsA("TextLabel") then
+            local start = tick()
+            local conn
+            conn = RunService.RenderStepped:Connect(function()
+                if not v or not v.Parent then
+                    if conn then conn:Disconnect() end
+                    return
+                end
+
+                v.Visible = true
+                v.TextTransparency = 0
+
+                if tick() - start >= holdTime then
+                    conn:Disconnect()
+                end
+            end)
+        end
+    end
+end
+
+-- hook obtain fish (UI only)
+local ObtainRemote = ReplicatedStorage
+    :WaitForChild("Packages")
+    :WaitForChild("_Index")
+    :WaitForChild("sleitnick_net@0.2.0")
+    :WaitForChild("net")
+    :WaitForChild("RE/ObtainedNewFishNotification")
+
+ObtainRemote.OnClientEvent:Connect(function()
+    -- ❗ hanya aktif saat blatant ON
+    if not toggleState or not toggleState.blatantRunning then return end
+
+    -- anti spam
+    if tick() - lastHoldTick < OBTAIN_COOLDOWN then return end
+    lastHoldTick = tick()
+
+    task.wait() -- biarin popup spawn normal
+
+    local popup = getPopup()
+    if popup then
+        holdObtainText(popup, HOLD_OBTAIN_TIME)
+    end
+end)
   
 blantant = Tab3:Section({ 
-    Title = "Blantant X8 | Recomended",
+    Title = "Blantant Featured | Beta",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -1112,20 +1186,13 @@ blantant:Input({
     end
 })
 
+
+
 Tab3:Space()
 
 blantant:Button({
-    Title = "X5 V1",
-    Desc = "This Is X5 In Free Script",
-    Locked = false,
-    Callback = function()
-        loadstring(game:HttpGet("https://pastefy.app/pIoVjvmR/raw"))()
-    end
-})
-
-blantant:Button({
-    Title = "X7 OLD",
-    Desc = "OLD METHOD X7",
+    Title = "Blantant Mode",
+    Desc = "TESTER METHOD X7",
     Locked = false,
     Callback = function()
         loadstring(game:HttpGet("https://pastefy.app/lrOQwepH/raw"))()
