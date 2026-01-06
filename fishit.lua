@@ -451,95 +451,42 @@ other:Toggle({
 	end
 })
 
-local P = game.Players.LocalPlayer
-local animDisabled = false
-local connection = nil
-
-local function toggleAnim(s)
-    animDisabled = s
-    
-    -- Cleanup previous connection
-    if connection then
-        connection:Disconnect()
-        connection = nil
-    end
-    
-    local function killAllAnimations(char)
-        if not char or not animDisabled then return end
-        
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if not humanoid then return end
-        
-        -- CARA BENER: NUKE SEMUA ANIMATION OBJECTS
-        for _, obj in ipairs(char:GetDescendants()) do
-            if obj:IsA("Animation") then
-                obj:Destroy()
-            end
-            if obj:IsA("AnimationTrack") then
-                obj:Stop(0)
-            end
-        end
-        
-        -- DESTROY ANIMATOR & ANIMATE
-        local animator = humanoid:FindFirstChildOfClass("Animator")
-        if animator then
-            animator:Destroy()
-        end
-        
-        local animate = char:FindFirstChild("Animate")
-        if animate then
-            animate:Destroy()  -- DESTROY TOTAL!
-        end
-    end
-    
-    local function restoreAnimations(char)
-        if not char or animDisabled then return end
-        
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if not humanoid then return end
-        
-        -- FORCE RESPAWN ANIMATE SCRIPT
-        if not char:FindFirstChild("Animate") then
-            -- Get default Animate script dari StarterCharacterScripts
-            local starterAnimate = game:GetService("Players").LocalPlayer.Character.Animate
-            if starterAnimate then
-                local newAnimate = Instance.new("LocalScript")
-                newAnimate.Name = "Animate"
-                newAnimate.Source = starterAnimate.Source
-                newAnimate.Parent = char
-            end
-        end
-        
-        -- CREATE NEW ANIMATOR
-        if not humanoid:FindFirstChildOfClass("Animator") then
-            Instance.new("Animator", humanoid)
-        end
-    end
-    
-    if animDisabled then
-        -- KILL MODE
-        if P.Character then
-            killAllAnimations(P.Character)
-        end
-        
-        -- Setup connection for new characters
-        connection = P.CharacterAdded:Connect(function(char)
-            task.wait(0.5)
-            killAllAnimations(char)
-        end)
-        
-    else
-        -- RESTORE MODE
-        if P.Character then
-            restoreAnimations(P.Character)
-        end
-    end
-end
+-- WORKING ANIMATION TOGGLE
+local animToggled = false
 
 other:Toggle({
     Title = "Disable Animations",
     Value = false,
-    Callback = toggleAnim
+    Callback = function(state)
+        animToggled = state
+        
+        local player = game.Players.LocalPlayer
+        local char = player.Character
+        
+        if char then
+            local humanoid = char:FindFirstChild("Humanoid")
+            if humanoid then
+                if state then
+                    -- Stop current animations
+                    for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+                        track:Stop()
+                    end
+                    
+                    -- Disable animate script
+                    local animate = char:FindFirstChild("Animate")
+                    if animate then
+                        animate.Disabled = true
+                    end
+                else
+                    -- Enable animate script
+                    local animate = char:FindFirstChild("Animate")
+                    if animate then
+                        animate.Disabled = false
+                    end
+                end
+            end
+        end
+    end
 })
 
 _G.AutoFishing = false
