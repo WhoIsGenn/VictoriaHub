@@ -771,7 +771,7 @@ end
         print('Super Instant Fishing stopped')
     end
   
-blantant = Tab0:Section({ 
+blantant = Tab3:Section({ 
     Title = "Blantant X8 | Recomended",
     Icon = "fish",
     TextTransparency = 0.05,
