@@ -453,65 +453,86 @@ other:Toggle({
 
 local P = game.Players.LocalPlayer
 local animDisabled = false
+local connection = nil
 
 local function toggleAnim(s)
     animDisabled = s
-    print("Toggle Animations:", s)
     
-    local function updateChar(char)
-        if not char then return end
+    -- Cleanup previous connection
+    if connection then
+        connection:Disconnect()
+        connection = nil
+    end
+    
+    local function killAllAnimations(char)
+        if not char or not animDisabled then return end
         
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         if not humanoid then return end
         
-        if animDisabled then
-            -- MATIIN: Destroy animator
-            local animator = humanoid:FindFirstChildOfClass("Animator")
-            if animator then
-                animator:Destroy()
-                print("Destroyed animator")
+        -- CARA BENER: NUKE SEMUA ANIMATION OBJECTS
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("Animation") then
+                obj:Destroy()
             end
-            
-            -- Disable animate script
-            local animate = char:FindFirstChild("Animate")
-            if animate then
-                animate.Disabled = true
-                print("Disabled animate script")
+            if obj:IsA("AnimationTrack") then
+                obj:Stop(0)
             end
-            
-            -- Stop current animations
-            for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-                track:Stop(0)
-                print("Stopped animation track")
-            end
-            
-        else
-            -- NYALAIN: Create animator baru
-            if not humanoid:FindFirstChildOfClass("Animator") then
-                Instance.new("Animator", humanoid)
-                print("Created new animator")
-            end
-            
-            -- Enable animate script
-            local animate = char:FindFirstChild("Animate")
-            if animate then
-                animate.Disabled = false
-                print("Enabled animate script")
-            end
+        end
+        
+        -- DESTROY ANIMATOR & ANIMATE
+        local animator = humanoid:FindFirstChildOfClass("Animator")
+        if animator then
+            animator:Destroy()
+        end
+        
+        local animate = char:FindFirstChild("Animate")
+        if animate then
+            animate:Destroy()  -- DESTROY TOTAL!
         end
     end
     
-    -- Update character sekarang
-    if P.Character then
-        updateChar(P.Character)
+    local function restoreAnimations(char)
+        if not char or animDisabled then return end
+        
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        
+        -- FORCE RESPAWN ANIMATE SCRIPT
+        if not char:FindFirstChild("Animate") then
+            -- Get default Animate script dari StarterCharacterScripts
+            local starterAnimate = game:GetService("Players").LocalPlayer.Character.Animate
+            if starterAnimate then
+                local newAnimate = Instance.new("LocalScript")
+                newAnimate.Name = "Animate"
+                newAnimate.Source = starterAnimate.Source
+                newAnimate.Parent = char
+            end
+        end
+        
+        -- CREATE NEW ANIMATOR
+        if not humanoid:FindFirstChildOfClass("Animator") then
+            Instance.new("Animator", humanoid)
+        end
     end
     
-    -- Untuk character baru
     if animDisabled then
-        P.CharacterAdded:Connect(function(char)
+        -- KILL MODE
+        if P.Character then
+            killAllAnimations(P.Character)
+        end
+        
+        -- Setup connection for new characters
+        connection = P.CharacterAdded:Connect(function(char)
             task.wait(0.5)
-            updateChar(char)
+            killAllAnimations(char)
         end)
+        
+    else
+        -- RESTORE MODE
+        if P.Character then
+            restoreAnimations(P.Character)
+        end
     end
 end
 
