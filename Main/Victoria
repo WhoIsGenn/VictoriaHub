@@ -11,8 +11,8 @@ local HUB_NAME = "Victoria Hub"
 local HUB_LOGO = "rbxassetid://134034549147826"
 
 -- URL SCRIPT
-local FREE_SCRIPT_URL    = "https://raw.githubusercontent.com/WhoIsGenn/VictoriaHub/refs/heads/main/Loader/fishit.lua"
-local PREMIUM_SCRIPT_URL = "https://raw.githubusercontent.com/WhoIsGenn/VictoriaHub/refs/heads/main/Loader/fishit.lua"
+local FREE_SCRIPT_URL    = "https://raw.githubusercontent.com/WhoIsGenn/VictoriaHub/refs/heads/main/Loader/openCloseUI.lua"
+local PREMIUM_SCRIPT_URL = "https://raw.githubusercontent.com/WhoIsGenn/VictoriaHub/refs/heads/main/Loader/openCloseUI.lua"
 
 -- ================= PREMIUM KEYS ===================
 local premiumKeys = {
