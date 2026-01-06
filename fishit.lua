@@ -376,252 +376,6 @@ UIS.JumpRequest:Connect(function()
     end
 end)
 
--- FLY FOR MOBILE & PC
-local flying = false
-local flySpeed = 50
-local bodyVelocity, bodyGyro
-local touchControls = {}
-local virtualJoystick
-
-local function toggleFly(state)
-    flying = state
-    
-    local char = game.Players.LocalPlayer.Character
-    if not char then return end
-    
-    local humanoidRootPart = char:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return end
-    
-    if state then
-        -- ENABLE FLY
-        humanoidRootPart.Anchored = false
-        
-        -- Create physics objects
-        bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-        bodyVelocity.MaxForce = Vector3.new(10000, 10000, 10000)
-        bodyVelocity.Parent = humanoidRootPart
-        
-        bodyGyro = Instance.new("BodyGyro")
-        bodyGyro.MaxTorque = Vector3.new(10000, 10000, 10000)
-        bodyGyro.P = 1000
-        bodyGyro.Parent = humanoidRootPart
-        
-        local UIS = game:GetService("UserInputService")
-        local camera = workspace.CurrentCamera
-        
-        -- FOR MOBILE: Create virtual joystick
-        if UIS.TouchEnabled then
-            -- Create transparent frame for touch controls
-            local screenGui = Instance.new("ScreenGui")
-            screenGui.Name = "FlyMobileControls"
-            screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-            screenGui.ResetOnSpawn = false
-            
-            -- Left joystick for movement
-            local leftFrame = Instance.new("Frame")
-            leftFrame.Size = UDim2.new(0, 150, 0, 150)
-            leftFrame.Position = UDim2.new(0, 50, 1, -200)
-            leftFrame.AnchorPoint = Vector2.new(0, 1)
-            leftFrame.BackgroundTransparency = 0.7
-            leftFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            leftFrame.BorderSizePixel = 0
-            leftFrame.Parent = screenGui
-            
-            Instance.new("UICorner", leftFrame).CornerRadius = UDim.new(1, 0)
-            
-            virtualJoystick = {
-                Frame = leftFrame,
-                Center = Vector2.new(leftFrame.AbsolutePosition.X + 75, leftFrame.AbsolutePosition.Y + 75),
-                Active = false,
-                Offset = Vector2.new(0, 0)
-            }
-            
-            -- Up/Down buttons
-            local upButton = Instance.new("TextButton")
-            upButton.Size = UDim2.new(0, 80, 0, 80)
-            upButton.Position = UDim2.new(1, -100, 0.5, -90)
-            upButton.Text = "↑"
-            upButton.TextSize = 30
-            upButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-            upButton.BackgroundTransparency = 0.5
-            upButton.Parent = leftFrame
-            
-            local downButton = Instance.new("TextButton")
-            downButton.Size = UDim2.new(0, 80, 0, 80)
-            downButton.Position = UDim2.new(1, -100, 0.5, 10)
-            downButton.Text = "↓"
-            downButton.TextSize = 30
-            downButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-            downButton.BackgroundTransparency = 0.5
-            downButton.Parent = leftFrame
-            
-            -- Touch connections
-            leftFrame.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    virtualJoystick.Active = true
-                    virtualJoystick.StartPos = input.Position
-                end
-            end)
-            
-            leftFrame.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    virtualJoystick.Active = false
-                    virtualJoystick.Offset = Vector2.new(0, 0)
-                end
-            end)
-            
-            leftFrame.InputChanged:Connect(function(input)
-                if virtualJoystick.Active and input.UserInputType == Enum.UserInputType.Touch then
-                    virtualJoystick.Offset = (input.Position - virtualJoystick.StartPos) / 75
-                    -- Limit joystick range
-                    virtualJoystick.Offset = Vector2.new(
-                        math.clamp(virtualJoystick.Offset.X, -1, 1),
-                        math.clamp(virtualJoystick.Offset.Y, -1, 1)
-                    )
-                end
-            end)
-            
-            -- Up/Down button events
-            local upPressed, downPressed = false, false
-            
-            upButton.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    upPressed = true
-                end
-            end)
-            
-            upButton.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    upPressed = false
-                end
-            end)
-            
-            downButton.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    downPressed = true
-                end
-            end)
-            
-            downButton.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    downPressed = false
-                end
-            end)
-            
-            touchControls = {
-                Joystick = virtualJoystick,
-                Up = upPressed,
-                Down = downPressed
-            }
-        end
-        
-        -- FLY LOOP (FOR BOTH MOBILE & PC)
-        local flyLoop
-        flyLoop = game:GetService("RunService").Heartbeat:Connect(function()
-            if not flying or not char:IsDescendantOf(workspace) then
-                flyLoop:Disconnect()
-                return
-            end
-            
-            local direction = Vector3.new()
-            local cf = camera.CFrame
-            
-            -- PC CONTROLS
-            if UIS.KeyboardEnabled then
-                if UIS:IsKeyDown(Enum.KeyCode.W) then
-                    direction = direction + cf.LookVector
-                end
-                if UIS:IsKeyDown(Enum.KeyCode.S) then
-                    direction = direction - cf.LookVector
-                end
-                if UIS:IsKeyDown(Enum.KeyCode.D) then
-                    direction = direction + cf.RightVector
-                end
-                if UIS:IsKeyDown(Enum.KeyCode.A) then
-                    direction = direction - cf.RightVector
-                end
-                if UIS:IsKeyDown(Enum.KeyCode.Space) then
-                    direction = direction + Vector3.new(0, 1, 0)
-                end
-                if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then
-                    direction = direction - Vector3.new(0, 1, 0)
-                end
-            end
-            
-            -- MOBILE CONTROLS
-            if UIS.TouchEnabled and virtualJoystick then
-                if virtualJoystick.Active then
-                    -- Joystick movement
-                    direction = direction + (cf.LookVector * virtualJoystick.Offset.Y)
-                    direction = direction + (cf.RightVector * virtualJoystick.Offset.X)
-                end
-                
-                -- Up/Down buttons
-                if touchControls.Up then
-                    direction = direction + Vector3.new(0, 1, 0)
-                end
-                if touchControls.Down then
-                    direction = direction - Vector3.new(0, 1, 0)
-                end
-            end
-            
-            -- Apply movement
-            if direction.Magnitude > 0 then
-                direction = direction.Unit * flySpeed
-            end
-            
-            if bodyVelocity and bodyVelocity.Parent then
-                bodyVelocity.Velocity = direction
-            end
-            
-            if bodyGyro and bodyGyro.Parent then
-                bodyGyro.CFrame = cf
-            end
-        end)
-        
-        -- Cleanup on death
-        char.Humanoid.Died:Connect(function()
-            toggleFly(false)
-        end)
-        
-    else
-        -- DISABLE FLY
-        if bodyVelocity then
-            bodyVelocity:Destroy()
-            bodyVelocity = nil
-        end
-        if bodyGyro then
-            bodyGyro:Destroy()
-            bodyGyro = nil
-        end
-        
-        -- Cleanup mobile controls
-        if virtualJoystick and virtualJoystick.Frame then
-            virtualJoystick.Frame:Destroy()
-            virtualJoystick = nil
-        end
-        touchControls = {}
-    end
-end
-
--- Add to WindUI
-other:Toggle({
-    Title = "Fly",
-    Desc = "WASD + Space/Shift (PC) | Touch Joystick (Mobile)",
-    Default = false,
-    Callback = toggleFly
-})
-
-other:Slider({
-    Title = "Fly Speed",
-    Step = 1,
-    Value = { Min = 20, Max = 200, Default = 50 },
-    Callback = function(value)
-        flySpeed = value
-    end
-})
-
 local Player = game:GetService("Players").LocalPlayer
 
 other:Toggle({
@@ -1144,6 +898,74 @@ blantant:Button({
         loadstring(game:HttpGet("https://raw.githubusercontent.com/WhoIsGenn/VictoriaHub/refs/heads/main/Loader/BlantantTESTER.lua"))()
     end
 })
+
+-- ======================================================
+-- HOLD OBTAIN FISH TEXT ONLY (ANTI REMOVE POPUP ICON)
+-- ======================================================
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+local HOLD_TIME = 8
+local FADE_TIME = 6
+
+local function holdTextOnly(frame)
+    if not frame or not frame:IsA("Frame") then return end
+
+    task.wait() -- anim bawaan dulu
+
+    -- STOP fade bawaan (text only)
+    for _, v in ipairs(frame:GetDescendants()) do
+        if v:IsA("TextLabel") or v:IsA("UIStroke") then
+            pcall(function()
+                TweenService:Create(v, TweenInfo.new(0), {}):Cancel()
+            end)
+        end
+    end
+
+    -- fade pelan (TEXT ONLY)
+    for _, v in ipairs(frame:GetDescendants()) do
+        if v:IsA("TextLabel") then
+            TweenService:Create(
+                v,
+                TweenInfo.new(FADE_TIME, Enum.EasingStyle.Linear),
+                {
+                    TextTransparency = 1,
+                    TextStrokeTransparency = 1
+                }
+            ):Play()
+        elseif v:IsA("UIStroke") then
+            TweenService:Create(
+                v,
+                TweenInfo.new(FADE_TIME, Enum.EasingStyle.Linear),
+                { Transparency = 1 }
+            ):Play()
+        end
+    end
+
+    -- destroy tetap di akhir
+    task.delay(HOLD_TIME, function()
+        pcall(function()
+            frame:Destroy()
+        end)
+    end)
+end
+
+-- hold notif baru
+PlayerGui.DescendantAdded:Connect(function(v)
+    if v.Name == "NewFrame" and v:IsA("Frame") then
+        holdTextOnly(v)
+    end
+end)
+
+-- hold notif lama
+for _, v in ipairs(PlayerGui:GetDescendants()) do
+    if v.Name == "NewFrame" and v:IsA("Frame") then
+        holdTextOnly(v)
+    end
+end
+
 
 item = Tab3:Section({     
     Title = "Item",
