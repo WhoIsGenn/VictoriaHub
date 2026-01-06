@@ -450,67 +450,55 @@ other:Toggle({
 		setFreeze(s)
 	end
 })
+-- LANGSUNG TAMBAHKAN INI SETELAH FREEZE CHARACTER TOGGLE:
 
-local P = game.Players.LocalPlayer
 local animDisabled = false
-local charConnection = nil
+local animConnection = nil
 
 local function toggleAnim(s)
     animDisabled = s
     
-    local function processCharacter(char)
+    local function setupChar(char)
         if not char then return end
         
-        local h = char:FindFirstChildOfClass("Humanoid")
-        local a = char:FindFirstChild("Animate")
-        if not h then return end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        local animate = char:FindFirstChild("Animate")
+        
+        if not humanoid then return end
         
         if animDisabled then
             -- DISABLE
-            if a then a.Disabled = true end
-            for _, t in ipairs(h:GetPlayingAnimationTracks()) do 
-                t:Stop(0) 
+            if animate then animate.Disabled = true end
+            for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+                track:Stop(0)
             end
-            local an = h:FindFirstChildOfClass("Animator")
-            if an then an:Destroy() end
-            
-            -- BLOCK NEW ANIMATIONS
-            h.AnimationPlayed:Connect(function(track)
-                if animDisabled then
-                    track:Stop()
-                end
-            end)
+            local animator = humanoid:FindFirstChildOfClass("Animator")
+            if animator then animator:Destroy() end
         else
-            -- ENABLE (RESTORE)
-            if a then a.Disabled = false end
-            if not h:FindFirstChildOfClass("Animator") then
-                Instance.new("Animator", h)
+            -- ENABLE
+            if animate then animate.Disabled = false end
+            if not humanoid:FindFirstChildOfClass("Animator") then
+                Instance.new("Animator", humanoid)
             end
         end
     end
     
-    -- PROCESS CURRENT CHARACTER
+    -- CURRENT CHAR
     if P.Character then
-        processCharacter(P.Character)
+        setupChar(P.Character)
     end
     
-    -- HANDLE FUTURE CHARACTERS
+    -- HANDLE CONNECTION
+    if animConnection then
+        animConnection:Disconnect()
+        animConnection = nil
+    end
+    
     if animDisabled then
-        -- Connect untuk character baru
-        if charConnection then
-            charConnection:Disconnect()
-        end
-        charConnection = P.CharacterAdded:Connect(processCharacter)
-    else
-        -- Disconnect connection
-        if charConnection then
-            charConnection:Disconnect()
-            charConnection = nil
-        end
+        animConnection = P.CharacterAdded:Connect(setupChar)
     end
 end
 
--- TOGGLE TETAP SAMA
 other:Toggle({
     Title = "Disable Animations",
     Value = false,
