@@ -899,88 +899,43 @@ blantant:Button({
     end
 })
 
--- =========================================
--- FISH IT – SEMI-FAKE CLONE STACK (BLATANT)
--- Clone frame ASLI saat limit 3 terlewati
--- =========================================
-
 task.spawn(function()
-    task.wait(2) -- tunggu UI & controller Fish It siap
+    task.wait(2) -- tunggu UI Fish It & WindUI siap
 
     local Players = game:GetService("Players")
-    local TweenService = game:GetService("TweenService")
-
     local Player = Players.LocalPlayer
     local PlayerGui = Player:WaitForChild("PlayerGui")
 
     -- 🔧 SETTING
-    local CLONE_LIFETIME = 45   -- berapa lama clone stay
-    local Y_OFFSET = 0          -- 0 = persis jarak bawaan
+    local HOLD_DELAY = 3.5 -- detik tambahan sebelum slot direcycle (naikin ini biar kerasa)
 
-    local clones = {}
-    local activeFrames = {}
+    local busy = {}
 
-    local function fadeOutAndDestroy(frame, t)
-        task.spawn(function()
-            task.wait(t)
-            if frame and frame.Parent then
-                -- biarin fade halus
-                local ti = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                pcall(function()
-                    TweenService:Create(frame, ti, {BackgroundTransparency = 1}):Play()
-                end)
-                task.wait(0.65)
-                pcall(function() frame:Destroy() end)
-            end
+    local function holdFrame(frame)
+        if busy[frame] then return end
+        busy[frame] = true
+
+        -- Fish It biasanya destroy / reuse frame
+        -- kita tahan sebentar
+        task.delay(HOLD_DELAY, function()
+            busy[frame] = nil
         end)
     end
 
-    local function cloneFrame(src)
-        if not src or not src.Parent then return end
-
-        local c = src:Clone()
-        c.Name = "ClonedFrame"
-        c.Parent = src.Parent
-        c.ZIndex = src.ZIndex
-        c.Position = UDim2.new(
-            src.Position.X.Scale,
-            src.Position.X.Offset,
-            src.Position.Y.Scale,
-            src.Position.Y.Offset + Y_OFFSET
-        )
-
-        table.insert(clones, c)
-        fadeOutAndDestroy(c, CLONE_LIFETIME)
-    end
-
     PlayerGui.DescendantAdded:Connect(function(v)
-        -- target notif ASLI Fish It
         if v:IsA("Frame") and v.Name == "NewFrame" then
-            table.insert(activeFrames, v)
-
-            -- kasih waktu anim masuk asli
-            task.wait(0.2)
-
-            -- kalau sudah lebih dari 3 slot → clone yang paling lama
-            if #activeFrames > 3 then
-                local oldest = table.remove(activeFrames, 1)
-                pcall(function()
-                    cloneFrame(oldest)
-                end)
-            end
+            pcall(holdFrame, v)
         end
     end)
 
-    -- bersihin daftar kalau frame asli dihancurin game
+    -- 🔒 BLOCK RECYCLE TERLALU CEPAT
     PlayerGui.DescendantRemoving:Connect(function(v)
-        for i = #activeFrames, 1, -1 do
-            if activeFrames[i] == v then
-                table.remove(activeFrames, i)
-            end
+        if busy[v] then
+            -- tahan recycle
+            task.wait(HOLD_DELAY)
         end
     end)
 end)
-
 
 
 item = Tab3:Section({     
