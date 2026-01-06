@@ -105,7 +105,7 @@ task.spawn(function()
     RunService = game:GetService("RunService")
 
     if _G.TitleEnabled then
-        _G.TitleEnabled.Visible = true
+        _G.TitleEnabled.Visible = false
         _G.Title.TextScaled = false
         _G.Title.TextSize = 19
         _G.Title.Text = "Victoria Hub"
@@ -451,35 +451,85 @@ other:Toggle({
 	end
 })
 
-P.CharacterAdded:Connect(function(c)
-	if frozen then task.wait(.5); setFreeze(true) end
-end)
+local Players = game:GetService("Players")
+local P = Players.LocalPlayer
 
-local P = game.Players.LocalPlayer
+local animDisabled = false
+local animConn
 
-local function toggleAnim(s)
+local function applyAnimState()
     local c = P.Character or P.CharacterAdded:Wait()
     local h = c:FindFirstChildOfClass("Humanoid")
-    local a = c:FindFirstChild("Animate")
     if not h then return end
 
-    if s then
-        if a then a.Disabled = true end
-        for _,t in ipairs(h:GetPlayingAnimationTracks()) do t:Stop(0) end
-        local an = h:FindFirstChildOfClass("Animator")
-        if an then an:Destroy() end
-    else
-        if a then a.Disabled = false end
-        if not h:FindFirstChildOfClass("Animator") then
-            Instance.new("Animator", h)
+    local animator = h:FindFirstChildOfClass("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = h
+    end
+
+    if animDisabled then
+        -- STOP SEMUA ANIM YANG LAGI JALAN
+        for _, track in ipairs(h:GetPlayingAnimationTracks()) do
+            pcall(function()
+                track:Stop(0)
+                track:Destroy()
+            end)
         end
+
+        -- BLOCK ANIM BARU (SAFE MODE)
+        if animConn then
+            animConn:Disconnect()
+            animConn = nil
+        end
+
+        -- GUARD: ga semua Animator punya AnimationPlayed
+        if animator.AnimationPlayed then
+            animConn = animator.AnimationPlayed:Connect(function(track)
+                if animDisabled and track then
+                    task.defer(function()
+                        pcall(function()
+                            track:Stop(0)
+                            track:Destroy()
+                        end)
+                    end)
+                end
+            end)
+        end
+    else
+        -- ENABLE NORMAL
+        if animConn then
+            animConn:Disconnect()
+            animConn = nil
+        end
+
+        local animate = c:FindFirstChild("Animate")
+        if animate then
+            animate.Disabled = false
+        end
+
+        h:ChangeState(Enum.HumanoidStateType.Physics)
+        task.wait()
+        h:ChangeState(Enum.HumanoidStateType.Running)
     end
 end
 
+-- 🔒 ANTI RESPAWN BUG (SAFE)
+P.CharacterAdded:Connect(function()
+    task.wait(0.4)
+    if animDisabled then
+        pcall(applyAnimState)
+    end
+end)
+
+-- ✅ UI (DIJAMIN KELOAD)
 other:Toggle({
     Title = "Disable Animations",
     Value = false,
-    Callback = toggleAnim
+    Callback = function(state)
+        animDisabled = state
+        pcall(applyAnimState)
+    end
 })
 
 _G.AutoFishing = false
@@ -1095,7 +1145,7 @@ end
         print('Super Instant Fishing stopped')
     end
   
-blantant = Tab0:Section({ 
+blantant = Tab3:Section({ 
     Title = "Blantant X8 | Recomended",
     Icon = "fish",
     TextTransparency = 0.05,
@@ -1143,7 +1193,7 @@ blantant:Input({
     end
 })
 
-Tab0:Space()
+Tab3:Space()
 
 blantant:Button({
     Title = "X5 V1",
