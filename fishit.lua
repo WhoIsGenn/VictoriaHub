@@ -451,54 +451,86 @@ other:Toggle({
 	end
 })
 
--- WORKING ANIMATION TOGGLE
--- WORKING ANIMATION TOGGLE (WITH FISHING FIX)
--- WORKING ANIMATION TOGGLE (WITH ANIMATOR DESTROY)
-local animToggled = false
+local Players = game:GetService("Players")
+local P = Players.LocalPlayer
 
+local animDisabled = false
+local animConn
+
+local function applyAnimState()
+    local c = P.Character  -- HAPUS: .CharacterAdded:Wait()
+    if not c then return end  -- TAMBAH CHECK INI!
+    
+    local h = c:FindFirstChildOfClass("Humanoid")
+    if not h then return end
+
+    local animator = h:FindFirstChildOfClass("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = h
+    end
+
+    if animDisabled then
+        -- STOP SEMUA ANIM YANG LAGI JALAN
+        for _, track in ipairs(h:GetPlayingAnimationTracks()) do
+            pcall(function()
+                track:Stop(0)
+                track:Destroy()
+            end)
+        end
+
+        -- BLOCK ANIM BARU (SAFE MODE)
+        if animConn then
+            animConn:Disconnect()
+            animConn = nil
+        end
+
+        -- GUARD: ga semua Animator punya AnimationPlayed
+        if animator.AnimationPlayed then
+            animConn = animator.AnimationPlayed:Connect(function(track)
+                if animDisabled and track then
+                    task.defer(function()
+                        pcall(function()
+                            track:Stop(0)
+                            track:Destroy()
+                        end)
+                    end)
+                end
+            end)
+        end
+    else
+        -- ENABLE NORMAL
+        if animConn then
+            animConn:Disconnect()
+            animConn = nil
+        end
+
+        local animate = c:FindFirstChild("Animate")
+        if animate then
+            animate.Disabled = false
+        end
+
+        h:ChangeState(Enum.HumanoidStateType.Physics)
+        task.wait()
+        h:ChangeState(Enum.HumanoidStateType.Running)
+    end
+end
+
+-- 🔒 ANTI RESPAWN BUG (SAFE)
+P.CharacterAdded:Connect(function()
+    task.wait(0.4)
+    if animDisabled then
+        pcall(applyAnimState)
+    end
+end)
+
+-- ✅ UI (DIJAMIN KELOAD)
 other:Toggle({
     Title = "Disable Animations",
     Value = false,
     Callback = function(state)
-        animToggled = state
-        
-        local player = game.Players.LocalPlayer
-        local char = player.Character
-        
-        if char then
-            local humanoid = char:FindFirstChild("Humanoid")
-            if humanoid then
-                if state then
-                    -- Stop current animations
-                    for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-                        track:Stop()
-                    end
-                    
-                    -- DESTROY ANIMATOR (ini yang bikin fishing animation mati)
-                    local animator = humanoid:FindFirstChildOfClass("Animator")
-                    if animator then
-                        animator:Destroy()
-                    end
-                    
-                    -- Disable animate script
-                    local animate = char:FindFirstChild("Animate")
-                    if animate then
-                        animate.Disabled = true
-                    end
-                else
-                    -- RESTORE ANIMATOR
-                    if not humanoid:FindFirstChildOfClass("Animator") then
-                        Instance.new("Animator", humanoid)
-                    end
-                    
-                    -- Enable animate script
-                    local animate = char:FindFirstChild("Animate")
-                    if animate then
-                        animate.Disabled = false
-                    end
-                end
-            end
-        end
+        animDisabled = state
+        pcall(applyAnimState)
     end
 })
 
