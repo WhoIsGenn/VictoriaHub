@@ -899,59 +899,41 @@ blantant:Button({
     end
 })
 
--- ===============================
--- FISH IT – HOLD OBTAIN TEXT (FINAL FIX)
--- Hold di FADE-OUT, spawn & anim tetap bawaan
--- ===============================
+task.spawn(function()
+    task.wait(2) -- 🔑 PENTING: tunggu UI selesai load
 
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
+    local Players = game:GetService("Players")
+    local Player = Players.LocalPlayer
+    local PlayerGui = Player:WaitForChild("PlayerGui")
 
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
+    local HOLD_TIME = 60
+    local MIN_ALPHA = 0.03
 
--- 🔧 SETTING
-local HOLD_TIME = 60        -- makin besar = makin numpuk
-local MIN_ALPHA = 0.03      -- terang lama, fade tetap jalan
+    local hooked = {}
 
--- cache biar ga double hook
-local hooked = {}
+    local function hookText(label)
+        if hooked[label] then return end
+        hooked[label] = true
 
-local function hookText(label)
-    if hooked[label] then return end
-    hooked[label] = true
+        task.wait(0.25)
 
-    -- tunggu sampe Fish It SELESAI anim masuk
-    task.wait(0.25)
-
-    -- jangan sentuh popup icon (aman sama remove popup lu)
-    if not label:IsA("TextLabel") then return end
-
-    -- tahan pas mau fade-out
-    task.spawn(function()
-        local start = tick()
-
-        while label.Parent and (tick() - start) < HOLD_TIME do
-            -- cegah transparency naik (fade diperlambat)
-            if label.TextTransparency > MIN_ALPHA then
-                label.TextTransparency = MIN_ALPHA
+        task.spawn(function()
+            local start = tick()
+            while label.Parent and (tick() - start) < HOLD_TIME do
+                if label.TextTransparency > MIN_ALPHA then
+                    label.TextTransparency = MIN_ALPHA
+                end
+                task.wait(0.05)
             end
-            task.wait(0.05)
-        end
-        -- abis HOLD_TIME → Fish It lanjut fade normal
-    end)
-end
-
--- listen notif bawaan Fish It
-PlayerGui.DescendantAdded:Connect(function(v)
-    if v:IsA("TextLabel") and v.Name == "Text" then
-        -- filter notif obtain (aman, ga sentuh UI lain)
-        if v.Text and #v.Text > 0 then
-            hookText(v)
-        end
+        end)
     end
-end)
 
+    PlayerGui.DescendantAdded:Connect(function(v)
+        if v:IsA("TextLabel") and v.Text and #v.Text > 0 then
+            pcall(hookText, v) -- 🔒 SAFE, GA BUNUH UI
+        end
+    end)
+end)
 
 item = Tab3:Section({     
     Title = "Item",
