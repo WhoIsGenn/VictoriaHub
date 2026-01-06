@@ -452,104 +452,94 @@ other:Toggle({
 })
 
 -- =========================================================
---  SAFE DISABLE ANIMATION (ANTI ERROR / ANTI UI BREAK)
+--  TOTAL DISABLE ANIMATION (SAFE + FULL RESTORE)
 -- =========================================================
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
-local Player = Players.LocalPlayer
+local P = Players.LocalPlayer
 
 local animDisabled = false
-local animConn = nil
+local savedAnimateState = {}
 
-local function applyAnimState()
-    local character = Player.Character or Player.CharacterAdded:Wait()
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
+local function getChar()
+    return P.Character or P.CharacterAdded:Wait()
+end
 
-    local animator = humanoid:FindFirstChildOfClass("Animator")
-    if not animator then
-        animator = Instance.new("Animator")
-        animator.Parent = humanoid
-    end
-
-    if animDisabled then
-        -- STOP semua anim yang sedang jalan
-        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-            pcall(function()
-                track:Stop(0)
-                track:Destroy()
-            end)
-        end
-
-        -- disconnect lama
-        if animConn then
-            animConn:Disconnect()
-            animConn = nil
-        end
-
-        -- BLOCK anim baru (FULL SAFE)
+local function stopAllAnimations(h)
+    for _, track in ipairs(h:GetPlayingAnimationTracks()) do
         pcall(function()
-            animConn = animator.AnimationPlayed:Connect(function(track)
-                if animDisabled and track then
-                    task.defer(function()
-                        pcall(function()
-                            track:Stop(0)
-                            track:Destroy()
-                        end)
-                    end)
-                end
-            end)
-        end)
-
-    else
-        -- ENABLE NORMAL
-        if animConn then
-            animConn:Disconnect()
-            animConn = nil
-        end
-
-        local animate = character:FindFirstChild("Animate") or character:WaitForChild("Animate", 1)
-        if animate then
-            animate.Disabled = false
-        end
-
-        pcall(function()
-            humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-            task.wait()
-            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            track:Stop(0)
+            track:Destroy()
         end)
     end
 end
 
--- ============================
--- ANTI RESPAWN BUG
--- ============================
-Player.CharacterAdded:Connect(function()
+local function disableAnim()
+    local c = getChar()
+    local h = c:FindFirstChildOfClass("Humanoid")
+    if not h then return end
+
+    local animate = c:FindFirstChild("Animate")
+
+    -- simpan state animate
+    if animate and savedAnimateState[animate] == nil then
+        savedAnimateState[animate] = animate.Disabled
+    end
+
+    -- MATIKAN TOTAL
+    if animate then
+        animate.Disabled = true
+    end
+
+    stopAllAnimations(h)
+
+    local animator = h:FindFirstChildOfClass("Animator")
+    if animator then
+        animator:Destroy()
+    end
+end
+
+local function enableAnim()
+    local c = getChar()
+    local h = c:FindFirstChildOfClass("Humanoid")
+    if not h then return end
+
+    -- RESTORE ANIMATOR
+    if not h:FindFirstChildOfClass("Animator") then
+        Instance.new("Animator", h)
+    end
+
+    -- RESTORE ANIMATE SCRIPT
+    local animate = c:FindFirstChild("Animate")
+    if animate then
+        animate.Disabled = false
+    end
+end
+
+local function toggleAnim(state)
+    animDisabled = state
+
+    if state then
+        disableAnim()
+    else
+        enableAnim()
+    end
+end
+
+-- SAFE RESPAWN SUPPORT
+P.CharacterAdded:Connect(function()
     task.wait(0.4)
     if animDisabled then
-        pcall(applyAnimState)
+        pcall(disableAnim)
     end
 end)
 
--- ============================
--- UI (SAFE LOAD)
--- ============================
-task.spawn(function()
-    while not other do
-        task.wait()
-    end
-
-    other:Toggle({
-        Title = "Disable Animations",
-        Value = false,
-        Callback = function(state)
-            animDisabled = state
-            pcall(applyAnimState)
-        end
-    })
-end)
+-- ================= UI =================
+other:Toggle({
+    Title = "Disable Animations",
+    Value = false,
+    Callback = toggleAnim
+})
 
 
 _G.AutoFishing = false
