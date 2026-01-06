@@ -904,68 +904,64 @@ blantant:Button({
 -- Delay logic queue notif (bukan UI, bukan remote)
 -- =====================================================
 
+-- =====================================================
+-- FISH IT – VISUAL LIMIT BYPASS (UNLIMITED STACK)
+-- =====================================================
+
 task.spawn(function()
-    task.wait(2.5) -- tunggu Controllers keload semua
+    local Players = game:GetService("Players")
+    local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
-    if not Controllers then
-        warn("[HOLD NOTIF] Controllers folder not found")
-        return
+    local HOLD_TIME = 3.5 -- bebas, makin besar makin numpuk
+
+    -- CONTAINER SENDIRI (ANTI LIMIT)
+    local StackGui = Instance.new("ScreenGui")
+    StackGui.Name = "FishStackBypass"
+    StackGui.IgnoreGuiInset = true
+    StackGui.ResetOnSpawn = false
+    StackGui.Parent = PlayerGui
+
+    local Holder = Instance.new("Frame")
+    Holder.Size = UDim2.fromScale(1,1)
+    Holder.BackgroundTransparency = 1
+    Holder.Parent = StackGui
+
+    local Layout = Instance.new("UIListLayout")
+    Layout.Padding = UDim.new(0, 6)
+    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    Layout.VerticalAlignment = Enum.VerticalAlignment.Top
+    Layout.Parent = Holder
+
+    local Padding = Instance.new("UIPadding")
+    Padding.PaddingTop = UDim.new(0, 120) -- posisi asli notif
+    Padding.Parent = Holder
+
+    local function isFishNotif(f)
+        return f:IsA("Frame")
+            and f.Name == "NewFrame"
+            and f:FindFirstChildWhichIsA("TextLabel", true)
     end
 
-    -- 🔧 SETTING (INI YANG KERASA)
-    local QUEUE_DELAY = 2.0  -- naikin 1.5 - 2.0 kalau blatant super cepat
+    PlayerGui.DescendantAdded:Connect(function(frame)
+        if not isFishNotif(frame) then return end
 
-    local hooked = false
+        task.wait() -- tunggu tween bawaan terpasang
 
-    local function tryHookController(mod, modName)
-        if type(mod) ~= "table" then return end
+        if not frame.Parent then return end
 
-        for fname, fn in pairs(mod) do
-            if type(fn) == "function" then
-                local lname = tostring(fname):lower()
+        -- CLONE FULL (REAL LOOK)
+        local clone = frame:Clone()
+        clone.Parent = Holder
+        clone.Visible = true
+        clone.ZIndex = 999
 
-                -- keyword umum yang dipakai Fish It / hub lain
-                if lname:find("push")
-                or lname:find("enqueue")
-                or lname:find("queue")
-                or lname:find("add")
-                or lname:find("notify")
-                then
-                    -- hindari double hook
-                    if debug.getinfo(fn).short_src:find("hook") then
-                        return
-                    end
-
-                    local old = fn
-                    mod[fname] = function(self, ...)
-                        task.wait(QUEUE_DELAY)
-                        return old(self, ...)
-                    end
-
-                    print("[HOLD NOTIF] Hooked:", modName .. "." .. fname)
-                    hooked = true
-                    return
-                end
+        -- biarin anim & fade asli jalan
+        task.delay(HOLD_TIME, function()
+            if clone then
+                clone:Destroy()
             end
-        end
-    end
-
-    -- AUTO SCAN SEMUA CONTROLLER
-    for _,moduleScript in ipairs(Controllers:GetChildren()) do
-        if moduleScript:IsA("ModuleScript") then
-            local ok, mod = pcall(require, moduleScript)
-            if ok then
-                tryHookController(mod, moduleScript.Name)
-                if hooked then break end
-            end
-        end
-    end
-
-    if not hooked then
-        warn("[HOLD NOTIF] No notification queue method found")
-    end
+        end)
+    end)
 end)
 
 
