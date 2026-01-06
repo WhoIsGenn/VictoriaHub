@@ -1145,7 +1145,7 @@ end
         print('Super Instant Fishing stopped')
     end
   
-blantant = Tab3:Section({ 
+blantant = Tab0:Section({ 
     Title = "Blantant X8 | Recomended",
     Icon = "fish",
     TextTransparency = 0.05,
@@ -1193,7 +1193,7 @@ blantant:Input({
     end
 })
 
-Tab3:Space()
+Tab0:Space()
 
 blantant:Button({
     Title = "X5 V1",
