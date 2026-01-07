@@ -712,7 +712,6 @@ local function x(y)
 end
 
 -- ========== BLANTANT V2 CONFIG & FUNCTIONS (ASLI) ==========
--- ========== BLANTANT V2 CONFIG & FUNCTIONS (ASLI) ==========
 local netFolder = ReplicatedStorage:WaitForChild('Packages')
     :WaitForChild('_Index')
     :WaitForChild('sleitnick_net@0.2.0')
@@ -727,6 +726,7 @@ Remotes.RF_AutoFish = netFolder:WaitForChild("RF/UpdateAutoFishingState")
 Remotes.RE_EquipTool = netFolder:WaitForChild("RE/EquipToolFromHotbar")
 
 local toggleState = {
+    autoFishing = false,
     blatantRunning = false,
 }
 
@@ -737,15 +737,25 @@ local FishingController = require(
 
 local oldCharge = FishingController.RequestChargeFishingRod
 FishingController.RequestChargeFishingRod = function(...)
-    if toggleState.blatantRunning then
+    if toggleState.blatantRunning or toggleState.autoFishing then
         return
     end
     return oldCharge(...)
 end
 
-local toggleState = {}
+local isAutoRunning = false
+local isSuperInstantRunning = false
+_G.ReelSuper = 1.15
 toggleState.completeDelays = 0.30
 toggleState.delayStart = 0.2
+
+local function autoEquipSuper()
+    local success, err = pcall(function()
+        Remotes.RE_EquipTool:FireServer(1)
+    end)
+    if success then
+    end
+end
 
 local function superInstantFishingCycle()
     task.spawn(function()
@@ -755,6 +765,27 @@ local function superInstantFishingCycle()
         task.wait(toggleState.completeDelays)
         Remotes.RE_FishingCompleted:FireServer()
     end)
+end
+
+local function doSuperFishingFlow()
+    superInstantFishingCycle()
+end
+
+local function startSuperInstantFishing()
+    if isSuperInstantRunning then return end
+    isSuperInstantRunning = true
+
+    task.spawn(function()
+        while isSuperInstantRunning do
+            superInstantFishingCycle()
+            task.wait(math.max(_G.ReelSuper, 0.1))
+        end
+    end)
+end
+
+local function stopSuperInstantFishing()
+    isSuperInstantRunning = false
+    print('Super Instant Fishing stopped')
 end
 
 -- ========== AUTO PERFECTION FUNCTIONS (ASLI) ==========
@@ -876,16 +907,7 @@ blantantV2:Input({
     end
 })
 
--- SECTION 3: AUTO PERFECTION
-autoPerfectionSection = Tab3:Section({ 
-    Title = "Auto Perfection",
-    Icon = "check-circle",
-    TextTransparency = 0.05,
-    TextXAlignment = "Left",
-    TextSize = 17,
-})
-
-autoPerfectionSection:Toggle({
+BlantantV2:Toggle({
     Title = "Auto Perfection",
     Value = ap,
     Callback = function(s)
