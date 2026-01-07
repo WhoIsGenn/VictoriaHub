@@ -627,9 +627,10 @@ fishing:Toggle({
     end
 })
 
--- ========== BLANTANT V1 CONFIG & FUNCTIONS ==========
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- ========== BLANTANT V1 CONFIG & FUNCTIONS (ASLI) ==========
 local c={d=false,e=1.6,f=0.37}
-local apV1 = false  -- Auto Perfect untuk V1
 
 local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
 
@@ -646,7 +647,6 @@ local m=nil
 local n=nil
 local o=nil
 
--- Function Blatant V1 biasa
 local function p()
     task.spawn(function()
         pcall(function()
@@ -680,46 +680,7 @@ local function p()
     end)
 end
 
--- Function Blatant V1 dengan Auto Perfect
-local function p_with_perfect()
-    task.spawn(function()
-        pcall(function()
-            -- Auto Perfect: bypass auto fishing state
-            local Net = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net
-            Net["RF/UpdateAutoFishingState"]:InvokeServer(true)
-            
-            local q,r=l:InvokeServer()
-            if not q then
-                while not q do
-                    local s=l:InvokeServer()
-                    if s then break end
-                    task.wait(0.05)
-                end
-            end
-
-            local t,u=h:InvokeServer(math.huge)
-            if not t then
-                while not t do
-                    local v=h:InvokeServer(math.huge)
-                    if v then break end
-                    task.wait(0.05)
-                end
-            end
-
-            i:InvokeServer(-139.63,0.996)
-        end)
-    end)
-
-    task.spawn(function()
-        task.wait(c.f)
-        if c.d then
-            pcall(j.FireServer,j)
-        end
-    end)
-end
-
 local function w()
-    -- Auto equip rod loop
     n=task.spawn(function()
         while c.d do
             pcall(k.FireServer,k,1)
@@ -727,13 +688,8 @@ local function w()
         end
     end)
 
-    -- Main fishing loop
     while c.d do
-        if apV1 then
-            p_with_perfect()  -- Pakai fungsi dengan Auto Perfect
-        else
-            p()  -- Pakai fungsi biasa
-        end
+        p()
         task.wait(c.e)
         if not c.d then break end
         task.wait(0.1)
@@ -752,16 +708,11 @@ local function x(y)
         m=nil
         n=nil
         pcall(l.InvokeServer,l)
-        
-        -- Matikan Auto Perfect jika V1 dimatikan
-        if apV1 then
-            local Net = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net
-            Net["RF/UpdateAutoFishingState"]:InvokeServer(false)
-        end
     end
 end
 
--- ========== BLANTANT V2 CONFIG & FUNCTIONS ==========
+-- ========== BLANTANT V2 CONFIG & FUNCTIONS (ASLI) ==========
+-- ========== BLANTANT V2 CONFIG & FUNCTIONS (ASLI) ==========
 local netFolder = ReplicatedStorage:WaitForChild('Packages')
     :WaitForChild('_Index')
     :WaitForChild('sleitnick_net@0.2.0')
@@ -785,21 +736,17 @@ local FishingController = require(
 )
 
 local oldCharge = FishingController.RequestChargeFishingRod
-local apV2 = false  -- Auto Perfect untuk V2
-
--- Hook function untuk bypass charge mechanism ketika Auto Perfect aktif
 FishingController.RequestChargeFishingRod = function(...)
-    if toggleState.blatantRunning or apV2 then
+    if toggleState.blatantRunning then
         return
     end
     return oldCharge(...)
 end
 
-local isSuperInstantRunning = false
-_G.ReelSuper = 1.15
+local toggleState = {}
 toggleState.completeDelays = 0.30
+toggleState.delayStart = 0.2
 
--- Function V2 biasa
 local function superInstantFishingCycle()
     task.spawn(function()
         Remotes.RF_CancelFishing:InvokeServer()
@@ -810,48 +757,36 @@ local function superInstantFishingCycle()
     end)
 end
 
--- Function V2 dengan Auto Perfect
-local function superInstantFishingCycle_with_perfect()
-    task.spawn(function()
-        -- Auto Perfect: bypass auto fishing state
-        Remotes.RF_AutoFish:InvokeServer(true)
-        
-        Remotes.RF_CancelFishing:InvokeServer()
-        Remotes.RF_ChargeFishingRod:InvokeServer(tick())
-        Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.63796997070312, 0.9964792798079721)
-        task.wait(toggleState.completeDelays)
-        Remotes.RE_FishingCompleted:FireServer()
-    end)
-end
+-- ========== AUTO PERFECTION FUNCTIONS (ASLI) ==========
+local RS = game:GetService("ReplicatedStorage")
+local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
+local FC = require(RS.Controllers.FishingController)
 
-local function startSuperInstantFishing()
-    if isSuperInstantRunning then return end
-    isSuperInstantRunning = true
+local oc, orc = FC.RequestFishingMinigameClick, FC.RequestChargeFishingRod
+local ap = false
 
-    task.spawn(function()
-        while isSuperInstantRunning do
-            if apV2 then
-                superInstantFishingCycle_with_perfect()  -- Pakai dengan Auto Perfect
-            else
-                superInstantFishingCycle()  -- Pakai biasa
-            end
-            task.wait(math.max(_G.ReelSuper, 0.1))
+task.spawn(function()
+    while task.wait() do
+        if ap then
+            Net["RF/UpdateAutoFishingState"]:InvokeServer(true)
         end
-    end)
-end
+    end
+end)
 
-local function stopSuperInstantFishing()
-    isSuperInstantRunning = false
-    
-    -- Matikan Auto Perfect jika V2 sedang aktif
-    if apV2 then
-        Remotes.RF_AutoFish:InvokeServer(false)
+local function updateAutoPerfection(s)
+    ap = s
+    if s then
+        FC.RequestFishingMinigameClick = function() end
+        FC.RequestChargeFishingRod = function() end
+    else
+        Net["RF/UpdateAutoFishingState"]:InvokeServer(false)
+        FC.RequestFishingMinigameClick = oc
+        FC.RequestChargeFishingRod = orc
     end
 end
 
--- ========== UI CREATION ==========
+-- ========== UI CREATION (DIGABUNG DI TAB3) ==========
 
--- SECTION 1: BLANTANT V1
 blantantV1 = Tab3:Section({ 
     Title = "Blantant V1",
     Icon = "fish",
@@ -860,109 +795,47 @@ blantantV1 = Tab3:Section({
     TextSize = 17,
 })
 
--- Toggle Blantant V1
 blantantV1:Toggle({
-    Title = "Blantant V1",
-    Value = c.d,
-    Callback = function(state)
-        x(state)
-        if state then
-            WindUI:Notify({
-                Title = "Blantant V1",
-                Content = apV1 and "Enabled with Auto Perfect" or "Enabled",
-                Duration = 2,
-                Icon = "check"
-            })
+    Title = "Blatant V1",
+    Value = toggleState.blatantRunning,
+    Callback = function(value)
+        toggleState.blatantRunning = value
+        Remotes.RF_AutoFish:InvokeServer(value)
+
+        if value then
+            startSuperInstantFishing()
         else
-            WindUI:Notify({
-                Title = "Blantant V1",
-                Content = "Disabled",
-                Duration = 2,
-                Icon = "x"
-            })
+            stopSuperInstantFishing()
         end
     end
 })
 
--- Toggle Auto Perfect untuk V1
-blantantV1:Toggle({
-    Title = "Auto Perfect",
-    Value = apV1,
-    Callback = function(state)
-        apV1 = state
-        if state then
-            WindUI:Notify({
-                Title = "Auto Perfect V1",
-                Content = "Enabled for Blantant V1",
-                Duration = 2,
-                Icon = "check-circle"
-            })
-            
-            -- Jika V1 sedang aktif, update fishing loop
-            if c.d then
-                if m then task.cancel(m) end
-                m=task.spawn(w)
-            end
-        else
-            WindUI:Notify({
-                Title = "Auto Perfect V1",
-                Content = "Disabled for Blantant V1",
-                Duration = 2,
-                Icon = "x-circle"
-            })
-            
-            -- Matikan auto fishing state jika V1 aktif
-            if c.d then
-                local Net = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net
-                Net["RF/UpdateAutoFishingState"]:InvokeServer(false)
-                
-                -- Restart fishing loop
-                if m then task.cancel(m) end
-                m=task.spawn(w)
-            end
-        end
-    end
-})
-
--- Cancel Delay untuk V1
 blantantV1:Input({
-    Title = "Cancel Delay",
-    Placeholder = "1.7",
-    Default = tostring(c.e),
+    Title = "Reel Delay",
+    Placeholder = "Delay (seconds)",
+    Default = tostring(_G.ReelSuper),
+    Callback = function(input)
+        local num = tonumber(input)
+        if num and num >= 0 then
+            _G.ReelSuper = num
+            print("ReelSuper updated to:", num)
+        end
+    end
+})
+
+blantantV1:Input({
+    Title = "Custom Complete Delay",
+    Placeholder = "Delay (seconds)",
+    Default = tostring(toggleState.completeDelays),
     Callback = function(input)
         local num = tonumber(input)
         if num and num > 0 then
-            c.e = num
-            WindUI:Notify({
-                Title = "V1 Delay Updated",
-                Content = "Cancel delay: " .. num .. "s",
-                Duration = 2,
-                Icon = "clock"
-            })
+            toggleState.completeDelays = num
         end
     end
 })
 
--- Complete Delay untuk V1
-blantantV1:Input({
-    Title = "Complete Delay",
-    Placeholder = "1.4",
-    Default = tostring(c.f),
-    Callback = function(input)
-        local num = tonumber(input)
-        if num and num > 0 then
-            c.f = num
-            WindUI:Notify({
-                Title = "V1 Delay Updated",
-                Content = "Complete delay: " .. num .. "s",
-                Duration = 2,
-                Icon = "clock"
-            })
-        end
-    end
-})
-
--- SECTION 2: BLANTANT V2
+-- SECTION 1: BLANTANT V1
 blantantV2 = Tab3:Section({ 
     Title = "Blantant V2",
     Icon = "fish",
@@ -971,121 +844,52 @@ blantantV2 = Tab3:Section({
     TextSize = 17,
 })
 
--- Toggle Blantant V2
 blantantV2:Toggle({
     Title = "Blantant V2",
-    Value = toggleState.blatantRunning,
-    Callback = function(state)
-        toggleState.blatantRunning = state
-        
-        if state then
-            if apV2 then
-                WindUI:Notify({
-                    Title = "Blantant V2",
-                    Content = "Enabled with Auto Perfect",
-                    Duration = 2,
-                    Icon = "check"
-                })
-            else
-                WindUI:Notify({
-                    Title = "Blantant V2",
-                    Content = "Enabled",
-                    Duration = 2,
-                    Icon = "check"
-                })
-            end
-            startSuperInstantFishing()
-        else
-            WindUI:Notify({
-                Title = "Blantant V2",
-                Content = "Disabled",
-                Duration = 2,
-                Icon = "x"
-            })
-            stopSuperInstantFishing()
-        end
+    Value = c.d,
+    Callback = function(z2)
+        x(z2)
     end
 })
 
--- Toggle Auto Perfect untuk V2
-blantantV2:Toggle({
-    Title = "Auto Perfect",
-    Value = apV2,
-    Callback = function(state)
-        apV2 = state
-        
-        if state then
-            WindUI:Notify({
-                Title = "Auto Perfect V2",
-                Content = "Enabled for Blantant V2",
-                Duration = 2,
-                Icon = "check-circle"
-            })
-            
-            -- Jika V2 sedang aktif, restart fishing loop
-            if toggleState.blatantRunning then
-                stopSuperInstantFishing()
-                startSuperInstantFishing()
-            end
-        else
-            WindUI:Notify({
-                Title = "Auto Perfect V2",
-                Content = "Disabled for Blantant V2",
-                Duration = 2,
-                Icon = "x-circle"
-            })
-            
-            -- Matikan auto fishing state jika V2 aktif
-            if toggleState.blatantRunning then
-                Remotes.RF_AutoFish:InvokeServer(false)
-                stopSuperInstantFishing()
-                startSuperInstantFishing()
-            end
-        end
-    end
-})
-
--- Reel Delay untuk V2
 blantantV2:Input({
-    Title = "Reel Delay",
-    Placeholder = "Delay (seconds)",
-    Default = tostring(_G.ReelSuper),
-    Callback = function(input)
-        local num = tonumber(input)
-        if num and num >= 0 then
-            _G.ReelSuper = num
-            WindUI:Notify({
-                Title = "V2 Delay Updated",
-                Content = "Reel delay: " .. num .. "s",
-                Duration = 2,
-                Icon = "clock"
-            })
+    Title = "Cancel Delay",
+    Placeholder = "1.7",
+    Default = tostring(c.e),
+    Callback = function(z4)
+        local z5 = tonumber(z4)
+        if z5 and z5 > 0 then
+            c.e = z5
         end
     end
 })
 
--- Custom Complete Delay untuk V2
 blantantV2:Input({
-    Title = "Custom Complete Delay",
-    Placeholder = "Delay (seconds)",
-    Default = tostring(toggleState.completeDelays),
-    Callback = function(input)
-        local num = tonumber(input)
-        if num and num > 0 then
-            toggleState.completeDelays = num
-            WindUI:Notify({
-                Title = "V2 Delay Updated",
-                Content = "Complete delay: " .. num .. "s",
-                Duration = 2,
-                Icon = "clock"
-            })
-            
-            -- Restart fishing loop jika V2 aktif
-            if toggleState.blatantRunning then
-                stopSuperInstantFishing()
-                startSuperInstantFishing()
-            end
+    Title = "Complete Delay",
+    Placeholder = "1.4",
+    Default = tostring(c.f),
+    Callback = function(z7)
+        local z8 = tonumber(z7)
+        if z8 and z8 > 0 then
+            c.f = z8
         end
+    end
+})
+
+-- SECTION 3: AUTO PERFECTION
+autoPerfectionSection = Tab3:Section({ 
+    Title = "Auto Perfection",
+    Icon = "check-circle",
+    TextTransparency = 0.05,
+    TextXAlignment = "Left",
+    TextSize = 17,
+})
+
+autoPerfectionSection:Toggle({
+    Title = "Auto Perfection",
+    Value = ap,
+    Callback = function(s)
+        updateAutoPerfection(s)
     end
 })
 
