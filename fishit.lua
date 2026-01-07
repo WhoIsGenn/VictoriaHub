@@ -883,7 +883,7 @@ blantantV2:Toggle({
     end
 })
 
-BlantantV2:Toggle({
+blantantV2:Toggle({
     Title = "Auto Perfection",
     Value = ap,
     Callback = function(s)
