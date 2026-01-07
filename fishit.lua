@@ -628,61 +628,104 @@ fishing:Toggle({
 })
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- ========== BLANTANT V1 CONFIG & FUNCTIONS (ASLI) ==========
-local c={d=false,e=1.6,f=0.37}
+-- ================= CONFIG =================
+local c = {
+    d = false, -- toggle
+    e = 1.6,   -- delay antar cast
+    f = 0.37   -- delay auto complete
+}
 
-local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+local PerfectCast = {
+    Enabled = true,
 
+    HoldTime = 0.97,   -- waktu charge utama (BEST)
+    HoldRandom = 0.02,
+
+    Angle = -139.63,
+    Power = 0.996
+}
+
+-- ================= SERVICES =================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local g = ReplicatedStorage
+    :WaitForChild("Packages")
+    :WaitForChild("_Index")
+    :WaitForChild("sleitnick_net@0.2.0")
+    :WaitForChild("net")
+
+-- ================= REMOTES =================
 local h,i,j,k,l
 pcall(function()
-    h=g:WaitForChild("RF/ChargeFishingRod")
-    i=g:WaitForChild("RF/RequestFishingMinigameStarted")
-    j=g:WaitForChild("RE/FishingCompleted")
-    k=g:WaitForChild("RE/EquipToolFromHotbar")
-    l=g:WaitForChild("RF/CancelFishingInputs")
+    h = g:WaitForChild("RF/ChargeFishingRod")
+    i = g:WaitForChild("RF/RequestFishingMinigameStarted")
+    j = g:WaitForChild("RE/FishingCompleted")
+    k = g:WaitForChild("RE/EquipToolFromHotbar")
+    l = g:WaitForChild("RF/CancelFishingInputs")
 end)
 
-local m=nil
-local n=nil
-local o=nil
+-- ================= THREAD HANDLES =================
+local m = nil
+local n = nil
 
+-- ================= PERFECT CHARGE =================
+local function PerfectCharge()
+    local hold =
+        PerfectCast.HoldTime
+        + (math.random() * PerfectCast.HoldRandom * 2)
+        - PerfectCast.HoldRandom
+
+    -- reset state dulu
+    pcall(l.InvokeServer, l)
+
+    local ok
+    repeat
+        ok = select(1, h:InvokeServer(hold))
+        task.wait(0.03)
+    until ok
+end
+
+-- ================= CAST FUNCTION =================
 local function p()
     task.spawn(function()
         pcall(function()
-            local q,r=l:InvokeServer()
-            if not q then
-                while not q do
-                    local s=l:InvokeServer()
-                    if s then break end
-                    task.wait(0.05)
-                end
+            -- cancel input sampai valid
+            local ok
+            repeat
+                ok = select(1, l:InvokeServer())
+                task.wait(0.05)
+            until ok
+
+            -- charge rod
+            if PerfectCast.Enabled then
+                PerfectCharge()
+            else
+                h:InvokeServer(math.huge)
             end
 
-            local t,u=h:InvokeServer(math.huge)
-            if not t then
-                while not t do
-                    local v=h:InvokeServer(math.huge)
-                    if v then break end
-                    task.wait(0.05)
-                end
-            end
-
-            i:InvokeServer(-139.63,0.996)
+            -- start minigame
+            i:InvokeServer(
+                PerfectCast.Angle,
+                PerfectCast.Power
+            )
         end)
     end)
 
+    -- auto complete
     task.spawn(function()
         task.wait(c.f)
         if c.d then
-            pcall(j.FireServer,j)
+            pcall(j.FireServer, j)
         end
     end)
 end
 
+-- ================= MAIN LOOP =================
 local function w()
-    n=task.spawn(function()
+    -- auto equip rod
+    n = task.spawn(function()
         while c.d do
-            pcall(k.FireServer,k,1)
+            pcall(k.FireServer, k, 1)
             task.wait(1.5)
         end
     end)
@@ -695,20 +738,27 @@ local function w()
     end
 end
 
-local function x(y)
-    c.d=y
-    if y then
+-- ================= TOGGLE =================
+local function x(state)
+    c.d = state
+
+    if state then
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m=task.spawn(w)
+        m = task.spawn(w)
     else
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m=nil
-        n=nil
-        pcall(l.InvokeServer,l)
+        m = nil
+        n = nil
+        pcall(l.InvokeServer, l)
     end
 end
+
+-- ================= USAGE =================
+-- x(true)  -- START
+-- x(false) -- STOP
+
 
 -- ========== BLANTANT V2 CONFIG & FUNCTIONS (ASLI) ==========
 local netFolder = ReplicatedStorage:WaitForChild('Packages')
@@ -909,8 +959,8 @@ blantantV2:Input({
 
 -- SECTION 3: AUTO PERFECTION
 autoPerfectionSection = Tab3:Section({ 
-    Title = "Auto Perfection",
-    Icon = "check-circle",
+    Title = "Auto Perfection V2",
+    Icon = "settings",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
     TextSize = 17,
@@ -1938,7 +1988,7 @@ local playerSettings = Tab7:Section({
 })
 
 -- PING DISPLAY
-local PingEnabled = false
+local PingEnabled = true
 local Frame, Text
 local lastPingUpdate = 0
 
@@ -1957,7 +2007,7 @@ local function createPingDisplay()
     Frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
     Frame.BackgroundTransparency = 0.7
     Frame.BorderSizePixel = 0
-    Frame.Visible = false
+    Frame.Visible = true
     Frame.ZIndex = 1000
     Instance.new("UICorner",Frame).CornerRadius = UDim.new(0,24)
 
