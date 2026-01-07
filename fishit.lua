@@ -626,7 +626,6 @@ fishing:Toggle({
         end
     end
 })
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- ========== BLANTANT V1 CONFIG & FUNCTIONS (ASLI) ==========
@@ -818,6 +817,7 @@ end
 
 -- ========== UI CREATION (DIGABUNG DI TAB3) ==========
 
+-- SECTION 2: BLANTANT V2
 blantantV1 = Tab3:Section({ 
     Title = "Blantant V1",
     Icon = "fish",
@@ -883,6 +883,14 @@ blantantV2:Toggle({
     end
 })
 
+BlantantV2:Toggle({
+    Title = "Auto Perfection",
+    Value = ap,
+    Callback = function(s)
+        updateAutoPerfection(s)
+    end
+})
+
 blantantV2:Input({
     Title = "Cancel Delay",
     Placeholder = "1.7",
@@ -904,14 +912,6 @@ blantantV2:Input({
         if z8 and z8 > 0 then
             c.f = z8
         end
-    end
-})
-
-BlantantV2:Toggle({
-    Title = "Auto Perfection",
-    Value = ap,
-    Callback = function(s)
-        updateAutoPerfection(s)
     end
 })
 
