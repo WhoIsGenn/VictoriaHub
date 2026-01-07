@@ -629,20 +629,22 @@ fishing:Toggle({
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- ================= CONFIG =================
+-- =====================================================
+-- AUTO FISH + RESULT SPOOF (AMAZING / PERFECT TEST)
+-- =====================================================
+
+-- ================= CONFIG =================
 local c = {
     d = false, -- toggle
     e = 1.6,   -- delay antar cast
-    f = 0.37   -- delay auto complete
+    f = 0.35   -- delay sebelum FishingCompleted
 }
 
-local PerfectCast = {
-    Enabled = true,
-
-    HoldTime = 0.97,   -- waktu charge utama (BEST)
-    HoldRandom = 0.02,
-
-    Angle = -139.63,
-    Power = 0.996
+-- chance hasil (AMAN)
+local ResultPool = {
+    { Result = "Perfect", Power = 1, Accuracy = 1 },
+    { Result = "Amazing", Power = 0.96, Accuracy = 0.96 },
+    { Result = "Amazing", Power = 0.94, Accuracy = 0.94 },
 }
 
 -- ================= SERVICES =================
@@ -664,65 +666,40 @@ pcall(function()
     l = g:WaitForChild("RF/CancelFishingInputs")
 end)
 
--- ================= THREAD HANDLES =================
-local m = nil
-local n = nil
+-- ================= THREAD =================
+local m,n
 
--- ================= PERFECT CHARGE =================
-local function PerfectCharge()
-    local hold =
-        PerfectCast.HoldTime
-        + (math.random() * PerfectCast.HoldRandom * 2)
-        - PerfectCast.HoldRandom
-
-    -- reset state dulu
-    pcall(l.InvokeServer, l)
-
-    local ok
-    repeat
-        ok = select(1, h:InvokeServer(hold))
-        task.wait(0.03)
-    until ok
-end
-
--- ================= CAST FUNCTION =================
-local function p()
+-- ================= CAST =================
+local function Cast()
     task.spawn(function()
         pcall(function()
-            -- cancel input sampai valid
-            local ok
+            -- reset input
             repeat
-                ok = select(1, l:InvokeServer())
                 task.wait(0.05)
-            until ok
+            until select(1, l:InvokeServer())
 
-            -- charge rod
-            if PerfectCast.Enabled then
-                PerfectCharge()
-            else
-                h:InvokeServer(math.huge)
-            end
+            -- minimal charge (server cuma butuh trigger)
+            h:InvokeServer(0.2)
 
             -- start minigame
-            i:InvokeServer(
-                PerfectCast.Angle,
-                PerfectCast.Power
-            )
+            i:InvokeServer(-139.63, 0.996)
         end)
     end)
 
-    -- auto complete
+    -- SEND RESULT (INI KUNCI)
     task.spawn(function()
         task.wait(c.f)
         if c.d then
-            pcall(j.FireServer, j)
+            local data = ResultPool[math.random(#ResultPool)]
+            pcall(function()
+                j:FireServer(data)
+            end)
         end
     end)
 end
 
--- ================= MAIN LOOP =================
-local function w()
-    -- auto equip rod
+-- ================= LOOP =================
+local function Loop()
     n = task.spawn(function()
         while c.d do
             pcall(k.FireServer, k, 1)
@@ -731,33 +708,30 @@ local function w()
     end)
 
     while c.d do
-        p()
+        Cast()
         task.wait(c.e)
-        if not c.d then break end
-        task.wait(0.1)
     end
 end
 
 -- ================= TOGGLE =================
-local function x(state)
+local function Toggle(state)
     c.d = state
 
     if state then
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m = task.spawn(w)
+        m = task.spawn(Loop)
     else
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m = nil
-        n = nil
+        m, n = nil, nil
         pcall(l.InvokeServer, l)
     end
 end
 
 -- ================= USAGE =================
--- x(true)  -- START
--- x(false) -- STOP
+-- Toggle(true)  -- START
+-- Toggle(false) -- STOP
 
 
 -- ========== BLANTANT V2 CONFIG & FUNCTIONS (ASLI) ==========
@@ -2673,7 +2647,7 @@ local function cleanup()
     _G.AutoEquipRod = false
     _G.Radar = false
     _G.Instant = false
-    _G.AntiAFK = false
+    _G.AntiAFK = true
     _G.AutoSkipCutscene = false
     
     if Frame then Frame:Destroy() end
