@@ -628,110 +628,120 @@ fishing:Toggle({
 })
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- =====================================================
--- AUTO FISH FIXED + RESULT TEST (SAFE ORDER)
--- =====================================================
-
+-- ================= CONFIG =================
 local c = {
     d = false,
     e = 1.6,
-    f = 0.4
+    f = 0.37
 }
 
--- hasil test
-local ResultPool = {
-    { Result = "Perfect", Power = 1, Accuracy = 1 },
-    { Result = "Amazing", Power = 0.95, Accuracy = 0.95 }
+-- OPTIONAL RESULT SPOOF
+local SpoofResult = {
+    Enabled = true, -- matiin kalau mau test normal
+    Pool = {
+        {Result="Perfect", Power=1, Accuracy=1},
+        {Result="Amazing", Power=0.95, Accuracy=0.95},
+    }
 }
 
--- services
-local RS = game:GetService("ReplicatedStorage")
+-- ================= SERVICES =================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local net = RS
+local g = ReplicatedStorage
     :WaitForChild("Packages")
     :WaitForChild("_Index")
     :WaitForChild("sleitnick_net@0.2.0")
     :WaitForChild("net")
 
--- remotes
-local Charge       = net:WaitForChild("RF/ChargeFishingRod")
-local StartMini    = net:WaitForChild("RF/RequestFishingMinigameStarted")
-local Complete     = net:WaitForChild("RE/FishingCompleted")
-local Equip        = net:WaitForChild("RE/EquipToolFromHotbar")
-local Cancel       = net:WaitForChild("RF/CancelFishingInputs")
+-- ================= REMOTES =================
+local h,i,j,k,l
+pcall(function()
+    h = g:WaitForChild("RF/ChargeFishingRod")
+    i = g:WaitForChild("RF/RequestFishingMinigameStarted")
+    j = g:WaitForChild("RE/FishingCompleted")
+    k = g:WaitForChild("RE/EquipToolFromHotbar")
+    l = g:WaitForChild("RF/CancelFishingInputs")
+end)
 
-local mainThread, equipThread
+local m,n
 
--- ================= CAST =================
-local function Cast()
+-- ================= ORIGINAL CAST (ASLI LU) =================
+local function p()
     task.spawn(function()
         pcall(function()
-            -- equip rod (WAJIB)
-            Equip:FireServer(1)
-            task.wait(0.15)
+            local q = l:InvokeServer()
+            if not q then
+                while not q do
+                    local s = l:InvokeServer()
+                    if s then break end
+                    task.wait(0.05)
+                end
+            end
 
-            -- reset input (SEKALI)
-            pcall(function()
-                Cancel:InvokeServer()
-            end)
+            local t = h:InvokeServer(math.huge)
+            if not t then
+                while not t do
+                    local v = h:InvokeServer(math.huge)
+                    if v then break end
+                    task.wait(0.05)
+                end
+            end
 
-            -- charge minimal (trigger state)
-            Charge:InvokeServer(0.25)
-            task.wait(0.1)
-
-            -- start minigame
-            StartMini:InvokeServer(-139.63, 0.996)
+            i:InvokeServer(-139.63, 0.996)
         end)
     end)
 
-    -- spoof result
+    -- ===== OPTIONAL RESULT SPOOF (TIDAK GANGGU CAST) =====
     task.spawn(function()
         task.wait(c.f)
         if c.d then
-            local data = ResultPool[math.random(#ResultPool)]
-            pcall(function()
-                Complete:FireServer(data)
-            end)
+            if SpoofResult.Enabled then
+                local data = SpoofResult.Pool[math.random(#SpoofResult.Pool)]
+                pcall(function()
+                    j:FireServer(data)
+                end)
+            else
+                pcall(j.FireServer, j)
+            end
         end
     end)
 end
 
 -- ================= LOOP =================
-local function Loop()
-    equipThread = task.spawn(function()
+local function w()
+    n = task.spawn(function()
         while c.d do
-            pcall(Equip.FireServer, Equip, 1)
+            pcall(k.FireServer, k, 1)
             task.wait(1.5)
         end
     end)
 
     while c.d do
-        Cast()
+        p()
         task.wait(c.e)
+        if not c.d then break end
+        task.wait(0.1)
     end
 end
 
 -- ================= TOGGLE =================
-local function Toggle(state)
+local function x(state)
     c.d = state
-
     if state then
-        if mainThread then task.cancel(mainThread) end
-        if equipThread then task.cancel(equipThread) end
-        mainThread = task.spawn(Loop)
+        if m then task.cancel(m) end
+        if n then task.cancel(n) end
+        m = task.spawn(w)
     else
-        if mainThread then task.cancel(mainThread) end
-        if equipThread then task.cancel(equipThread) end
-        mainThread, equipThread = nil, nil
-        pcall(function() Cancel:InvokeServer() end)
+        if m then task.cancel(m) end
+        if n then task.cancel(n) end
+        m,n = nil,nil
+        pcall(l.InvokeServer, l)
     end
 end
 
 -- ================= USAGE =================
--- Toggle(true)
--- Toggle(false)
-
-
+-- x(true)
+-- x(false)
 
 -- ========== BLANTANT V2 CONFIG & FUNCTIONS (ASLI) ==========
 local netFolder = ReplicatedStorage:WaitForChild('Packages')
