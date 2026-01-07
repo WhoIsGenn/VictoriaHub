@@ -883,14 +883,6 @@ blantantV2:Toggle({
     end
 })
 
-blantantV2:Toggle({
-    Title = "Auto Perfection",
-    Value = ap,
-    Callback = function(s)
-        updateAutoPerfection(s)
-    end
-})
-
 blantantV2:Input({
     Title = "Cancel Delay",
     Placeholder = "1.7",
@@ -912,6 +904,23 @@ blantantV2:Input({
         if z8 and z8 > 0 then
             c.f = z8
         end
+    end
+})
+
+-- SECTION 3: AUTO PERFECTION
+autoPerfectionSection = Tab3:Section({ 
+    Title = "Auto Perfection",
+    Icon = "check-circle",
+    TextTransparency = 0.05,
+    TextXAlignment = "Left",
+    TextSize = 17,
+})
+
+autoPerfectionSection:Toggle({
+    Title = "Auto Perfection",
+    Value = ap,
+    Callback = function(s)
+        updateAutoPerfection(s)
     end
 })
 
