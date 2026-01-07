@@ -58,7 +58,7 @@ if isEmulatorOrPC then
     Button.Size = UDim2.new(0, 80, 0, 80)
     Button.Position = UDim2.new(0, 25, 0, 80)
     Button.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-    Button.Image = "rbxassetid://71947103252559"
+    Button.Image = "rbxassetid://134034549147826"
     Button.BorderSizePixel = 0
     Button.Draggable = true
     Button.Parent = ToggleUI
