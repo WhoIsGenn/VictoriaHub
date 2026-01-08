@@ -636,16 +636,32 @@ local c = {
     f = 0.37
 }
 
--- CAST RESULT CONFIG
-local CastResult = {
+-- CAST QUALITY CONFIG
+local CastQuality = {
     Enabled = true,
-    Mode = "Random", -- "Random" atau "Fixed"
-    FixedResult = "Perfect",
-    Pool = {
-        "Perfect",
-        "Amazing", 
-        "Great"
-    }
+    Mode = "Random", -- "Random", "Fixed", "Cycle"
+    FixedQuality = "Perfect",
+    Qualities = {
+        Perfect = {
+            AngleMin = -139.80,
+            AngleMax = -139.50,
+            PowerMin = 0.990,
+            PowerMax = 1.000
+        },
+        Amazing = {
+            AngleMin = -139.50,
+            AngleMax = -138.50,
+            PowerMin = 0.940,
+            PowerMax = 0.989
+        },
+        Great = {
+            AngleMin = -138.50,
+            AngleMax = -137.00,
+            PowerMin = 0.850,
+            PowerMax = 0.939
+        }
+    },
+    CycleIndex = 1
 }
 
 local g = ReplicatedStorage
@@ -655,26 +671,48 @@ local g = ReplicatedStorage
     :WaitForChild("net")
 
 -- ================= REMOTES =================
-local h,i,j,k,l,minigameClick
+local h,i,j,k,l
 pcall(function()
     h = g:WaitForChild("RF/ChargeFishingRod")
     i = g:WaitForChild("RF/RequestFishingMinigameStarted")
     j = g:WaitForChild("RE/FishingCompleted")
     k = g:WaitForChild("RE/EquipToolFromHotbar")
     l = g:WaitForChild("RF/CancelFishingInputs")
-    minigameClick = g:WaitForChild("RF/RequestFishingMinigameClick")
 end)
 
 local m,n
 
--- ================= GET FISHING CONTROLLER =================
-local FishingController = require(ReplicatedStorage.Controllers.FishingController)
+-- ================= GET CAST VALUES =================
+local function getCastValues()
+    if not CastQuality.Enabled then
+        return -139.63796997070312, 0.9964792798079721
+    end
+    
+    local quality
+    
+    if CastQuality.Mode == "Fixed" then
+        quality = CastQuality.Qualities[CastQuality.FixedQuality]
+    elseif CastQuality.Mode == "Cycle" then
+        local qualityNames = {"Perfect", "Amazing", "Great"}
+        quality = CastQuality.Qualities[qualityNames[CastQuality.CycleIndex]]
+        CastQuality.CycleIndex = (CastQuality.CycleIndex % 3) + 1
+    else -- Random
+        local qualityNames = {"Perfect", "Amazing", "Great"}
+        local randomQuality = qualityNames[math.random(#qualityNames)]
+        quality = CastQuality.Qualities[randomQuality]
+    end
+    
+    -- Random value dalam range
+    local angle = math.random() * (quality.AngleMax - quality.AngleMin) + quality.AngleMin
+    local power = math.random() * (quality.PowerMax - quality.PowerMin) + quality.PowerMin
+    
+    return angle, power
+end
 
--- ================= CAST WITH RESULT =================
+-- ================= ORIGINAL CAST =================
 local function p()
     task.spawn(function()
         pcall(function()
-            -- Cancel previous
             local q = l:InvokeServer()
             if not q then
                 while not q do
@@ -684,51 +722,20 @@ local function p()
                 end
             end
 
-            -- Charge rod with specific timing
-            local chargeTime = tick()
-            local t = h:InvokeServer(chargeTime)
+            local t = h:InvokeServer(math.huge)
             if not t then
                 while not t do
-                    local v = h:InvokeServer(chargeTime)
+                    local v = h:InvokeServer(math.huge)
                     if v then break end
                     task.wait(0.05)
                 end
             end
 
-            -- Start minigame with perfect values
-            local angle = -139.63796997070312
-            local power = 0.9964792798079721
-            local minigameData = i:InvokeServer(angle, power)
-            
-            -- Simulate perfect click timing
-            if minigameData and CastResult.Enabled then
-                task.wait(0.05) -- Small delay
-                
-                local targetResult = CastResult.Mode == "Fixed" 
-                    and CastResult.FixedResult 
-                    or CastResult.Pool[math.random(#CastResult.Pool)]
-                
-                -- Calculate timing based on result
-                local clickDelay = 0.1
-                if targetResult == "Perfect" then
-                    clickDelay = 0.05
-                elseif targetResult == "Amazing" then
-                    clickDelay = 0.08
-                elseif targetResult == "Great" then
-                    clickDelay = 0.12
-                end
-                
-                task.wait(clickDelay)
-                
-                -- Send minigame click
-                pcall(function()
-                    minigameClick:InvokeServer()
-                end)
-            end
+            local angle, power = getCastValues()
+            i:InvokeServer(angle, power)
         end)
     end)
 
-    -- Auto complete
     task.spawn(function()
         task.wait(c.f)
         if c.d then
