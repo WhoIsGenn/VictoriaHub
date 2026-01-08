@@ -744,6 +744,7 @@ end
 -- x(false)
 
 -- ========== BLANTANT V2 CONFIG & FUNCTIONS (ASLI) ==========
+-- ========== BLANTANT V1 CONFIG & FUNCTIONS (FIXED) ==========
 local netFolder = ReplicatedStorage:WaitForChild('Packages')
     :WaitForChild('_Index')
     :WaitForChild('sleitnick_net@0.2.0')
@@ -782,27 +783,30 @@ local function autoEquipSuper()
     local success, err = pcall(function()
         Remotes.RE_EquipTool:FireServer(1)
     end)
-    if success then
-    end
 end
 
 local function superInstantFishingCycle()
     task.spawn(function()
-        Remotes.RF_CancelFishing:InvokeServer()
-        Remotes.RF_ChargeFishingRod:InvokeServer(tick())
-        Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.63796997070312, 0.9964792798079721)
-        task.wait(toggleState.completeDelays)
-        Remotes.RE_FishingCompleted:FireServer()
+        pcall(function()
+            Remotes.RF_CancelFishing:InvokeServer()
+            task.wait(0.05)
+            Remotes.RF_ChargeFishingRod:InvokeServer(tick())
+            task.wait(0.05)
+            Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.63796997070312, 0.9964792798079721)
+            task.wait(toggleState.completeDelays)
+            Remotes.RE_FishingCompleted:FireServer()
+        end)
     end)
-end
-
-local function doSuperFishingFlow()
-    superInstantFishingCycle()
 end
 
 local function startSuperInstantFishing()
     if isSuperInstantRunning then return end
     isSuperInstantRunning = true
+    toggleState.blatantRunning = true
+
+    -- Auto equip fishing rod
+    autoEquipSuper()
+    task.wait(0.5)
 
     task.spawn(function()
         while isSuperInstantRunning do
@@ -810,11 +814,20 @@ local function startSuperInstantFishing()
             task.wait(math.max(_G.ReelSuper, 0.1))
         end
     end)
+    
+    print('✅ Blatant V1 Started')
 end
 
 local function stopSuperInstantFishing()
     isSuperInstantRunning = false
-    print('Super Instant Fishing stopped')
+    toggleState.blatantRunning = false
+    
+    -- Cancel any ongoing fishing
+    pcall(function()
+        Remotes.RF_CancelFishing:InvokeServer()
+    end)
+    
+    print('❌ Blatant V1 Stopped')
 end
 
 -- ========== AUTO PERFECTION FUNCTIONS (ASLI) ==========
@@ -847,7 +860,7 @@ end
 
 -- ========== UI CREATION (DIGABUNG DI TAB3) ==========
 
--- SECTION 2: BLANTANT V2
+--- SECTION 1: BLANTANT V1
 blantantV1 = Tab3:Section({ 
     Title = "Blantant V1",
     Icon = "fish",
@@ -858,11 +871,8 @@ blantantV1 = Tab3:Section({
 
 blantantV1:Toggle({
     Title = "Blatant V1",
-    Value = toggleState.blatantRunning,
+    Value = false,
     Callback = function(value)
-        toggleState.blatantRunning = value
-        Remotes.RF_AutoFish:InvokeServer(value)
-
         if value then
             startSuperInstantFishing()
         else
@@ -892,6 +902,7 @@ blantantV1:Input({
         local num = tonumber(input)
         if num and num > 0 then
             toggleState.completeDelays = num
+            print("Complete Delay updated to:", num)
         end
     end
 })
