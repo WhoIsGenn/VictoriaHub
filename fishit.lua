@@ -626,6 +626,7 @@ fishing:Toggle({
         end
     end
 })
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- ================= CONFIG =================
@@ -641,10 +642,11 @@ local CastResult = {
     Mode = "Random", -- "Random" atau "Fixed"
     FixedResult = "Perfect", -- Dipakai kalau Mode = "Fixed"
     Pool = {
-        {Result = "Perfect", Power = 1, Accuracy = 1},
-        {Result = "Amazing", Power = 0.95, Accuracy = 0.95},
-        {Result = "Great", Power = 0.85, Accuracy = 0.85},
-        {Result = "Good", Power = 0.75, Accuracy = 0.75},
+        {Result = "Perfect", Angle = -139.63, Power = 0.996},
+        {Result = "Amazing", Angle = -135.00, Power = 0.920},
+        {Result = "Great", Angle = -130.00, Power = 0.850},
+        {Result = "Good", Angle = -125.00, Power = 0.780},
+        {Result = "OK", Angle = -120.00, Power = 0.700},
     }
 }
 
@@ -681,17 +683,14 @@ local function getCastData()
                 break
             end
         end
-        if not data then data = CastResult.Pool[1] end -- Fallback ke pertama
+        if not data then data = CastResult.Pool[1] end
     else
         -- Random dari pool
         data = CastResult.Pool[math.random(#CastResult.Pool)]
     end
     
-    -- Convert power & accuracy ke angle & power (Fish It system)
-    local angle = -139.63 * data.Accuracy -- Accuracy affects angle
-    local power = 0.996 * data.Power -- Power affects distance
-    
-    return angle, power
+    print("🎣 Cast Result:", data.Result, "| Angle:", data.Angle, "| Power:", data.Power)
+    return data.Angle, data.Power
 end
 
 -- ================= ORIGINAL CAST =================
@@ -765,11 +764,6 @@ local function x(state)
     end
 end
 
--- ================= USAGE =================
--- x(true)
--- x(false)
-
--- ========== BLANTANT V2 CONFIG & FUNCTIONS (ASLI) ==========
 -- ========== BLANTANT V1 CONFIG & FUNCTIONS (FIXED) ==========
 local netFolder = ReplicatedStorage:WaitForChild('Packages')
     :WaitForChild('_Index')
@@ -1037,7 +1031,7 @@ blantantV2:Button({
 
 -- SECTION 3: AUTO PERFECTION
 autoPerfectionSection = Tab3:Section({ 
-    Title = "Auto Perfection",
+    Title = "Auto Perfection V2",
     Icon = "settings",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -2065,132 +2059,79 @@ local playerSettings = Tab7:Section({
     TextSize = 17,
 })
 
-local Players = game:GetService("Players")
-local Stats = game:GetService("Stats")
-local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
+-- Ping Display (Optimized)
+local PingEnabled = false
+local Frame, Text
+local lastPingUpdate = 0
+local pingUpdateInterval = 0.5
 
-local Player = Players.LocalPlayer
-local PingStat = Stats.Network.ServerStatsItem["Data Ping"]
+local function createPingDisplay()
+    local CG = game:GetService("CoreGui")
+    Gui = Instance.new("ScreenGui")
+    Gui.Name = "PerformanceHUD"
+    Gui.Parent = CG
+    Gui.ResetOnSpawn = false
+    Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
-Gui = Instance.new("ScreenGui")
-Gui.Name = "PerformanceHUD"
-Gui.Parent = CoreGui
-Gui.ResetOnSpawn = false
-Gui.DisplayOrder = 2147483647
-Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    Frame = Instance.new("Frame", Gui)
+    Frame.Size = UDim2.fromOffset(205,34)
+    Frame.Position = UDim2.fromScale(0.5,0.05)
+    Frame.AnchorPoint = Vector2.new(0.5,0)
+    Frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    Frame.BackgroundTransparency = 0.7
+    Frame.BorderSizePixel = 0
+    Frame.Visible = PingEnabled
+    Frame.ZIndex = 1000
+    Instance.new("UICorner",Frame).CornerRadius = UDim.new(0,24)
 
-Frame = Instance.new("Frame", Gui)
-Frame.Size = UDim2.fromOffset(205,34)
-Frame.Position = UDim2.fromScale(0.5,0.05)
-Frame.AnchorPoint = Vector2.new(0.5,0)
-Frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
-Frame.BackgroundTransparency = 0.7
-Frame.BorderSizePixel = 0
-Frame.Visible = true
-Frame.ZIndex = 1000
-Instance.new("UICorner",Frame).CornerRadius = UDim.new(0,24)
+    local Stroke = Instance.new("UIStroke", Frame)
+    Stroke.Thickness = 3
+    Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    Stroke.ZIndex = 1001
 
-Stroke = Instance.new("UIStroke", Frame)
-Stroke.Thickness = 3
-Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-Stroke.ZIndex = 1001
+    local Gradient = Instance.new("UIGradient", Stroke)
+    Gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(0,255,255)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180,255,255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255,255,255))
+    }
 
-Gradient = Instance.new("UIGradient", Stroke)
-Gradient.Color = ColorSequence.new{
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(0,255,255)),
-	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180,255,255)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(255,255,255))
-}
+    Text = Instance.new("TextLabel", Frame)
+    Text.Size = UDim2.new(1,-30,1,0)
+    Text.Position = UDim2.fromOffset(30,0)
+    Text.BackgroundTransparency = 1
+    Text.Font = Enum.Font.GothamBold
+    Text.TextSize = 10
+    Text.TextXAlignment = Enum.TextXAlignment.Left
+    Text.TextYAlignment = Enum.TextYAlignment.Center
+    Text.TextColor3 = Color3.fromRGB(230,230,230)
+    Text.ZIndex = 1002
+    
+    return Frame
+end
 
-Icon = Instance.new("ImageLabel", Frame)
-Icon.Size = UDim2.fromOffset(16,16)
-Icon.Position = UDim2.fromOffset(8,9)
-Icon.BackgroundTransparency = 1
-Icon.Image = "rbxassetid://134034549147826"
-Icon.ZIndex = 1002
-
-Text = Instance.new("TextLabel", Frame)
-Text.Size = UDim2.new(1,-30,1,0)
-Text.Position = UDim2.fromOffset(30,0)
-Text.BackgroundTransparency = 1
-Text.Font = Enum.Font.GothamBold
-Text.TextSize = 10
-Text.TextXAlignment = Enum.TextXAlignment.Left
-Text.TextYAlignment = Enum.TextYAlignment.Center
-Text.TextColor3 = Color3.fromRGB(230,230,230)
-Text.ZIndex = 1002
-
-dragging = false
-
-Frame.InputBegan:Connect(function(i)
-    -- SUPPORT BOTH MOBILE TOUCH & PC MOUSE
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or 
-       i.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = i.Position
-        startPos = Frame.Position
-    end
-end)
-
-UIS.InputEnded:Connect(function(i)
-    -- SUPPORT BOTH
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or 
-       i.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
-UIS.InputChanged:Connect(function(i)
-    if dragging then
-        -- MOBILE: Touch movement
-        -- PC: Mouse movement
-        if i.UserInputType == Enum.UserInputType.MouseMovement or
-           i.UserInputType == Enum.UserInputType.Touch then
-            local d = i.Position - dragStart
-            Frame.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + d.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + d.Y
-            )
-        end
-    end
-end)
-
-ON = true
-fpsSmooth = 60
-cpuSmooth = 40
-lastTick = tick()
-
-RunService.RenderStepped:Connect(function()
-	if not ON then return end
-	local now = tick()
-	local dt = now - lastTick
-	lastTick = now
-
-	local fps = math.clamp(1 / math.max(dt,0.001), 5, 240)
-	fpsSmooth += (fps - fpsSmooth) * 0.08
-
-	local cpuTarget = math.clamp(100 - fpsSmooth + 15, 15, 95)
-	cpuSmooth += (cpuTarget - cpuSmooth) * 0.07
-
-	Text.Text = string.format(
-		"PING: %d ms | FPS: %d | CPU: %d%%",
-		math.floor(PingStat:GetValue()),
-		math.floor(fpsSmooth),
-		math.floor(cpuSmooth)
-	)
-end)
+if createPingDisplay() then
+    SafeConnect("PingUpdate", game:GetService("RunService").RenderStepped:Connect(function()
+        if not PingEnabled then return end
+        
+        local now = tick()
+        if now - lastPingUpdate < pingUpdateInterval then return end
+        lastPingUpdate = now
+        
+        local ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+        local fps = math.floor(1 / game:GetService("RunService").RenderStepped:Wait())
+        
+        Text.Text = string.format("PING: %d ms | FPS: %d", ping, math.min(fps, 999))
+    end))
+end
 
 player:Toggle({
-	Title = "Ping Display",
-	Default = false,
-	Callback = function(v)
-		ON = v
-		Frame.Visible = v
-	end
+    Title = "Ping Display",
+    Default = false,
+    Callback = function(v)
+        PingEnabled = v
+        if Frame then Frame.Visible = v end
+    end
 })
 
 -- HIDE NAME & LEVEL
