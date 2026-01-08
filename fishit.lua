@@ -814,8 +814,6 @@ local function startSuperInstantFishing()
             task.wait(math.max(_G.ReelSuper, 0.1))
         end
     end)
-    
-    print('✅ Blatant V1 Started')
 end
 
 local function stopSuperInstantFishing()
@@ -827,7 +825,6 @@ local function stopSuperInstantFishing()
         Remotes.RF_CancelFishing:InvokeServer()
     end)
     
-    print('❌ Blatant V1 Stopped')
 end
 
 -- ========== AUTO PERFECTION FUNCTIONS (ASLI) ==========
@@ -858,9 +855,19 @@ local function updateAutoPerfection(s)
     end
 end
 
--- ========== UI CREATION (DIGABUNG DI TAB3) ==========
+-- ========== RECOVERY FISHING FUNCTION ==========
+local function doRecoveryFishing()
+    pcall(function()
+        Remotes.RF_CancelFishing:InvokeServer()
+        task.wait(0.2)
+        Remotes.RE_EquipTool:FireServer(1)
+        task.wait(0.3)
+        Remotes.RF_ChargeFishingRod:InvokeServer(0)
+        task.wait(0.2)
+    end)
+end
 
---- SECTION 1: BLANTANT V1
+-- ========== SECTION 1: BLANTANT V1 ==========
 blantantV1 = Tab3:Section({ 
     Title = "Blantant V1",
     Icon = "fish",
@@ -889,7 +896,6 @@ blantantV1:Input({
         local num = tonumber(input)
         if num and num >= 0 then
             _G.ReelSuper = num
-            print("ReelSuper updated to:", num)
         end
     end
 })
@@ -902,12 +908,19 @@ blantantV1:Input({
         local num = tonumber(input)
         if num and num > 0 then
             toggleState.completeDelays = num
-            print("Complete Delay updated to:", num)
         end
     end
 })
 
--- SECTION 1: BLANTANT V1
+-- ⭐ RECOVERY BUTTON
+blantantV1:Button({
+    Title = "Recovery Fishing",
+    Callback = function()
+        doRecoveryFishing()
+    end
+})
+
+-- ========== SECTION 2: BLANTANT V2 ==========
 blantantV2 = Tab3:Section({ 
     Title = "Blantant V2",
     Icon = "fish",
@@ -945,6 +958,14 @@ blantantV2:Input({
         if z8 and z8 > 0 then
             c.f = z8
         end
+    end
+})
+
+-- ⭐ RECOVERY BUTTON
+blantantV2:Button({
+    Title = "Recovery Fishing",
+    Callback = function()
+        doRecoveryFishing()
     end
 })
 
