@@ -855,15 +855,73 @@ local function updateAutoPerfection(s)
     end
 end
 
--- ========== RECOVERY FISHING FUNCTION ==========
+-- ========== RECOVERY FISHING FUNCTION (FULL RESET) ==========
 local function doRecoveryFishing()
+    
+    
+    -- STEP 1: Force stop semua blatant yang aktif
     pcall(function()
-        Remotes.RF_CancelFishing:InvokeServer()
+        -- Stop Blatant V1
+        if isSuperInstantRunning then
+            isSuperInstantRunning = false
+            toggleState.blatantRunning = false
+            
+        end
+        
+        -- Stop Blatant V2
+        if c.d then
+            c.d = false
+            if m then task.cancel(m) end
+            if n then task.cancel(n) end
+            m, n = nil, nil
+            
+        end
+        
+        task.wait(0.3)
+    end)
+    
+    -- STEP 2: Force cancel semua fishing activity
+    pcall(function()
+        -- Cancel fishing berkali-kali buat force clear
+        for i = 1, 5 do
+            Remotes.RF_CancelFishing:InvokeServer()
+            task.wait(0.15)
+        end
+        
+    end)
+    
+    -- STEP 3: Reset FishingController ke normal
+    pcall(function()
+        -- Restore original functions
+        FishingController.RequestChargeFishingRod = oldCharge
+        
         task.wait(0.2)
+    end)
+    
+    -- STEP 4: Unequip & re-equip rod untuk full reset
+    pcall(function()
+        -- Unequip
+        Remotes.RE_EquipTool:FireServer(0)
+        task.wait(0.4)
+        
+        -- Re-equip
         Remotes.RE_EquipTool:FireServer(1)
         task.wait(0.3)
+        
+        
+    end)
+    
+    -- STEP 5: Final cleanup
+    pcall(function()
+        -- Reset charge state
         Remotes.RF_ChargeFishingRod:InvokeServer(0)
         task.wait(0.2)
+        
+        -- Last cancel buat pastikan
+        Remotes.RF_CancelFishing:InvokeServer()
+        task.wait(0.2)
+        
+        
     end)
 end
 
@@ -912,11 +970,16 @@ blantantV1:Input({
     end
 })
 
--- ⭐ RECOVERY BUTTON
 blantantV1:Button({
     Title = "Recovery Fishing",
     Callback = function()
         doRecoveryFishing()
+        WindUI:Notify({
+            Title = "Recovery Fishing",
+            Content = "Recovery completed!",
+            Icon = " alert-triangle",
+            Duration = 2
+        })
     end
 })
 
@@ -961,11 +1024,16 @@ blantantV2:Input({
     end
 })
 
--- ⭐ RECOVERY BUTTON
 blantantV2:Button({
     Title = "Recovery Fishing",
     Callback = function()
         doRecoveryFishing()
+        WindUI:Notify({
+            Title = "Recovery Fishing",
+            Content = "Recovery completed!",
+            Icon = "alert-triangle",
+            Duration = 2
+        })
     end
 })
 
