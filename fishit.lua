@@ -635,17 +635,18 @@ local c = {
     f = 0.37
 }
 
--- OPTIONAL RESULT SPOOF
-local SpoofResult = {
-    Enabled = true, -- matiin kalau mau test normal
+-- CAST RESULT CONFIG
+local CastResult = {
+    Enabled = true,
+    Mode = "Random", -- "Random" atau "Fixed"
+    FixedResult = "Perfect", -- Dipakai kalau Mode = "Fixed"
     Pool = {
-        {Result="Perfect", Power=1, Accuracy=1},
-        {Result="Amazing", Power=0.95, Accuracy=0.95},
+        {Result = "Perfect", Power = 1, Accuracy = 1},
+        {Result = "Amazing", Power = 0.95, Accuracy = 0.95},
+        {Result = "Great", Power = 0.85, Accuracy = 0.85},
+        {Result = "Good", Power = 0.75, Accuracy = 0.75},
     }
 }
-
--- ================= SERVICES =================
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local g = ReplicatedStorage
     :WaitForChild("Packages")
@@ -665,10 +666,39 @@ end)
 
 local m,n
 
--- ================= ORIGINAL CAST (ASLI LU) =================
+-- ================= GET CAST DATA =================
+local function getCastData()
+    if not CastResult.Enabled then
+        return -139.63, 0.996 -- Default perfect cast
+    end
+    
+    local data
+    if CastResult.Mode == "Fixed" then
+        -- Cari result yang sesuai
+        for _, v in pairs(CastResult.Pool) do
+            if v.Result == CastResult.FixedResult then
+                data = v
+                break
+            end
+        end
+        if not data then data = CastResult.Pool[1] end -- Fallback ke pertama
+    else
+        -- Random dari pool
+        data = CastResult.Pool[math.random(#CastResult.Pool)]
+    end
+    
+    -- Convert power & accuracy ke angle & power (Fish It system)
+    local angle = -139.63 * data.Accuracy -- Accuracy affects angle
+    local power = 0.996 * data.Power -- Power affects distance
+    
+    return angle, power
+end
+
+-- ================= ORIGINAL CAST =================
 local function p()
     task.spawn(function()
         pcall(function()
+            -- Cancel previous
             local q = l:InvokeServer()
             if not q then
                 while not q do
@@ -678,6 +708,7 @@ local function p()
                 end
             end
 
+            -- Charge rod
             local t = h:InvokeServer(math.huge)
             if not t then
                 while not t do
@@ -687,22 +718,17 @@ local function p()
                 end
             end
 
-            i:InvokeServer(-139.63, 0.996)
+            -- Cast dengan result yang dipilih
+            local angle, power = getCastData()
+            i:InvokeServer(angle, power)
         end)
     end)
 
-    -- ===== OPTIONAL RESULT SPOOF (TIDAK GANGGU CAST) =====
+    -- Auto complete setelah cast
     task.spawn(function()
         task.wait(c.f)
         if c.d then
-            if SpoofResult.Enabled then
-                local data = SpoofResult.Pool[math.random(#SpoofResult.Pool)]
-                pcall(function()
-                    j:FireServer(data)
-                end)
-            else
-                pcall(j.FireServer, j)
-            end
+            pcall(j.FireServer, j)
         end
     end)
 end
@@ -949,8 +975,8 @@ blantantV1:Button({
         WindUI:Notify({
             Title = "Recovery Fishing",
             Content = "Recovery completed!",
-            Icon = " alert-triangle",
-            Duration = 3
+            Duration = 3,
+            Icon = "check"
         })
     end
 })
@@ -1003,8 +1029,8 @@ blantantV2:Button({
         WindUI:Notify({
             Title = "Recovery Fishing",
             Content = "Recovery completed!",
-            Icon = "alert-triangle",
-            Duration = 3
+            Duration = 3,
+            Icon = "check"
         })
     end
 })
