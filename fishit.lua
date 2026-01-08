@@ -639,8 +639,8 @@ local c = {
 -- CAST RESULT CONFIG
 local CastResult = {
     Enabled = true,
-    Mode = "Random",
-    FixedResult = "Perfect",
+    Mode = "Random", -- "Random" atau "Fixed"
+    FixedResult = "Perfect", -- Dipakai kalau Mode = "Fixed"
     Pool = {
         {Result = "Perfect", Angle = -139.63, Power = 0.996},
         {Result = "Amazing", Angle = -135.00, Power = 0.920},
@@ -668,34 +668,15 @@ end)
 
 local m,n
 
--- ================= HOOK UNTUK DEBUG =================
-local HttpService = game:GetService("HttpService")
-
--- Hook FishingCompleted
-local originalFireServer = j.FireServer
-j.FireServer = function(self, ...)
-    local args = {...}
-    print("📤 FishingCompleted args:", HttpService:JSONEncode(args))
-    return originalFireServer(self, ...)
-end
-
--- Hook RequestFishingMinigameStarted
-local originalMinigameInvoke = i.InvokeServer
-i.InvokeServer = function(self, angle, power)
-    print("📤 MinigameStarted | Angle:", angle, "| Power:", power)
-    local result = originalMinigameInvoke(self, angle, power)
-    print("📥 Minigame Response:", HttpService:JSONEncode(result))
-    return result
-end
-
 -- ================= GET CAST DATA =================
 local function getCastData()
     if not CastResult.Enabled then
-        return -139.63, 0.996
+        return -139.63, 0.996 -- Default perfect cast
     end
     
     local data
     if CastResult.Mode == "Fixed" then
+        -- Cari result yang sesuai
         for _, v in pairs(CastResult.Pool) do
             if v.Result == CastResult.FixedResult then
                 data = v
@@ -704,6 +685,7 @@ local function getCastData()
         end
         if not data then data = CastResult.Pool[1] end
     else
+        -- Random dari pool
         data = CastResult.Pool[math.random(#CastResult.Pool)]
     end
     
@@ -715,6 +697,7 @@ end
 local function p()
     task.spawn(function()
         pcall(function()
+            -- Cancel previous
             local q = l:InvokeServer()
             if not q then
                 while not q do
@@ -724,6 +707,7 @@ local function p()
                 end
             end
 
+            -- Charge rod
             local t = h:InvokeServer(math.huge)
             if not t then
                 while not t do
@@ -733,11 +717,13 @@ local function p()
                 end
             end
 
+            -- Cast dengan result yang dipilih
             local angle, power = getCastData()
             i:InvokeServer(angle, power)
         end)
     end)
 
+    -- Auto complete setelah cast
     task.spawn(function()
         task.wait(c.f)
         if c.d then
