@@ -645,6 +645,8 @@ local SpoofResult = {
 }
 
 -- ================= SERVICES =================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local g = ReplicatedStorage
     :WaitForChild("Packages")
     :WaitForChild("_Index")
@@ -737,6 +739,11 @@ local function x(state)
     end
 end
 
+-- ================= USAGE =================
+-- x(true)
+-- x(false)
+
+-- ========== BLANTANT V2 CONFIG & FUNCTIONS (ASLI) ==========
 local netFolder = ReplicatedStorage:WaitForChild('Packages')
     :WaitForChild('_Index')
     :WaitForChild('sleitnick_net@0.2.0')
@@ -750,6 +757,7 @@ Remotes.RE_FishingCompleted = netFolder:WaitForChild("RE/FishingCompleted")
 Remotes.RE_EquipTool = netFolder:WaitForChild("RE/EquipToolFromHotbar")
 
 local toggleState = {
+    autoFishing = false,
     blatantRunning = false,
 }
 
@@ -760,15 +768,16 @@ local FishingController = require(
 
 local oldCharge = FishingController.RequestChargeFishingRod
 FishingController.RequestChargeFishingRod = function(...)
-    if toggleState.blatantRunning then
+    if toggleState.blatantRunning or toggleState.autoFishing then
         return
     end
     return oldCharge(...)
 end
 
+local isAutoRunning = false
 local isSuperInstantRunning = false
-_G.ReelSuper = 1.05
-toggleState.completeDelays = 0.20
+_G.ReelSuper = 1.30
+toggleState.completeDelays = 0.40
 toggleState.delayStart = 0.1
 
 local function autoEquipSuper()
@@ -838,78 +847,9 @@ local function updateAutoPerfection(s)
     end
 end
 
--- ========== RECOVERY FISHING FUNCTION ==========
-local function recoverFishing()
-    print("Attempting fishing recovery...")
-    
-    -- Recovery untuk Blatant V1
-    if toggleState.blatantRunning then
-        toggleState.blatantRunning = false
-        isSuperInstantRunning = false
-        
-        -- Pastikan completed dikirim jika ada yang pending
-        task.spawn(function()
-            Remotes.RF_CancelFishing:InvokeServer()
-            Remotes.RE_FishingCompleted:FireServer()
-            print("Blatant V1 recovery completed")
-        end)
-    end
-    
-    -- Recovery untuk Blantant V2
-    if c.d then
-        c.d = false
-        if m then 
-            task.cancel(m) 
-            m = nil 
-        end
-        if n then 
-            task.cancel(n) 
-            n = nil 
-        end
-        
-        -- Kirim cancel dan completed untuk membersihkan state
-        task.spawn(function()
-            pcall(l.InvokeServer, l)
-            pcall(function()
-                j:FireServer({Result="Perfect", Power=1, Accuracy=1})
-            end)
-            print("Blantant V2 recovery completed")
-        end)
-    end
-    
-    -- Recovery untuk auto perfection
-    if ap then
-        updateAutoPerfection(false)
-        print("Auto perfection recovery completed")
-    end
-    
-    print("All fishing states recovered")
-end
-
--- ========== AUTO RECOVERY TASK ==========
--- Task untuk auto recover jika ada state yang stuck
-task.spawn(function()
-    while task.wait(0.5) do
-        -- Deteksi jika blantant V1 mati tapi masih ada pending
-        if (not toggleState.blatantRunning) and isSuperInstantRunning then
-            print("Detected stuck Blatant V1 state, auto recovering...")
-            isSuperInstantRunning = false
-            Remotes.RE_FishingCompleted:FireServer()
-        end
-        
-        -- Deteksi jika blantant V2 mati tapi masih ada loop
-        if (not c.d) and (m or n) then
-            print("Detected stuck Blantant V2 state, auto recovering...")
-            if m then task.cancel(m); m = nil end
-            if n then task.cancel(n); n = nil end
-            pcall(l.InvokeServer, l)
-        end
-    end
-end)
-
 -- ========== UI CREATION (DIGABUNG DI TAB3) ==========
 
--- SECTION 2: BLANTANT V1
+-- SECTION 2: BLANTANT V2
 blantantV1 = Tab3:Section({ 
     Title = "Blantant V1",
     Icon = "fish",
@@ -922,11 +862,6 @@ blantantV1:Toggle({
     Title = "Blatant V1",
     Value = toggleState.blatantRunning,
     Callback = function(value)
-        -- Jika mematikan, lakukan recovery terlebih dahulu
-        if not value and toggleState.blatantRunning then
-            recoverFishing()
-        end
-        
         toggleState.blatantRunning = value
         Remotes.RF_AutoFish:InvokeServer(value)
 
@@ -963,16 +898,7 @@ blantantV1:Input({
     end
 })
 
--- Recovery button untuk Blantant V1
-blantantV1:Button({
-    Title = "Recovery Fishing",
-    Callback = function()
-        recoverFishing()
-        Library:Notify("Fishing recovery executed!", 5)
-    end
-})
-
--- SECTION 1: BLANTANT V2
+-- SECTION 1: BLANTANT V1
 blantantV2 = Tab3:Section({ 
     Title = "Blantant V2",
     Icon = "fish",
@@ -985,10 +911,6 @@ blantantV2:Toggle({
     Title = "Blantant V2",
     Value = c.d,
     Callback = function(z2)
-        -- Jika mematikan, lakukan recovery
-        if not z2 and c.d then
-            recoverFishing()
-        end
         x(z2)
     end
 })
@@ -1017,18 +939,9 @@ blantantV2:Input({
     end
 })
 
--- Recovery button untuk Blantant V2
-blantantV2:Button({
-    Title = "Recovery Fishing",
-    Callback = function()
-        recoverFishing()
-        Library:Notify("Fishing recovery executed!", 5)
-    end
-})
-
 -- SECTION 3: AUTO PERFECTION
 autoPerfectionSection = Tab3:Section({ 
-    Title = "Auto Perfection V2",
+    Title = "Auto Perfection",
     Icon = "settings",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
