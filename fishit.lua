@@ -857,71 +857,43 @@ end
 
 -- ========== RECOVERY FISHING FUNCTION (FULL RESET) ==========
 local function doRecoveryFishing()
+    -- STEP 1: Force stop semua blatant yang aktif (instant)
+    isSuperInstantRunning = false
+    toggleState.blatantRunning = false
+    c.d = false
+    if m then pcall(task.cancel, m) end
+    if n then pcall(task.cancel, n) end
+    m, n = nil, nil
     
-    
-    -- STEP 1: Force stop semua blatant yang aktif
+    -- STEP 2: Reset FishingController (instant)
     pcall(function()
-        -- Stop Blatant V1
-        if isSuperInstantRunning then
-            isSuperInstantRunning = false
-            toggleState.blatantRunning = false
-            
-        end
-        
-        -- Stop Blatant V2
-        if c.d then
-            c.d = false
-            if m then task.cancel(m) end
-            if n then task.cancel(n) end
-            m, n = nil, nil
-            
-        end
-        
-        task.wait(0.3)
-    end)
-    
-    -- STEP 2: Force cancel semua fishing activity
-    pcall(function()
-        -- Cancel fishing berkali-kali buat force clear
-        for i = 1, 5 do
-            Remotes.RF_CancelFishing:InvokeServer()
-            task.wait(0.15)
-        end
-        
-    end)
-    
-    -- STEP 3: Reset FishingController ke normal
-    pcall(function()
-        -- Restore original functions
         FishingController.RequestChargeFishingRod = oldCharge
-        
-        task.wait(0.2)
     end)
     
-    -- STEP 4: Unequip & re-equip rod untuk full reset
-    pcall(function()
-        -- Unequip
-        Remotes.RE_EquipTool:FireServer(0)
-        task.wait(0.4)
-        
-        -- Re-equip
-        Remotes.RE_EquipTool:FireServer(1)
-        task.wait(0.3)
-        
-        
+    -- STEP 3: Cancel & cleanup di background (async)
+    task.spawn(function()
+        pcall(function()
+            -- Multi cancel
+            for i = 1, 3 do
+                Remotes.RF_CancelFishing:InvokeServer()
+            end
+        end)
     end)
     
-    -- STEP 5: Final cleanup
-    pcall(function()
-        -- Reset charge state
-        Remotes.RF_ChargeFishingRod:InvokeServer(0)
-        task.wait(0.2)
-        
-        -- Last cancel buat pastikan
-        Remotes.RF_CancelFishing:InvokeServer()
-        task.wait(0.2)
-        
-        
+    -- STEP 4: Reset rod di background (async)
+    task.spawn(function()
+        pcall(function()
+            Remotes.RE_EquipTool:FireServer(0)
+            Remotes.RE_EquipTool:FireServer(1)
+        end)
+    end)
+    
+    -- STEP 5: Final cleanup di background (async)
+    task.spawn(function()
+        pcall(function()
+            Remotes.RF_ChargeFishingRod:InvokeServer(0)
+            Remotes.RF_CancelFishing:InvokeServer()
+        end)
     end)
 end
 
@@ -978,7 +950,7 @@ blantantV1:Button({
             Title = "Recovery Fishing",
             Content = "Recovery completed!",
             Icon = " alert-triangle",
-            Duration = 2
+            Duration = 3
         })
     end
 })
@@ -1032,7 +1004,7 @@ blantantV2:Button({
             Title = "Recovery Fishing",
             Content = "Recovery completed!",
             Icon = "alert-triangle",
-            Duration = 2
+            Duration = 3
         })
     end
 })
