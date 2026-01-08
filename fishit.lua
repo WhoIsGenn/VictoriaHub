@@ -640,13 +640,11 @@ local c = {
 local CastResult = {
     Enabled = true,
     Mode = "Random", -- "Random" atau "Fixed"
-    FixedResult = "Perfect", -- Dipakai kalau Mode = "Fixed"
+    FixedResult = "Perfect",
     Pool = {
-        {Result = "Perfect", Angle = -139.63, Power = 0.996},
-        {Result = "Amazing", Angle = -135.00, Power = 0.920},
-        {Result = "Great", Angle = -130.00, Power = 0.850},
-        {Result = "Good", Angle = -125.00, Power = 0.780},
-        {Result = "OK", Angle = -120.00, Power = 0.700},
+        "Perfect",
+        "Amazing", 
+        "Great"
     }
 }
 
@@ -657,43 +655,22 @@ local g = ReplicatedStorage
     :WaitForChild("net")
 
 -- ================= REMOTES =================
-local h,i,j,k,l
+local h,i,j,k,l,minigameClick
 pcall(function()
     h = g:WaitForChild("RF/ChargeFishingRod")
     i = g:WaitForChild("RF/RequestFishingMinigameStarted")
     j = g:WaitForChild("RE/FishingCompleted")
     k = g:WaitForChild("RE/EquipToolFromHotbar")
     l = g:WaitForChild("RF/CancelFishingInputs")
+    minigameClick = g:WaitForChild("RF/RequestFishingMinigameClick")
 end)
 
 local m,n
 
--- ================= GET CAST DATA =================
-local function getCastData()
-    if not CastResult.Enabled then
-        return -139.63, 0.996 -- Default perfect cast
-    end
-    
-    local data
-    if CastResult.Mode == "Fixed" then
-        -- Cari result yang sesuai
-        for _, v in pairs(CastResult.Pool) do
-            if v.Result == CastResult.FixedResult then
-                data = v
-                break
-            end
-        end
-        if not data then data = CastResult.Pool[1] end
-    else
-        -- Random dari pool
-        data = CastResult.Pool[math.random(#CastResult.Pool)]
-    end
-    
-    print("🎣 Cast Result:", data.Result, "| Angle:", data.Angle, "| Power:", data.Power)
-    return data.Angle, data.Power
-end
+-- ================= GET FISHING CONTROLLER =================
+local FishingController = require(ReplicatedStorage.Controllers.FishingController)
 
--- ================= ORIGINAL CAST =================
+-- ================= CAST WITH RESULT =================
 local function p()
     task.spawn(function()
         pcall(function()
@@ -707,23 +684,51 @@ local function p()
                 end
             end
 
-            -- Charge rod
-            local t = h:InvokeServer(math.huge)
+            -- Charge rod with specific timing
+            local chargeTime = tick()
+            local t = h:InvokeServer(chargeTime)
             if not t then
                 while not t do
-                    local v = h:InvokeServer(math.huge)
+                    local v = h:InvokeServer(chargeTime)
                     if v then break end
                     task.wait(0.05)
                 end
             end
 
-            -- Cast dengan result yang dipilih
-            local angle, power = getCastData()
-            i:InvokeServer(angle, power)
+            -- Start minigame with perfect values
+            local angle = -139.63796997070312
+            local power = 0.9964792798079721
+            local minigameData = i:InvokeServer(angle, power)
+            
+            -- Simulate perfect click timing
+            if minigameData and CastResult.Enabled then
+                task.wait(0.05) -- Small delay
+                
+                local targetResult = CastResult.Mode == "Fixed" 
+                    and CastResult.FixedResult 
+                    or CastResult.Pool[math.random(#CastResult.Pool)]
+                
+                -- Calculate timing based on result
+                local clickDelay = 0.1
+                if targetResult == "Perfect" then
+                    clickDelay = 0.05
+                elseif targetResult == "Amazing" then
+                    clickDelay = 0.08
+                elseif targetResult == "Great" then
+                    clickDelay = 0.12
+                end
+                
+                task.wait(clickDelay)
+                
+                -- Send minigame click
+                pcall(function()
+                    minigameClick:InvokeServer()
+                end)
+            end
         end)
     end)
 
-    -- Auto complete setelah cast
+    -- Auto complete
     task.spawn(function()
         task.wait(c.f)
         if c.d then
