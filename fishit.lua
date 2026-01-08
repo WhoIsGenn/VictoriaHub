@@ -636,7 +636,7 @@ local c = {
     f = 0.37
 }
 
--- CAST QUALITY CONFIG
+-- CAST QUALITY CONFIG (IMPROVED RANGES)
 local CastQuality = {
     Enabled = true,
     Mode = "Random", -- "Random", "Fixed", "Cycle"
@@ -644,21 +644,21 @@ local CastQuality = {
     Qualities = {
         Perfect = {
             AngleMin = -139.80,
-            AngleMax = -139.50,
-            PowerMin = 0.990,
+            AngleMax = -139.40,
+            PowerMin = 0.985,
             PowerMax = 1.000
         },
         Amazing = {
-            AngleMin = -139.50,
-            AngleMax = -138.50,
-            PowerMin = 0.940,
-            PowerMax = 0.989
+            AngleMin = -139.40,
+            AngleMax = -139.00,
+            PowerMin = 0.930,
+            PowerMax = 0.984
         },
         Great = {
-            AngleMin = -138.50,
-            AngleMax = -137.00,
-            PowerMin = 0.850,
-            PowerMax = 0.939
+            AngleMin = -139.00,
+            AngleMax = -138.50,
+            PowerMin = 0.870,
+            PowerMax = 0.929
         }
     },
     CycleIndex = 1
