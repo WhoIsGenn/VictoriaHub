@@ -757,7 +757,6 @@ Remotes.RE_FishingCompleted = netFolder:WaitForChild("RE/FishingCompleted")
 Remotes.RE_EquipTool = netFolder:WaitForChild("RE/EquipToolFromHotbar")
 
 local toggleState = {
-    autoFishing = false,
     blatantRunning = false,
 }
 
@@ -768,13 +767,12 @@ local FishingController = require(
 
 local oldCharge = FishingController.RequestChargeFishingRod
 FishingController.RequestChargeFishingRod = function(...)
-    if toggleState.blatantRunning or toggleState.autoFishing then
+    if toggleState.blatantRunning then
         return
     end
     return oldCharge(...)
 end
 
-local isAutoRunning = false
 local isSuperInstantRunning = false
 _G.ReelSuper = 1.30
 toggleState.completeDelays = 0.40
