@@ -194,55 +194,6 @@ Window:EditOpenButton({
     Draggable = true,
 })
 
--- Sidebar visual polish
-Window:SetSidebarConfig({
-    Width = 190,
-    Padding = 10,
-    IconSize = 18,
-    TextSize = 14,
-    ActiveColor = Color3.fromRGB(0, 195, 255),
-    InactiveColor = Color3.fromRGB(170, 170, 170),
-    BackgroundColor = Color3.fromRGB(18, 18, 18),
-})
-
-Window:SetTabTransition({
-    TweenTime = 0.15,
-    EasingStyle = Enum.EasingStyle.Quad,
-    Fade = true
-})
-
-Window:SetSectionStyle({
-    CornerRadius = 12,
-    Padding = 8,
-    Spacing = 6,
-    BackgroundColor = Color3.fromRGB(24, 24, 24)
-})
-
-Window:SetToggleStyle({
-    Height = 32,
-    CornerRadius = 10,
-    ActiveColor = Color3.fromRGB(0,195,255),
-    InactiveColor = Color3.fromRGB(60,60,60)
-})
-
-Window:SetSliderStyle({
-    Height = 6,
-    ThumbSize = 14,
-    ActiveColor = Color3.fromRGB(0,195,255)
-})
-
-Window:SetFont({
-    Font = Enum.Font.Gotham,
-    BoldFont = Enum.Font.GothamBold,
-    TextSize = 13
-})
-
-Window:SetShadow({
-    Enabled = true,
-    Transparency = 0.6,
-    Blur = 12
-})
-
 Window:Tag({
     Title = "V0.0.9.2",
     Color = Color3.fromRGB(255, 255, 255),
@@ -764,26 +715,26 @@ local c = {
 -- CAST QUALITY CONFIG (IMPROVED RANGES)
 local CastQuality = {
     Enabled = true,
-    Mode = "Fixed", -- "Random", "Fixed", "Cycle"
+    Mode = "random", -- "Random", "Fixed", "Cycle"
     FixedQuality = "Perfect",
     Qualities = {
         Perfect = {
-            AngleMin = -139.80,
-            AngleMax = -139.40,
-            PowerMin = 0.985,
-            PowerMax = 1.000
+            AngleMin = -1.2332,
+            AngleMax = -1.2332,
+            PowerMin = 1.0000,
+            PowerMax = 1.0000
         },
         Amazing = {
-            AngleMin = -139.92,
-            AngleMax = -140.58,
-            PowerMin = 0.960,
-            PowerMax = 0.966
+            AngleMin = -1.2332,
+            AngleMax = -1.2332,
+            PowerMin = 1.0000,
+            PowerMax = 1.0000
         },
         Great = {
-            AngleMin = -139.66,
-            AngleMax = -139.66,
-            PowerMin = 0.903,
-            PowerMax = 0.904
+            AngleMin = -1.2332,
+            AngleMax = -1.2332,
+            PowerMin = 1.0000,
+            PowerMax = 1.0000
         }
     },
     CycleIndex = 1
