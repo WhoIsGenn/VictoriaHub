@@ -2767,7 +2767,7 @@ local function cleanup()
     print("Victoria Hub: Cleanup completed")
 end
 
-game:BindToClose(cleanup)
+--- game:BindToClose(cleanup)
 
 -- ==================== FINAL INIT ====================
 getgenv().LexsHubWindow = Window
