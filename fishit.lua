@@ -2137,7 +2137,7 @@ if createPingDisplay() then
     end))
 end
 
-player:Toggle({
+playerSettings:Toggle({
     Title = "Ping Display",
     Default = false,
     Callback = function(v)
