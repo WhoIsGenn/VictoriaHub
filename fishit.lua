@@ -636,6 +636,34 @@ local c = {
     f = 0.37
 }
 
+-- CAST QUALITY CONFIG (IMPROVED RANGES)
+local CastQuality = {
+    Enabled = true,
+    Mode = "Random", -- "Random", "Fixed", "Cycle"
+    FixedQuality = "Perfect",
+    Qualities = {
+        Perfect = {
+            AngleMin = -139.80,
+            AngleMax = -139.40,
+            PowerMin = 0.985,
+            PowerMax = 1.000
+        },
+        Amazing = {
+            AngleMin = -139.92,
+            AngleMax = -140.58,
+            PowerMin = 0.960,
+            PowerMax = 0.966
+        },
+        Great = {
+            AngleMin = -139.66,
+            AngleMax = -139.66,
+            PowerMin = 0.903,
+            PowerMax = 0.904
+        }
+    },
+    CycleIndex = 1
+}
+
 local g = ReplicatedStorage
     :WaitForChild("Packages")
     :WaitForChild("_Index")
@@ -654,7 +682,34 @@ end)
 
 local m,n
 
--- ================= ORIGINAL CAST (WITH PRINT) =================
+-- ================= GET CAST VALUES =================
+local function getCastValues()
+    if not CastQuality.Enabled then
+        return -139.63796997070312, 0.9964792798079721
+    end
+    
+    local quality
+    
+    if CastQuality.Mode == "Fixed" then
+        quality = CastQuality.Qualities[CastQuality.FixedQuality]
+    elseif CastQuality.Mode == "Cycle" then
+        local qualityNames = {"Perfect", "Amazing", "Great"}
+        quality = CastQuality.Qualities[qualityNames[CastQuality.CycleIndex]]
+        CastQuality.CycleIndex = (CastQuality.CycleIndex % 3) + 1
+    else -- Random
+        local qualityNames = {"Perfect", "Amazing", "Great"}
+        local randomQuality = qualityNames[math.random(#qualityNames)]
+        quality = CastQuality.Qualities[randomQuality]
+    end
+    
+    -- Random value dalam range
+    local angle = math.random() * (quality.AngleMax - quality.AngleMin) + quality.AngleMin
+    local power = math.random() * (quality.PowerMax - quality.PowerMin) + quality.PowerMin
+    
+    return angle, power
+end
+
+-- ================= ORIGINAL CAST =================
 local function p()
     task.spawn(function()
         pcall(function()
@@ -676,19 +731,7 @@ local function p()
                 end
             end
 
-            -- Random angle & power untuk test
-            local baseAngle = -139.63
-            local basePower = 0.996
-            
-            local angle = baseAngle + (math.random() - 0.5) * 2 -- -140.63 sampai -138.63
-            local power = basePower + (math.random() - 0.5) * 0.2 -- 0.896 sampai 1.096
-            
-            print("=== CAST TEST ===")
-            print("Angle:", string.format("%.2f", angle))
-            print("Power:", string.format("%.3f", power))
-            print("Liat hasilnya di game!")
-            print("=================")
-            
+            local angle, power = getCastValues()
             i:InvokeServer(angle, power)
         end)
     end)
