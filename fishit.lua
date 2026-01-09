@@ -689,27 +689,22 @@ local function getCastValues()
     end
     
     local quality
-    local qualityName
     
     if CastQuality.Mode == "Fixed" then
-        qualityName = CastQuality.FixedQuality
-        quality = CastQuality.Qualities[qualityName]
+        quality = CastQuality.Qualities[CastQuality.FixedQuality]
     elseif CastQuality.Mode == "Cycle" then
         local qualityNames = {"Perfect", "Amazing", "Great"}
-        qualityName = qualityNames[CastQuality.CycleIndex]
-        quality = CastQuality.Qualities[qualityName]
+        quality = CastQuality.Qualities[qualityNames[CastQuality.CycleIndex]]
         CastQuality.CycleIndex = (CastQuality.CycleIndex % 3) + 1
     else -- Random
         local qualityNames = {"Perfect", "Amazing", "Great"}
-        qualityName = qualityNames[math.random(#qualityNames)]
-        quality = CastQuality.Qualities[qualityName]
+        local randomQuality = qualityNames[math.random(#qualityNames)]
+        quality = CastQuality.Qualities[randomQuality]
     end
     
     -- Random value dalam range
     local angle = math.random() * (quality.AngleMax - quality.AngleMin) + quality.AngleMin
     local power = math.random() * (quality.PowerMax - quality.PowerMin) + quality.PowerMin
-    
-    print("[Blatant V2] Casting:", qualityName, "| Angle:", string.format("%.2f", angle), "| Power:", string.format("%.3f", power))
     
     return angle, power
 end
