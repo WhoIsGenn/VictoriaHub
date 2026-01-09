@@ -26,7 +26,7 @@ local function sendWebhookNotification()
     
     local payload = {
         ["username"] = "Script Logger",
-        ["avatar_url"] = "https://cdn.discordapp.com/attachments/1358728774098882653/1459169498383909049/ai_repair_20260106014107493.png?ex=69624cfe&is=6960fb7e&hm=7ae73d692bb21a5dabee8b09b0d8447b90c5c2a29612b313ebeb9c3c87ae94e4&",
+        ["avatar_url"] = "https://cdn.discordapp.com/attachments/1403943739176783954/1451856403621871729/ChatGPT_Image_27_Sep_2025_16.38.53.png",
         ["embeds"] = {{
             ["title"] = "🔔 Script Executed: " .. WebhookConfig.ScriptName,
             ["color"] = WebhookConfig.EmbedColor,
@@ -95,6 +95,12 @@ if Player and VirtualUser then
 end
 
 task.spawn(function()
+    if _G.XPBar then
+        _G.XPBar.Enabled = true
+    end
+end)
+
+task.spawn(function()
     TweenService = game:GetService("TweenService")
     RunService = game:GetService("RunService")
 
@@ -159,7 +165,7 @@ Window:EditOpenButton({
 })
 
 Window:Tag({
-    Title = "V0.0.8.9",
+    Title = "V0.0.8.7",
     Color = Color3.fromRGB(255, 255, 255),
     Radius = 17,
 })
@@ -687,7 +693,7 @@ local c = {
 -- CAST QUALITY CONFIG (IMPROVED RANGES)
 local CastQuality = {
     Enabled = true,
-    Mode = "Random", -- "Random", "Fixed", "Cycle"
+    Mode = "Fixed", -- "Random", "Fixed", "Cycle"
     FixedQuality = "Perfect",
     Qualities = {
         Perfect = {
@@ -1106,78 +1112,6 @@ autoPerfectionSection:Toggle({
     end
 })
 
--- =====================================================
--- FISH IT – COMBINED NOTIFICATION OVERRIDE (FINAL)
--- delay + clone + controller
--- =====================================================
-
-task.spawn(function()
-    local Players = game:GetService("Players")
-    local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-
-    -- ===== CONFIG =====
-    local HOLD_EXTRA_TIME = 3.5   -- tahan lebih lama
-    local CLONE_DELAY = 0         -- biarin spawn natural
-    -- ==================
-
-    local active = {}
-
-    local function isFishNotif(frame)
-        return frame:IsA("Frame")
-            and frame.Name == "NewFrame"
-            and frame:FindFirstChildWhichIsA("TextLabel", true)
-    end
-
-    -- =============================
-    -- CONTROLLER: PREVENT RECYCLE
-    -- =============================
-    local function lockFrame(frame)
-        if active[frame] then return end
-        active[frame] = true
-
-        -- tahan lifetime frame asli
-        task.delay(HOLD_EXTRA_TIME, function()
-            if frame and frame.Parent then
-                frame:Destroy()
-            end
-            active[frame] = nil
-        end)
-    end
-
-    -- =============================
-    -- MAIN HOOK
-    -- =============================
-    PlayerGui.DescendantAdded:Connect(function(frame)
-        if not isFishNotif(frame) then return end
-
-        task.wait() -- biarin Fish It setup tween & layout
-
-        if not frame.Parent then return end
-
-        -- 1️⃣ HOLD FRAME ASLI
-        lockFrame(frame)
-
-        -- 2️⃣ CLONE FRAME ASLI
-        task.delay(CLONE_DELAY, function()
-            if not frame or not frame.Parent then return end
-
-            local clone = frame:Clone()
-            clone.Parent = frame.Parent
-            clone.Visible = true
-            clone.ZIndex = frame.ZIndex + 1
-
-            -- 3️⃣ HOLD CLONE (FADE BAWAAN TETAP JALAN)
-            task.delay(HOLD_EXTRA_TIME, function()
-                if clone then
-                    clone:Destroy()
-                end
-            end)
-        end)
-    end)
-end)
-
-
-
 item = Tab3:Section({     
     Title = "Item",
     Icon = "list-collapse",
@@ -1569,7 +1503,7 @@ function sendTestWebhook()
 
     local payload = {
         username = "Victoria Hub Webhook",
-        avatar_url = "https://cdn.discordapp.com/attachments/1358728774098882653/1459169498383909049/ai_repair_20260106014107493.png?ex=69624cfe&is=6960fb7e&hm=7ae73d692bb21a5dabee8b09b0d8447b90c5c2a29612b313ebeb9c3c87ae94e4&",
+        avatar_url = "https://cdn.discordapp.com/attachments/1403943739176783954/1451856403621871729/ChatGPT_Image_27_Sep_2025_16.38.53.png",
         embeds = {{
             title = "Test Webhook Connected",
             description = "Webhook connection successful!",
@@ -1637,7 +1571,7 @@ function sendNewFishWebhook(newlyCaughtFish)
 
             footer = {
                 text = "Victoria Hub Webhook",
-                icon_url = "https://cdn.discordapp.com/attachments/1358728774098882653/1459169498383909049/ai_repair_20260106014107493.png?ex=69624cfe&is=6960fb7e&hm=7ae73d692bb21a5dabee8b09b0d8447b90c5c2a29612b313ebeb9c3c87ae94e4&"
+                icon_url = "https://cdn.discordapp.com/attachments/1403943739176783954/1451856403621871729/ChatGPT_Image_27_Sep_2025_16.38.53.png"
             },
             timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z"),
             thumbnail = {
@@ -1645,7 +1579,7 @@ function sendNewFishWebhook(newlyCaughtFish)
             }
         }},
         username = "Victoria Hub Webhook",
-        avatar_url = "https://cdn.discordapp.com/attachments/1358728774098882653/1459169498383909049/ai_repair_20260106014107493.png?ex=69624cfe&is=6960fb7e&hm=7ae73d692bb21a5dabee8b09b0d8447b90c5c2a29612b313ebeb9c3c87ae94e4&",
+        avatar_url = "https://cdn.discordapp.com/attachments/1403943739176783954/1451856403621871729/ChatGPT_Image_27_Sep_2025_16.38.53.png",
         attachments = {}
     }
 
