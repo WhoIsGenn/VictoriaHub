@@ -636,7 +636,7 @@ local c = {
     f = 0.37
 }
 
--- CAST QUALITY CONFIG (IMPROVED RANGES)
+-- CAST QUALITY CONFIG
 local CastQuality = {
     Enabled = true,
     Mode = "Random", -- "Random", "Fixed", "Cycle"
@@ -682,16 +682,6 @@ end)
 
 local m,n
 
--- ================= HOOK UNTUK TRACKING (MANUAL FISHING) =================
-local originalInvoke = i.InvokeServer
-i.InvokeServer = function(self, angle, power)
-    print("=== CAST DATA ===")
-    print("Angle:", angle)
-    print("Power:", power)
-    print("================")
-    return originalInvoke(self, angle, power)
-end
-
 -- ================= GET CAST VALUES =================
 local function getCastValues()
     if not CastQuality.Enabled then
@@ -719,7 +709,7 @@ local function getCastValues()
     local angle = math.random() * (quality.AngleMax - quality.AngleMin) + quality.AngleMin
     local power = math.random() * (quality.PowerMax - quality.PowerMin) + quality.PowerMin
     
-    print("[AUTO] Target:", qualityName, "| Angle:", string.format("%.2f", angle), "| Power:", string.format("%.3f", power))
+    print("[Blatant V2] Casting:", qualityName, "| Angle:", string.format("%.2f", angle), "| Power:", string.format("%.3f", power))
     
     return angle, power
 end
