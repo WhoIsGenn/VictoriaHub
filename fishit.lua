@@ -683,60 +683,126 @@ fishing:Slider({
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local c={d=false,e=1.6,f=0.37}
+-- ================= CONFIG =================
+local c = {
+    d = false,
+    e = 1.6,
+    f = 0.37
+}
 
-local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+-- CAST QUALITY CONFIG (IMPROVED RANGES)
+local CastQuality = {
+    Enabled = true,
+    Mode = "Random", -- "Random", "Fixed", "Cycle"
+    FixedQuality = "Perfect",
+    Qualities = {
+        Perfect = {
+            AngleMin = -139.80,
+            AngleMax = -139.40,
+            PowerMin = 0.985,
+            PowerMax = 1.000
+        },
+        Amazing = {
+            AngleMin = -139.92,
+            AngleMax = -140.58,
+            PowerMin = 0.960,
+            PowerMax = 0.966
+        },
+        Great = {
+            AngleMin = -139.66,
+            AngleMax = -139.66,
+            PowerMin = 0.903,
+            PowerMax = 0.904
+        }
+    },
+    CycleIndex = 1
+}
 
+local g = ReplicatedStorage
+    :WaitForChild("Packages")
+    :WaitForChild("_Index")
+    :WaitForChild("sleitnick_net@0.2.0")
+    :WaitForChild("net")
+
+-- ================= REMOTES =================
 local h,i,j,k,l
 pcall(function()
-    h=g:WaitForChild("RF/ChargeFishingRod")
-    i=g:WaitForChild("RF/RequestFishingMinigameStarted")
-    j=g:WaitForChild("RE/FishingCompleted")
-    k=g:WaitForChild("RE/EquipToolFromHotbar")
-    l=g:WaitForChild("RF/CancelFishingInputs")
+    h = g:WaitForChild("RF/ChargeFishingRod")
+    i = g:WaitForChild("RF/RequestFishingMinigameStarted")
+    j = g:WaitForChild("RE/FishingCompleted")
+    k = g:WaitForChild("RE/EquipToolFromHotbar")
+    l = g:WaitForChild("RF/CancelFishingInputs")
 end)
 
-local m=nil
-local n=nil
-local o=nil
+local m,n
 
+-- ================= GET CAST VALUES =================
+local function getCastValues()
+    if not CastQuality.Enabled then
+        return -139.63796997070312, 0.9964792798079721
+    end
+    
+    local quality
+    
+    if CastQuality.Mode == "Fixed" then
+        quality = CastQuality.Qualities[CastQuality.FixedQuality]
+    elseif CastQuality.Mode == "Cycle" then
+        local qualityNames = {"Perfect", "Amazing", "Great"}
+        quality = CastQuality.Qualities[qualityNames[CastQuality.CycleIndex]]
+        CastQuality.CycleIndex = (CastQuality.CycleIndex % 3) + 1
+    else -- Random
+        local qualityNames = {"Perfect", "Amazing", "Great"}
+        local randomQuality = qualityNames[math.random(#qualityNames)]
+        quality = CastQuality.Qualities[randomQuality]
+    end
+    
+    -- Random value dalam range
+    local angle = math.random() * (quality.AngleMax - quality.AngleMin) + quality.AngleMin
+    local power = math.random() * (quality.PowerMax - quality.PowerMin) + quality.PowerMin
+    
+    return angle, power
+end
+
+-- ================= ORIGINAL CAST =================
 local function p()
     task.spawn(function()
         pcall(function()
-            local q,r=l:InvokeServer()
+            local q = l:InvokeServer()
             if not q then
                 while not q do
-                    local s=l:InvokeServer()
+                    local s = l:InvokeServer()
                     if s then break end
                     task.wait(0.05)
                 end
             end
 
-            local t,u=h:InvokeServer(math.huge)
+            local t = h:InvokeServer(math.huge)
             if not t then
                 while not t do
-                    local v=h:InvokeServer(math.huge)
+                    local v = h:InvokeServer(math.huge)
                     if v then break end
                     task.wait(0.05)
                 end
             end
 
-            i:InvokeServer(-139.63,0.996)
+            local angle, power = getCastValues()
+            i:InvokeServer(angle, power)
         end)
     end)
 
     task.spawn(function()
         task.wait(c.f)
         if c.d then
-            pcall(j.FireServer,j)
+            pcall(j.FireServer, j)
         end
     end)
 end
 
+-- ================= LOOP =================
 local function w()
-    n=task.spawn(function()
+    n = task.spawn(function()
         while c.d do
-            pcall(k.FireServer,k,1)
+            pcall(k.FireServer, k, 1)
             task.wait(1.5)
         end
     end)
@@ -749,83 +815,84 @@ local function w()
     end
 end
 
-local function x(y)
-    c.d=y
-    if y then
+-- ================= TOGGLE =================
+local function x(state)
+    c.d = state
+    if state then
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m=task.spawn(w)
+        m = task.spawn(w)
     else
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m=nil
-        n=nil
-        pcall(l.InvokeServer,l)
+        m,n = nil,nil
+        pcall(l.InvokeServer, l)
     end
 end
 
-netFolder = ReplicatedStorage:WaitForChild('Packages')
+-- ========== BLANTANT V1 CONFIG & FUNCTIONS (FIXED) ==========
+local netFolder = ReplicatedStorage:WaitForChild('Packages')
     :WaitForChild('_Index')
     :WaitForChild('sleitnick_net@0.2.0')
     :WaitForChild('net')
-Remotes = {}
+
+local Remotes = {}
 Remotes.RF_RequestFishingMinigameStarted = netFolder:WaitForChild("RF/RequestFishingMinigameStarted")
 Remotes.RF_ChargeFishingRod = netFolder:WaitForChild("RF/ChargeFishingRod")
-Remotes.RF_CancelFising = netFolder:WaitForChild('RF/CancelFishingInputs')
 Remotes.RF_CancelFishing = netFolder:WaitForChild("RF/CancelFishingInputs")
-Remotes.chargeRod = netFolder:WaitForChild('RF/ChargeFishingRod')
 Remotes.RE_FishingCompleted = netFolder:WaitForChild("RE/FishingCompleted")
-Remotes.RF_AutoFish = netFolder:WaitForChild("RF/UpdateAutoFishingState")
+Remotes.RE_EquipTool = netFolder:WaitForChild("RE/EquipToolFromHotbar")
 
-toggleState = {
-    autoFishing = false,
+local toggleState = {
     blatantRunning = false,
 }
 
-FishingController = require(
+local FishingController = require(
     ReplicatedStorage:WaitForChild('Controllers')
         :WaitForChild('FishingController')
 )
 
 local oldCharge = FishingController.RequestChargeFishingRod
 FishingController.RequestChargeFishingRod = function(...)
-    if toggleState.blatantRunning or toggleState.autoFishing then
+    if toggleState.blatantRunning then
         return
     end
-	return oldCharge(...)
+    return oldCharge(...)
 end
 
-local isAutoRunning = false
-
 local isSuperInstantRunning = false
-_G.ReelSuper = 1.15
-     toggleState.completeDelays = 0.30
-     toggleState.delayStart = 0.2
-    local function autoEquipSuper()
-        local success, err = pcall(function()
-            Remotes.RE_EquipTool:FireServer(1)
-        end)
-        if success then
-        end
-    end
+_G.ReelSuper = 1.30
+toggleState.completeDelays = 0.40
+toggleState.delayStart = 0.1
 
-    local function superInstantFishingCycle()
-        task.spawn(function()
+local function autoEquipSuper()
+    local success, err = pcall(function()
+        Remotes.RE_EquipTool:FireServer(1)
+    end)
+end
+
+local function superInstantFishingCycle()
+    task.spawn(function()
+        pcall(function()
             Remotes.RF_CancelFishing:InvokeServer()
+            task.wait(0.05)
             Remotes.RF_ChargeFishingRod:InvokeServer(tick())
+            task.wait(0.05)
             Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.63796997070312, 0.9964792798079721)
             task.wait(toggleState.completeDelays)
             Remotes.RE_FishingCompleted:FireServer()
         end)
-    end
-
-    local function doSuperFishingFlow()
-        superInstantFishingCycle()
-    end
+    end)
+end
 
 local function startSuperInstantFishing()
     if isSuperInstantRunning then return end
     isSuperInstantRunning = true
+    toggleState.blatantRunning = true
+
+    -- Auto equip fishing rod
+    autoEquipSuper()
+    task.wait(0.5)
 
     task.spawn(function()
         while isSuperInstantRunning do
@@ -835,26 +902,100 @@ local function startSuperInstantFishing()
     end)
 end
 
-    local function stopSuperInstantFishing()
-        isSuperInstantRunning = false
-        print('Super Instant Fishing stopped')
+local function stopSuperInstantFishing()
+    isSuperInstantRunning = false
+    toggleState.blatantRunning = false
+    
+    -- Cancel any ongoing fishing
+    pcall(function()
+        Remotes.RF_CancelFishing:InvokeServer()
+    end)
+    
+end
+
+-- ========== AUTO PERFECTION FUNCTIONS (ASLI) ==========
+local RS = game:GetService("ReplicatedStorage")
+local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
+local FC = require(RS.Controllers.FishingController)
+
+local oc, orc = FC.RequestFishingMinigameClick, FC.RequestChargeFishingRod
+local ap = false
+
+task.spawn(function()
+    while task.wait() do
+        if ap then
+            Net["RF/UpdateAutoFishingState"]:InvokeServer(true)
+        end
     end
-  
-blantant = Tab3:Section({ 
-    Title = "Blantan Mode | Beta",
+end)
+
+local function updateAutoPerfection(s)
+    ap = s
+    if s then
+        FC.RequestFishingMinigameClick = function() end
+        FC.RequestChargeFishingRod = function() end
+    else
+        Net["RF/UpdateAutoFishingState"]:InvokeServer(false)
+        FC.RequestFishingMinigameClick = oc
+        FC.RequestChargeFishingRod = orc
+    end
+end
+
+-- ========== RECOVERY FISHING FUNCTION (FULL RESET) ==========
+local function doRecoveryFishing()
+    -- STEP 1: Force stop semua blatant yang aktif (instant)
+    isSuperInstantRunning = false
+    toggleState.blatantRunning = false
+    c.d = false
+    if m then pcall(task.cancel, m) end
+    if n then pcall(task.cancel, n) end
+    m, n = nil, nil
+    
+    -- STEP 2: Reset FishingController (instant)
+    pcall(function()
+        FishingController.RequestChargeFishingRod = oldCharge
+    end)
+    
+    -- STEP 3: Cancel & cleanup di background (async)
+    task.spawn(function()
+        pcall(function()
+            -- Multi cancel
+            for i = 1, 3 do
+                Remotes.RF_CancelFishing:InvokeServer()
+            end
+        end)
+    end)
+    
+    -- STEP 4: Reset rod di background (async)
+    task.spawn(function()
+        pcall(function()
+            Remotes.RE_EquipTool:FireServer(0)
+            Remotes.RE_EquipTool:FireServer(1)
+        end)
+    end)
+    
+    -- STEP 5: Final cleanup di background (async)
+    task.spawn(function()
+        pcall(function()
+            Remotes.RF_ChargeFishingRod:InvokeServer(0)
+            Remotes.RF_CancelFishing:InvokeServer()
+        end)
+    end)
+end
+
+-- ========== SECTION 1: BLANTANT V1 ==========
+blantantV1 = Tab3:Section({ 
+    Title = "Blantant V1",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
     TextSize = 17,
 })
 
-blantant:Toggle({
-    Title = "Blatant Mode",
-    Value = toggleState.blatantRunning,
+blantantV1:Toggle({
+    Title = "Blatant V1",
+    Value = false,
     Callback = function(value)
-        toggleState.blatantRunning = value
-        Remotes.RF_AutoFish:InvokeServer(value)
-
         if value then
             startSuperInstantFishing()
         else
@@ -863,7 +1004,7 @@ blantant:Toggle({
     end
 })
 
-blantant:Input({
+blantantV1:Input({
     Title = "Reel Delay",
     Placeholder = "Delay (seconds)",
     Default = tostring(_G.ReelSuper),
@@ -871,12 +1012,11 @@ blantant:Input({
         local num = tonumber(input)
         if num and num >= 0 then
             _G.ReelSuper = num
-            print("ReelSuper updated to:", num)
         end
     end
 })
 
-blantant:Input({
+blantantV1:Input({
     Title = "Custom Complete Delay",
     Placeholder = "Delay (seconds)",
     Default = tostring(toggleState.completeDelays),
@@ -888,14 +1028,87 @@ blantant:Input({
     end
 })
 
-Tab3:Space()
-
-blantant:Button({
-    Title = "BLANTANT MODE X7",
-    Desc = "TESTER METHOD X7",
-    Locked = false,
+blantantV1:Button({
+    Title = "Recovery Fishing",
     Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/WhoIsGenn/VictoriaHub/refs/heads/main/Loader/BlantantTESTER.lua"))()
+        doRecoveryFishing()
+        WindUI:Notify({
+            Title = "Recovery Fishing",
+            Content = "Recovery completed!",
+            Duration = 3,
+            Icon = "check"
+        })
+    end
+})
+
+-- ========== SECTION 2: BLANTANT V2 ==========
+blantantV2 = Tab3:Section({ 
+    Title = "Blantant V2",
+    Icon = "fish",
+    TextTransparency = 0.05,
+    TextXAlignment = "Left",
+    TextSize = 17,
+})
+
+blantantV2:Toggle({
+    Title = "Blantant V2",
+    Value = c.d,
+    Callback = function(z2)
+        x(z2)
+    end
+})
+
+blantantV2:Input({
+    Title = "Cancel Delay",
+    Placeholder = "1.7",
+    Default = tostring(c.e),
+    Callback = function(z4)
+        local z5 = tonumber(z4)
+        if z5 and z5 > 0 then
+            c.e = z5
+        end
+    end
+})
+
+blantantV2:Input({
+    Title = "Complete Delay",
+    Placeholder = "1.4",
+    Default = tostring(c.f),
+    Callback = function(z7)
+        local z8 = tonumber(z7)
+        if z8 and z8 > 0 then
+            c.f = z8
+        end
+    end
+})
+
+blantantV2:Button({
+    Title = "Recovery Fishing",
+    Callback = function()
+        doRecoveryFishing()
+        WindUI:Notify({
+            Title = "Recovery Fishing",
+            Content = "Recovery completed!",
+            Duration = 3,
+            Icon = "check"
+        })
+    end
+})
+
+-- SECTION 3: AUTO PERFECTION
+autoPerfectionSection = Tab3:Section({ 
+    Title = "Auto Perfection",
+    Icon = "settings",
+    TextTransparency = 0.05,
+    TextXAlignment = "Left",
+    TextSize = 17,
+})
+
+autoPerfectionSection:Toggle({
+    Title = "Auto Perfection",
+    Value = ap,
+    Callback = function(s)
+        updateAutoPerfection(s)
     end
 })
 
