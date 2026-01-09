@@ -513,7 +513,6 @@ other:Toggle({
     end
 })
 
--- ==================== FISHING VARIABLES ====================
 _G.AutoFishing = false
 _G.AutoEquipRod = false
 _G.Radar = false
@@ -540,16 +539,43 @@ end
 local RS = game:GetService("ReplicatedStorage")
 local net = RS.Packages._Index["sleitnick_net@0.2.0"].net
 
-local function rod() safeCall("rod", function() net["RE/EquipToolFromHotbar"]:FireServer(1) end) end
-local function autoon() safeCall("autoon", function() net["RF/UpdateAutoFishingState"]:InvokeServer(true) end) end
-local function autooff() safeCall("autooff", function() net["RF/UpdateAutoFishingState"]:InvokeServer(false) end) end
-local function catch() safeCall("catch", function() net["RE/FishingCompleted"]:FireServer() end) end
-local function charge() safeCall("charge", function() net["RF/ChargeFishingRod"]:InvokeServer() end) end
-local function lempar() 
-    safeCall("lempar", function() 
-        net["RF/RequestFishingMinigameStarted"]:InvokeServer(-139.63, 0.996, -1761532005.497) 
+local function rod()
+    safeCall("rod", function()
+        net["RE/EquipToolFromHotbar"]:FireServer(1)
     end)
-    safeCall("charge2", function() net["RF/ChargeFishingRod"]:InvokeServer() end)
+end
+
+local function autoon()
+    safeCall("autoon", function()
+        net["RF/UpdateAutoFishingState"]:InvokeServer(true)
+    end)
+end
+
+local function autooff()
+    safeCall("autooff", function()
+        net["RF/UpdateAutoFishingState"]:InvokeServer(false)
+    end)
+end
+
+local function catch()
+    safeCall("catch", function()
+        net["RE/FishingCompleted"]:FireServer()
+    end)
+end
+
+local function charge()
+    safeCall("charge", function()
+        net["RF/ChargeFishingRod"]:InvokeServer()
+    end)
+end
+
+local function lempar()
+    safeCall("lempar", function()
+        net["RF/RequestFishingMinigameStarted"]:InvokeServer(-139.63, 0.996, -1761532005.497)
+    end)
+    safeCall("charge2", function()
+        net["RF/ChargeFishingRod"]:InvokeServer()
+    end)
 end
 
 local function instant_cycle()
@@ -559,20 +585,18 @@ local function instant_cycle()
     catch()
 end
 
--- ==================== TAB 3: MAIN ====================
 local Tab3 = Window:Tab({
     Title = "Main",
     Icon = "gamepad-2"
 })
 
-local fishing = Tab3:Section({
+fishing = Tab3:Section({
     Title = "Fishing",
     Icon = "fish",
     TextXAlignment = "Left",
     TextSize = 17
 })
 
--- AUTO EQUIP ROD
 fishing:Toggle({
     Title = "Auto Equip Rod",
     Value = false,
@@ -582,47 +606,97 @@ fishing:Toggle({
     end
 })
 
--- MODE SELECTION
 local mode = "Instant"
 local fishThread
+local sellThread
 
 fishing:Dropdown({
     Title = "Mode",
     Values = {"Instant", "Legit"},
     Value = "Instant",
-    Callback = function(v) mode = v end
+    Callback = function(v)
+        mode = v
+        
+        -- Auto matikan fishing ketika ganti mode
+        if _G.AutoFishing then
+            _G.AutoFishing = false
+            autooff()
+            if fishThread then 
+                task.cancel(fishThread) 
+                fishThread = nil
+            end
+        end
+    end
 })
 
--- AUTO FISHING
+-- Variable untuk menyimpan slider
+local delaySlider
+
+-- Function untuk update tampilan slider
+local function updateDelaySlider()
+    if delaySlider then
+        if mode == "Instant" then
+            -- Tampilkan slider jika mode Instant
+            delaySlider.Visible = true
+        else
+            -- Sembunyikan slider jika mode Legit
+            delaySlider.Visible = false
+        end
+    end
+end
+
+-- Buat slider (tetap dibuat, tapi visibility diatur)
+delaySlider = fishing:Slider({
+    Title = "Instant Fishing Delay",
+    Step = 0.01,
+    Value = {Min = 0.05, Max = 5, Default = _G.InstantDelay},
+    Callback = function(v)
+        _G.InstantDelay = v
+    end,
+    Visible = true -- Awalnya visible, nanti diatur berdasarkan mode
+})
+
+-- Update slider visibility berdasarkan mode awal
+updateDelaySlider()
+
 fishing:Toggle({
     Title = "Auto Fishing",
     Value = false,
     Callback = function(v)
         _G.AutoFishing = v
-        SafeCancel("FishThread")
-        
         if v then
             if mode == "Instant" then
                 _G.Instant = true
-                Performance.Tasks["FishThread"] = task.spawn(function()
+                if fishThread then 
+                    task.cancel(fishThread) 
+                    fishThread = nil
+                end
+                fishThread = task.spawn(function()
                     while _G.AutoFishing and mode == "Instant" do
                         instant_cycle()
-                        task.wait(0.35)
-                        if not _G.AutoFishing then break end
+                        task.wait(_G.InstantDelay) -- Pakai delay yang bisa diatur
                     end
                 end)
             else
-                Performance.Tasks["FishThread"] = task.spawn(function()
+                _G.Instant = false
+                if fishThread then 
+                    task.cancel(fishThread) 
+                    fishThread = nil
+                end
+                fishThread = task.spawn(function()
                     while _G.AutoFishing and mode == "Legit" do
                         autoon()
                         task.wait(1)
-                        if not _G.AutoFishing then break end
                     end
                 end)
             end
         else
             autooff()
             _G.Instant = false
+            if fishThread then 
+                task.cancel(fishThread) 
+                fishThread = nil
+            end
         end
     end
 })
