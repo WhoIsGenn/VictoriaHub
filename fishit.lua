@@ -1360,85 +1360,123 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
     end
 end))
 
---// SECTION
-local TotemSection = Tab4:Section({
-    Title = "Auto Place Totem",
-    Icon = "snowflake",
-    TextXAlignment = "Left",
-    TextSize = 17
-})
+-- ===============================
+-- AUTO PLACE TOTEM - FISH IT (WITH UI)
+-- ===============================
 
---// SERVICES
-local RS = game:GetService("ReplicatedStorage")
+-- ===== SERVICES =====
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RS = ReplicatedStorage
+local LP = Players.LocalPlayer
 
---// NET
-local Net = RS
-    :WaitForChild("Packages")
-    :WaitForChild("_Index")
-    :WaitForChild("sleitnick_net@0.2.0")
-    :WaitForChild("net")
+-- ===== GLOBAL CONFIG =====
+_G.AutoPlaceTotem = false
+_G.SelectedTotemName = "Mutation Totem" -- default
+_G.PlaceDelay = 3600 -- detik
 
---// STATE
-local AutoEnabled = false
-local AutoTask = nil
-local PlaceDelay = 60
-local SelectedTotem = "Mutations Totem"
+-- ===== REQUIRE DATA =====
+local ItemUtility
+local Replion
+local DataService
+local Net
 
---// TOTEMS
-local Totems = {
-    ["Mutations Totem"] = "be68fbc3-a16d-4696-bc71-12f58446ad76",
-    ["Luck Totem"]      = "de2e86b3-acf6-4ec8-ad33-10b35cd0d8a4"
-}
+task.spawn(function()
+    ItemUtility = require(RS.Shared.ItemUtility)
+    Replion = require(RS.Packages.Replion)
+    DataService = Replion.Client:WaitReplion("Data")
+    Net = RS:WaitForChild("Net")
+end)
 
---// REMOTES
-local EquipRemote = Net:WaitForChild("RE/EquipItem")
-local PlaceRemote =
-    Net:FindFirstChild("RE/PlaceTotem")
-    or Net:FindFirstChild("RE/PlaceItem")
+-- ===== WAIT REMOTE =====
+local function WaitRemote(name)
+    while not Net:FindFirstChild(name) do
+        task.wait()
+    end
+    return Net:FindFirstChild(name)
+end
 
---// CORE
-local function PlaceTotem()
-    if not PlaceRemote then return end
-    local id = Totems[SelectedTotem]
-    if not id then return end
+local SpawnTotemRemote = WaitRemote("RE/SpawnTotem")
+
+-- ===============================
+-- GET TOTEM UUID (REAL INVENTORY)
+-- ===============================
+local function GetTotemUUID()
+    if not DataService or not ItemUtility then return nil end
+
+    local inventory = DataService:GetExpect({ "Inventory", "Items" })
+    for _, item in pairs(inventory) do
+        local itemData = ItemUtility.GetItemDataFromItemType("Items", item.Id)
+        if itemData
+            and itemData.Data
+            and itemData.Data.Type == "Totem"
+            and itemData.Data.Name == _G.SelectedTotemName
+        then
+            return item.UUID
+        end
+    end
+
+    return nil
+end
+
+-- ===============================
+-- SPAWN TOTEM (NO TOOLBAR)
+-- ===============================
+local function SpawnTotem()
+    local uuid = GetTotemUUID()
+
+    if not uuid then
+        warn("[AutoTotem] Totem HABIS / TIDAK ADA:", _G.SelectedTotemName)
+        _G.AutoPlaceTotem = false
+        return
+    end
 
     pcall(function()
-        EquipRemote:FireServer(id, "Gears")
-    end)
-
-    task.wait(0.3)
-
-    pcall(function()
-        PlaceRemote:FireServer()
+        SpawnTotemRemote:FireServer(uuid)
     end)
 end
 
---// LOOP
+-- ===============================
+-- LOOP HANDLER
+-- ===============================
+local AutoTask
+
 local function StartAuto()
     if AutoTask then return end
+    _G.AutoPlaceTotem = true
+
     AutoTask = task.spawn(function()
-        while AutoEnabled do
-            PlaceTotem()
-            task.wait(PlaceDelay)
+        while _G.AutoPlaceTotem do
+            SpawnTotem()
+            task.wait(_G.PlaceDelay)
         end
     end)
 end
 
 local function StopAuto()
-    AutoEnabled = false
+    _G.AutoPlaceTotem = false
     if AutoTask then
         task.cancel(AutoTask)
         AutoTask = nil
     end
 end
 
---// TOGGLE (WORKING)
+-- ===============================
+-- ===== WINDUI SECTION =====
+-- ===============================
+local TotemSection = Tab4:Section({
+    Title = "Auto Place Totems",
+    Icon = "snowflake",
+    TextXAlignment = "Left",
+    TextSize = 17
+})
+
+-- Toggle ON/OFF
 TotemSection:Toggle({
     Title = "Auto Place Totem",
     Value = false,
-    Callback = function(v)
-        AutoEnabled = v
-        if v then
+    Callback = function(state)
+        if state then
             StartAuto()
         else
             StopAuto()
@@ -1446,39 +1484,30 @@ TotemSection:Toggle({
     end
 })
 
---// DROPDOWN (WORKING)
+-- Dropdown select totem
 TotemSection:Dropdown({
     Title = "Select Totem",
-    Values = {"Mutations Totem", "Luck Totem"},
-    Value = "Mutations Totem",
-    Callback = function(v)
-        SelectedTotem = v
+    Desc = "Choose which totem to spawn",
+    Default = _G.SelectedTotemName,
+    List = {"Mutation Totem", "Luck Totem", "Shiny Totem"},
+    Callback = function(value)
+        _G.SelectedTotemName = value
+        WindUI:Notify("Info", "Selected Totem: " .. value, 2)
     end
 })
 
---// INPUT DELAY (GANTI SLIDER)
-TotemSection:Input({
+-- Input / Slider delay
+TotemSection:Slider({
     Title = "Place Delay (seconds)",
-    Placeholder = "Example: 1",
-    Value = tostring(PlaceDelay),
-    Callback = function(text)
-        local num = tonumber(text)
-        if num and num >= 0.1 then
-            PlaceDelay = num
-        end
+    Desc = "Delay between placing totems",
+    Default = _G.PlaceDelay,
+    Min = 0.5,
+    Max = 5,
+    Callback = function(value)
+        _G.PlaceDelay = value
+        WindUI:Notify("Info", "Place Delay set to: " .. value .. "s", 2)
     end
 })
-
---// BUTTON
-TotemSection:Button({
-    Title = "Place Once",
-    Callback = function()
-        if AutoEnabled then return end
-        PlaceTotem()
-    end
-})
-
-
 
 
 -- ==================== EVENT SECTION ====================
