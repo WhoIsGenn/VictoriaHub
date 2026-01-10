@@ -1398,7 +1398,56 @@ for _, item in pairs(RS.Items:GetChildren()) do
     end
 end
 
-print("[AutoFav] Loaded", #FishData, "fish data")
+-- ===== FUNCTION UNFAVORITE ALL =====
+local function UnfavoriteAllItems()
+    if not (DataService and ItemUtility) then 
+        WindUI:Notify({
+            Title = "Unfavorite All",
+            Text = "DataService/ItemUtility tidak tersedia",
+            Duration = 3
+        })
+        return 0
+    end
+    
+    local success, inventoryItems = pcall(function()
+        return DataService:GetExpect({ "Inventory", "Items" })
+    end)
+    
+    if not success then
+        WindUI:Notify({
+            Title = "Unfavorite All",
+            Text = "Gagal mengambil data inventory",
+            Duration = 3
+        })
+        return 0
+    end
+    
+    local unfavorited = 0
+    
+    for _, item in pairs(inventoryItems) do
+        -- Cek apakah fish
+        local fishInfo = FishData[item.Id]
+        if not fishInfo then continue end
+        
+        -- Cek jika item difavorite
+        if item.Metadata and item.Metadata.Favorited then
+            -- Unfavorite
+            local unfavSuccess = pcall(function()
+                FavoriteRemote:FireServer(item.UUID)
+            end)
+            
+            if unfavSuccess then
+                unfavorited = unfavorited + 1
+                -- Hapus dari tracking jika ada
+                FavoritedUUIDs[item.UUID] = nil
+            end
+            
+            task.wait(0.1) -- Delay untuk avoid spam
+        end
+    end
+    
+    return unfavorited
+end
 
 -- ===== WINDUI SECTION =====
 local favSection = Tab4:Section({
@@ -1408,7 +1457,7 @@ local favSection = Tab4:Section({
     TextSize = 17
 })
 
--- Toggle
+-- Toggle Auto Favorite
 favSection:Toggle({
     Title = "Auto Favorite",
     Value = false,
@@ -1419,11 +1468,21 @@ favSection:Toggle({
         -- Reset tracking saat toggle ON
         if state then
             FavoritedUUIDs = {}
-            print("[AutoFav] Started - Rarity:", SelectedRarity)
+            
+            WindUI:Notify({
+                Title = "Auto Favorite",
+                Text = "Auto Favorite diaktifkan untuk rarity: " .. SelectedRarity,
+                Duration = 3
+            })
             
             Performance.Tasks["AutoFavorite"] = task.spawn(function()
                 while AutoFavEnabled do
                     if not (DataService and ItemUtility) then 
+                        WindUI:Notify({
+                            Title = "Auto Favorite",
+                            Text = "Menunggu DataService/ItemUtility...",
+                            Duration = 2
+                        })
                         task.wait(1)
                         continue
                     end
@@ -1433,7 +1492,11 @@ favSection:Toggle({
                     end)
                     
                     if not success then
-                        warn("[AutoFav] Failed to get inventory")
+                        WindUI:Notify({
+                            Title = "Auto Favorite",
+                            Text = "Gagal mengambil inventory",
+                            Duration = 3
+                        })
                         task.wait(2)
                         continue
                     end
@@ -1468,33 +1531,171 @@ favSection:Toggle({
                         if favSuccess then
                             favorited = favorited + 1
                             FavoritedUUIDs[item.UUID] = true -- Simpan UUID yang udah di-favorite
-                            print("[AutoFav] ✓ Favorited:", fishInfo.Name)
                         end
                         
                         task.wait(0.1)
                     end
                     
                     if favorited > 0 then
-                        print("[AutoFav] Total favorited this cycle:", favorited)
+                        WindUI:Notify({
+                            Title = "Auto Favorite",
+                            Text = favorited .. " item(s) berhasil difavorite",
+                            Duration = 3
+                        })
                     end
                     
                     task.wait(2)
                 end
             end)
         else
-            print("[AutoFav] Stopped")
+            WindUI:Notify({
+                Title = "Auto Favorite",
+                Text = "Auto Favorite dimatikan",
+                Duration = 3
+            })
         end
     end
 })
 
--- Dropdown
+-- Dropdown untuk rarity
 favSection:Dropdown({
     Title = "Select Rarity",
     Values = FavRarityList,
     Value = SelectedRarity,
     Callback = function(value)
         SelectedRarity = value
-        print("[AutoFav] Rarity changed to:", value)
+        WindUI:Notify({
+            Title = "Auto Favorite",
+            Text = "Rarity diubah ke: " .. value,
+            Duration = 2
+        })
+    end
+})
+
+-- Button Unfavorite All
+favSection:Button({
+    Title = "Unfavorite All Items",
+    Callback = function()
+        -- Tampilkan konfirmasi
+        WindUI:Confirm({
+            Title = "Unfavorite All",
+            Text = "Apakah Anda yakin ingin unfavorite semua item?",
+            OnConfirm = function()
+                -- Matikan Auto Favorite saat proses unfavorite
+                local wasAutoFavEnabled = AutoFavEnabled
+                if wasAutoFavEnabled then
+                    AutoFavEnabled = false
+                    SafeCancel("AutoFavorite")
+                    task.wait(0.1)
+                end
+                
+                -- Tampilkan notifikasi proses
+                WindUI:Notify({
+                    Title = "Unfavorite All",
+                    Text = "Memproses unfavorite semua item...",
+                    Duration = 2
+                })
+                
+                -- Jalankan unfavorite
+                local count = UnfavoriteAllItems()
+                
+                -- Beri notifikasi hasil
+                if count > 0 then
+                    WindUI:Notify({
+                        Title = "Unfavorite All",
+                        Text = "Berhasil unfavorite " .. count .. " item(s)",
+                        Duration = 3
+                    })
+                else
+                    WindUI:Notify({
+                        Title = "Unfavorite All",
+                        Text = "Tidak ada item yang difavorite",
+                        Duration = 3
+                    })
+                end
+                
+                -- Reset tracking
+                FavoritedUUIDs = {}
+                
+                -- Kembalikan state Auto Favorite jika sebelumnya aktif
+                if wasAutoFavEnabled then
+                    task.wait(0.5) -- Tunggu sedikit sebelum restart
+                    AutoFavEnabled = true
+                    
+                    -- Restart Auto Favorite task
+                    WindUI:Notify({
+                        Title = "Auto Favorite",
+                        Text = "Auto Favorite diaktifkan kembali",
+                        Duration = 2
+                    })
+                    
+                    Performance.Tasks["AutoFavorite"] = task.spawn(function()
+                        while AutoFavEnabled do
+                            if not (DataService and ItemUtility) then 
+                                task.wait(1)
+                                continue
+                            end
+                            
+                            local success, inventoryItems = pcall(function()
+                                return DataService:GetExpect({ "Inventory", "Items" })
+                            end)
+                            
+                            if not success then
+                                task.wait(2)
+                                continue
+                            end
+                            
+                            local favorited = 0
+                            
+                            for _, item in pairs(inventoryItems) do
+                                if not AutoFavEnabled then break end
+                                
+                                local fishInfo = FishData[item.Id]
+                                if not fishInfo then continue end
+                                
+                                local fishRarity = tierToRarity[fishInfo.Tier]
+                                if fishRarity ~= SelectedRarity then continue end
+                                
+                                if item.Metadata and item.Metadata.Favorited then 
+                                    FavoritedUUIDs[item.UUID] = true
+                                    continue 
+                                end
+                                
+                                if FavoritedUUIDs[item.UUID] then continue end
+                                
+                                local favSuccess = pcall(function()
+                                    FavoriteRemote:FireServer(item.UUID)
+                                end)
+                                
+                                if favSuccess then
+                                    favorited = favorited + 1
+                                    FavoritedUUIDs[item.UUID] = true
+                                end
+                                
+                                task.wait(0.1)
+                            end
+                            
+                            if favorited > 0 then
+                                WindUI:Notify({
+                                    Title = "Auto Favorite",
+                                    Text = favorited .. " item(s) berhasil difavorite",
+                                    Duration = 3
+                                })
+                            end
+                            
+                            task.wait(2)
+                        end
+                    end)
+                end
+            end,
+            OnCancel = function()
+                WindUI:Notify({
+                    Title = "Unfavorite All",
+                    Text = "Proses dibatalkan",
+                    Duration = 2
+                })
+            end
+        })
     end
 })
 
