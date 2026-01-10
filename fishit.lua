@@ -1361,12 +1361,11 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
 end))
 
 -- ===============================
--- AUTO FAVORITE BY RARITY - INVENTORY LOOP (FIXED)
+-- AUTO FAVORITE BY RARITY - PERMANENT TRACKING
 -- ===============================
 
 local AutoFavEnabled = false
 local SelectedRarity = "Mythic"
-local ProcessedInThisSession = {} -- Track yang udah diproses DALAM SESI INI SAJA
 
 -- ===== RARITY DATA =====
 local tierToRarity = {
@@ -1398,9 +1397,25 @@ for _, item in pairs(RS.Items:GetChildren()) do
     end
 end
 
--- ===== FUNGSI UTAMA =====
-local function processAutoFavorite()
-    if not DataService then return end
+-- ===== PERSISTENT STORAGE =====
+local FavoriteTracker = {
+    -- Format: [UUID] = true jika pernah difavorite oleh script ini
+    -- Ini akan bertahan selama session
+}
+
+-- Simpan ke saveplace atau cache
+local function saveFavoriteState(uuid)
+    FavoriteTracker[uuid] = true
+    -- Bisa ditambahkan save ke file jika perlu permanen antar session
+end
+
+local function isTrackedAsFavorited(uuid)
+    return FavoriteTracker[uuid] == true
+end
+
+-- ===== FUNGSI UTAMA DENGAN DOUBLE SAFETY =====
+local function processInventory()
+    if not DataService then return 0, 0 end
     
     local success, inventoryItems = pcall(function()
         return DataService:GetExpect({ "Inventory", "Items" })
@@ -1422,37 +1437,47 @@ local function processAutoFavorite()
         local fishRarity = tierToRarity[fishInfo.Tier]
         if fishRarity ~= SelectedRarity then continue end
         
-        -- Cek apakah sudah diproses di session ini
-        if ProcessedInThisSession[item.UUID] then
+        -- ===== SAFETY CHECK 1: Sudah ditrack oleh kita? =====
+        if isTrackedAsFavorited(item.UUID) then
             skipped += 1
             continue
         end
         
-        -- Cek apakah SUDAH favorite (dari metadata)
-        local isFavorited = false
+        -- ===== SAFETY CHECK 2: Metadata menunjukkan sudah favorite? =====
+        local metadataFavorite = false
         if item.Metadata and item.Metadata.Favorited == true then
-            isFavorited = true
-            ProcessedInThisSession[item.UUID] = true -- Mark sebagai sudah favorite
+            metadataFavorite = true
+            saveFavoriteState(item.UUID) -- Track sebagai sudah favorite
             skipped += 1
-            continue -- Skip karena sudah favorite
+            continue
         end
         
-        -- Jika BELUM favorite, proses favorite
-        if not isFavorited then
-            -- Kirim request favorite SEKALI SAJA
+        -- ===== SAFETY CHECK 3: Cek visual/UI state =====
+        -- Ini opsional, coba cek melalui UI jika ada
+        -- (skip untuk sekarang karena kompleks)
+        
+        -- ===== JIKA SEMUA CHECK PASS, FAVORITE =====
+        if not metadataFavorite then
+            print(`AutoFav: Mencoba favorite {fishInfo.Name} (UUID: {string.sub(item.UUID, 1, 8)}...)`)
+            
+            -- Delay sebelum request
+            task.wait(0.3)
+            
             local successFav = pcall(function()
                 FavoriteRemote:FireServer(item.UUID)
             end)
             
             if successFav then
-                -- MARK sebagai sudah diproses (TIDAK PERLU verifikasi)
-                ProcessedInThisSession[item.UUID] = true
+                -- SIMPAN STATE PERMANEN
+                saveFavoriteState(item.UUID)
                 favorited += 1
                 
-                -- Log saja tanpa verifikasi
-                print(`AutoFav: Favorite {fishInfo.Name} (Tier {fishInfo.Tier})`)
+                print(`AutoFav: ✓ {fishInfo.Name} difavorite`)
                 
-                -- Delay agak panjang untuk pastikan tidak spam
+                -- Delay panjang setelah berhasil
+                task.wait(1.5)
+            else
+                print(`AutoFav: ✗ Gagal favorite {fishInfo.Name}`)
                 task.wait(0.5)
             end
         end
@@ -1478,32 +1503,39 @@ favSection:Toggle({
         SafeCancel("AutoFavorite")
         
         if state then
-            print("AutoFav: ON - Hanya akan favorite ikan yang BELUM favorite")
+            print("AutoFav: ON - Hanya akan favorite ikan yang BELUM pernah difavorite oleh script")
+            print("AutoFav: Tracking permanen selama session")
             
             Performance.Tasks["AutoFavorite"] = task.spawn(function()
-                -- Loop utama dengan interval yang lebih lama
+                local loopCount = 0
+                
                 while AutoFavEnabled do
+                    loopCount += 1
+                    
                     if not DataService then 
                         task.wait(2)
                         continue
                     end
                     
-                    local favorited, skipped = processAutoFavorite()
+                    print(`AutoFav: Loop #{loopCount} dimulai...`)
+                    local favorited, skipped = processInventory()
                     
                     if favorited > 0 then
                         print(`AutoFav: Selesai - {favorited} difavorite, {skipped} skipped`)
+                    else
+                        print(`AutoFav: Tidak ada yang perlu difavorite (skipped: {skipped})`)
                     end
                     
-                    -- Delay PANJANG antar loop (10 detik)
-                    for i = 1, 20 do
+                    -- Delay sangat panjang antar loop
+                    print("AutoFav: Menunggu 30 detik sebelum loop berikutnya...")
+                    for i = 1, 30 do
                         if not AutoFavEnabled then break end
-                        task.wait(0.5)
+                        task.wait(1)
                     end
                 end
             end)
         else
             print("AutoFav: OFF")
-            -- JANGAN reset ProcessedInThisSession, biar tetap track
         end
     end
 })
@@ -1516,6 +1548,10 @@ favSection:Dropdown({
     Callback = function(value)
         SelectedRarity = value
         print(`AutoFav: Rarity diubah ke {value}`)
+        
+        -- Reset tracking saat ganti rarity (optional)
+        -- FavoriteTracker = {}
+        -- print("AutoFav: Tracking direset karena ganti rarity")
     end
 })
 
