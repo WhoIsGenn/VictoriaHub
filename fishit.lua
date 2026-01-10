@@ -1258,174 +1258,6 @@ item:Toggle({
     end
 })
 
--- AUTO PLACE TOTEM (WINDUI VERSION)
-
-local RS = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
-
-local Net = RS:WaitForChild("Packages")
-    :WaitForChild("_Index")
-    :WaitForChild("sleitnick_net@0.2.0")
-    :WaitForChild("net")
-
--- TOTEM DATA
-local Totems = {
-    ["Mutations Totem"] = "be68fbc3-a16d-4696-bc71-12f58446ad76",
-    ["Luck Totem"]      = "de2e86b3-acf6-4ec8-ad33-10b35cd0d8a4"
-}
-
--- STATE
-local SelectedTotem = "Mutations Totem"
-local Auto = false
-local Running = false
-
--- SETTINGS
-local DelayMinutes = 60 -- default 60 menit
-local PLACE_DELAY = 0.25
-
--------------------------------------------------
--- NOTIFY HELPER
--------------------------------------------------
-local function Notify(title, content)
-    WindUI:Notify({
-        Title = title,
-        Content = content,
-        Duration = 5
-    })
-end
-
--------------------------------------------------
--- INVENTORY CHECK (BY ID)
--------------------------------------------------
-local function HasTotem(id)
-    local backpack = LP:FindFirstChild("Backpack")
-    if not backpack then return false end
-
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if tool:GetAttribute("ItemId") == id then
-            return true
-        end
-
-        local v = tool:FindFirstChild("ItemId")
-        if v and v.Value == id then
-            return true
-        end
-    end
-
-    return false
-end
-
--------------------------------------------------
--- EQUIP & PLACE
--------------------------------------------------
-local function EquipTotem(id)
-    Net:WaitForChild("RE/EquipItem"):FireServer(id, "Totems")
-end
-
-local function PlaceTotem()
-    local char = LP.Character
-    if not char then return end
-
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool then
-        tool:Activate()
-    end
-end
-
--------------------------------------------------
--- MAIN LOOP
--------------------------------------------------
-local function Run()
-    if Running then return end
-    Running = true
-
-    task.spawn(function()
-        while Auto do
-            local id = Totems[SelectedTotem]
-            if not id then
-                Notify("Auto Totem", "Totem ID tidak valid")
-                Auto = false
-                break
-            end
-
-            -- INVENTORY CHECK
-            if not HasTotem(id) then
-                Notify(
-                    "Auto Totem",
-                    SelectedTotem .. " tidak ada / sudah habis di tas"
-                )
-                Auto = false
-                break
-            end
-
-            pcall(function()
-                EquipTotem(id)
-                task.wait(PLACE_DELAY)
-                PlaceTotem()
-
-                Notify(
-                    "Auto Totem",
-                    SelectedTotem .. " berhasil di-place\nNext: " .. DelayMinutes .. " menit"
-                )
-            end)
-
-            -- DELAY (CANCELABLE)
-            local waitSeconds = DelayMinutes * 60
-            for i = 1, waitSeconds do
-                if not Auto then break end
-                task.wait(1)
-            end
-        end
-
-        Running = false
-    end)
-end
-
--------------------------------------------------
--- UI
--------------------------------------------------
-item:Dropdown({
-    Title = "Select Totem",
-    Values = {"Mutations Totem", "Luck Totem"},
-    Value = SelectedTotem, -- ✅ FIX
-    Callback = function(v)
-        SelectedTotem = v
-    end
-})
-
-
-item:Input({
-    Title = "Totem Delay (Minutes)",
-    Placeholder = "Contoh: 60",
-    Value = tostring(DelayMinutes), -- ✅ FIX
-    Callback = function(v)
-        local num = tonumber(v)
-        if num and num > 0 then
-            DelayMinutes = math.floor(num)
-            Notify("Auto Totem", "Delay diset ke " .. DelayMinutes .. " menit")
-        else
-            Notify("Auto Totem", "Input delay tidak valid")
-        end
-    end
-})
-
-
-item:Toggle({
-    Title = "Auto Place Totem",
-    Desc = "Auto place totem dengan delay & inventory check",
-    Default = false,
-    Callback = function(v)
-        Auto = v
-        if Auto then
-            Notify("Auto Totem", "Auto Place Totem diaktifkan")
-            Run()
-        else
-            Notify("Auto Totem", "Auto Place Totem dimatikan")
-        end
-    end
-})
-
 -- ==================== TAB 4: AUTO ====================
 local Tab4 = Window:Tab({
     Title = "Auto",
@@ -1527,6 +1359,136 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
         end
     end
 end))
+
+local totem = Tab4:Section({
+     Title = "Auto Spawn Totem",
+     Icon = "snowflake",
+     TextXAlignment = "left",
+     TextSize = 17
+})
+
+--==============================
+-- AUTO PLACE TOTEM (SAFE REWRITE)
+--==============================
+
+local RS = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+
+local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
+
+-- Totem IDs (VALID)
+local TOTEMS = {
+    ["Mutations Totem"] = "be68fbc3-a16d-4696-bc71-12f58446ad76",
+    ["Luck Totem"]      = "de2e86b3-acf6-4ec8-ad33-10b35cd0d8a4"
+}
+
+-- STATE
+local AutoTotem = false
+local SelectedTotem = "Mutations Totem"
+local DelayMinutes = 60
+local Running = false
+
+--==============================
+-- INVENTORY CHECK (SAFE)
+--==============================
+local function HasTotem(id)
+    local backpack = LP:FindFirstChild("Backpack")
+    if not backpack then return false end
+
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:GetAttribute("ItemId") == id then
+            return true
+        end
+        local v = tool:FindFirstChild("ItemId")
+        if v and v.Value == id then
+            return true
+        end
+    end
+
+    return false
+end
+
+--==============================
+-- PLACE LOGIC
+--==============================
+local function PlaceTotem()
+    local id = TOTEMS[SelectedTotem]
+    if not id then return end
+    if not HasTotem(id) then
+        AutoTotem = false
+        return
+    end
+
+    -- Equip from inventory
+    Net["RE/Equipltem"]:FireServer(id, "Totems")
+    task.wait(0.3)
+
+    -- Activate tool
+    local char = LP.Character
+    if not char then return end
+    local tool = char:FindFirstChildOfClass("Tool")
+    if tool then
+        tool:Activate()
+    end
+end
+
+--==============================
+-- MAIN LOOP
+--==============================
+local function StartLoop()
+    if Running then return end
+    Running = true
+
+    task.spawn(function()
+        while AutoTotem do
+            pcall(PlaceTotem)
+
+            local waitTime = DelayMinutes * 60
+            for i = 1, waitTime do
+                if not AutoTotem then break end
+                task.wait(1)
+            end
+        end
+        Running = false
+    end)
+end
+
+--==============================
+-- UI (MINIMAL & SAFE)
+--==============================
+
+totem:Dropdown({
+    Title = "Select Totem",
+    Values = {"Mutations Totem", "Luck Totem"},
+    Value = SelectedTotem,
+    Callback = function(v)
+        SelectedTotem = v
+    end
+})
+
+totem:Input({
+    Title = "Totem Delay (Minutes)",
+    Placeholder = "60",
+    Value = tostring(DelayMinutes),
+    Callback = function(v)
+        local n = tonumber(v)
+        if n and n > 0 then
+            DelayMinutes = math.floor(n)
+        end
+    end
+})
+
+totem:Toggle({
+    Title = "Auto Place Totem",
+    Value = false,
+    Callback = function(v)
+        AutoTotem = v
+        if v then
+            StartLoop()
+        end
+    end
+})
 
 -- ==================== EVENT SECTION ====================
 local event = Tab4:Section({
