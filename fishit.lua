@@ -1398,56 +1398,6 @@ for _, item in pairs(RS.Items:GetChildren()) do
     end
 end
 
--- ===== FUNCTION UNFAVORITE ALL (TERPISAH) =====
-local function UnfavoriteAllItems()
-    if not (DataService and ItemUtility) then 
-        WindUI:Notify({
-            Title = "Auto Favorite",
-            Content = "DataService/ItemUtility tidak tersedia",
-            Duration = 3,
-            Icon = "x"
-        })
-        return 0
-    end
-    
-    local success, inventoryItems = pcall(function()
-        return DataService:GetExpect({ "Inventory", "Items" })
-    end)
-    
-    if not success then
-        WindUI:Notify({
-            Title = "Auto Favorite",
-            Content = "Gagal mengambil data inventory",
-            Duration = 3,
-            Icon = "x"
-        })
-        return 0
-    end
-    
-    local unfavorited = 0
-    
-    for _, item in pairs(inventoryItems) do
-        -- Cek apakah fish
-        local fishInfo = FishData[item.Id]
-        if not fishInfo then continue end
-        
-        -- Cek jika item difavorite
-        if item.Metadata and item.Metadata.Favorited then
-            -- Unfavorite
-            local unfavSuccess = pcall(function()
-                FavoriteRemote:FireServer(item.UUID)
-            end)
-            
-            if unfavSuccess then
-                unfavorited = unfavorited + 1
-            end
-            
-            task.wait(0.1)
-        end
-    end
-    
-    return unfavorited
-end
 
 -- ===== WINDUI SECTION =====
 local favSection = Tab4:Section({
@@ -1457,7 +1407,7 @@ local favSection = Tab4:Section({
     TextSize = 17
 })
 
--- Toggle Auto Favorite
+-- Toggle
 favSection:Toggle({
     Title = "Auto Favorite",
     Value = false,
@@ -1469,12 +1419,6 @@ favSection:Toggle({
         if state then
             FavoritedUUIDs = {}
             
-            WindUI:Notify({
-                Title = "Auto Favorite",
-                Content = "Auto Favorite diaktifkan untuk rarity: " .. SelectedRarity,
-                Duration = 3,
-                Icon = "check"
-            })
             
             Performance.Tasks["AutoFavorite"] = task.spawn(function()
                 while AutoFavEnabled do
@@ -1488,6 +1432,7 @@ favSection:Toggle({
                     end)
                     
                     if not success then
+                        
                         task.wait(2)
                         continue
                     end
@@ -1507,7 +1452,7 @@ favSection:Toggle({
                         
                         -- Skip kalau sudah di-favorite (cek metadata ATAU tracking)
                         if item.Metadata and item.Metadata.Favorited then 
-                            FavoritedUUIDs[item.UUID] = true
+                            FavoritedUUIDs[item.UUID] = true -- Track yang udah favorited
                             continue 
                         end
                         
@@ -1521,77 +1466,34 @@ favSection:Toggle({
                         
                         if favSuccess then
                             favorited = favorited + 1
-                            FavoritedUUIDs[item.UUID] = true
+                            FavoritedUUIDs[item.UUID] = true -- Simpan UUID yang udah di-favorite
+                            
                         end
                         
                         task.wait(0.1)
+                    end
+                    
+                    if favorited > 0 then
+                        
                     end
                     
                     task.wait(2)
                 end
             end)
         else
-            WindUI:Notify({
-                Title = "Auto Favorite",
-                Content = "Auto Favorite dimatikan",
-                Duration = 3,
-                Icon = "check"
-            })
+           
         end
     end
 })
 
--- Dropdown untuk rarity
+-- Dropdown
 favSection:Dropdown({
     Title = "Select Rarity",
     Values = FavRarityList,
     Value = SelectedRarity,
     Callback = function(value)
         SelectedRarity = value
-        WindUI:Notify({
-            Title = "Auto Favorite",
-            Content = "Rarity diubah ke: " .. value,
-            Duration = 3,
-            Icon = "check"
-        })
-    end
-})
-
--- Button Unfavorite All
-favSection:Button({
-    Title = "Unfavorite All Items",
-    Callback = function()
-        WindUI:Confirm({
-            Title = "Auto Favorite",
-            Content = "Unfavorite semua ikan?",
-            OnConfirm = function()
-                local count = UnfavoriteAllItems()
-                
-                if count > 0 then
-                    WindUI:Notify({
-                        Title = "Auto Favorite",
-                        Content = "Berhasil unfavorite " .. count .. " ikan",
-                        Duration = 3,
-                        Icon = "check"
-                    })
-                else
-                    WindUI:Notify({
-                        Title = "Auto Favorite",
-                        Content = "Tidak ada ikan yang difavorite",
-                        Duration = 3,
-                        Icon = "check"
-                    })
-                end
-            end,
-            OnCancel = function()
-                WindUI:Notify({
-                    Title = "Auto Favorite",
-                    Content = "Proses dibatalkan",
-                    Duration = 3,
-                    Icon = "check"
-                })
-            end
-        })
+        
     end
 })
 
