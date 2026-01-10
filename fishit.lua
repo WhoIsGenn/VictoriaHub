@@ -1361,11 +1361,12 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
 end))
 
 -- ===============================
--- AUTO FAVORITE BY RARITY - SIMPLE & WORKING
+-- AUTO FAVORITE - BULLETPROOF VERSION
 -- ===============================
 
 local AutoFavEnabled = false
 local SelectedRarity = "Mythic"
+local PERMANENT_MEMORY = {} -- Simpan ke workspace atau tempat persist
 
 -- ===== RARITY DATA =====
 local tierToRarity = {
@@ -1397,51 +1398,83 @@ for _, item in pairs(RS.Items:GetChildren()) do
     end
 end
 
--- ===== FUNGSI CEK FAVORITE YANG BENAR =====
-local function isItemActuallyFavorited(uuid)
-    -- Method 1: Gunakan ItemUtility jika ada
-    if ItemUtility then
-        local success, result = pcall(function()
-            return ItemUtility:IsItemFavorited(uuid)
-        end)
-        if success then
-            return result -- true atau false
-        end
+-- ===== PERSISTENT STORAGE IN WORKSPACE =====
+-- Buat folder untuk simpan state permanen
+local function setupPersistentStorage()
+    local storageName = "AutoFavoriteStorage"
+    local storage = workspace:FindFirstChild(storageName)
+    
+    if not storage then
+        storage = Instance.new("Folder")
+        storage.Name = storageName
+        storage.Parent = workspace
     end
     
-    -- Method 2: Cek DataService langsung
-    if DataService then
-        local success, inventory = pcall(function()
-            return DataService:GetExpect({ "Inventory", "Items" })
-        end)
-        
-        if success then
-            for _, item in pairs(inventory) do
-                if item.UUID == uuid then
-                    -- Cek metadata yang benar
-                    if item.Metadata and type(item.Metadata.Favorited) == "boolean" then
-                        return item.Metadata.Favorited
-                    end
-                    -- Default ke false jika tidak ada metadata
-                    return false
-                end
-            end
-        end
+    return storage
+end
+
+local PersistentStorage = setupPersistentStorage()
+
+-- Simpan UUID yang sudah difavorite secara PERMANEN
+local function markAsFavoritedPermanently(uuid)
+    -- Simpan sebagai StringValue di workspace
+    local value = Instance.new("StringValue")
+    value.Name = uuid
+    value.Value = "favorited"
+    value.Parent = PersistentStorage
+    
+    -- Juga simpan di memory
+    PERMANENT_MEMORY[uuid] = true
+end
+
+local function isPermanentlyFavorited(uuid)
+    -- Cek di memory dulu
+    if PERMANENT_MEMORY[uuid] then
+        return true
     end
     
-    -- Default return false
+    -- Cek di workspace storage
+    if PersistentStorage:FindFirstChild(uuid) then
+        PERMANENT_MEMORY[uuid] = true
+        return true
+    end
+    
     return false
 end
 
--- ===== MAIN FUNCTION =====
-local function autoFavoriteLoop()
+-- ===== LOAD EXISTING FAVORITED ITEMS =====
+local function loadExistingFavorites()
+    print("AutoFav: Loading existing favorite state...")
+    
+    if not DataService then return end
+    
+    local success, inventory = pcall(function()
+        return DataService:GetExpect({ "Inventory", "Items" })
+    end)
+    
+    if success then
+        for _, item in pairs(inventory) do
+            -- Cek metadata favorited
+            if item.Metadata and item.Metadata.Favorited == true then
+                markAsFavoritedPermanently(item.UUID)
+                print(`AutoFav: Loaded already favorited: {item.Id}`)
+            end
+        end
+    end
+end
+
+-- Panggil saat script mulai
+task.wait(2)
+loadExistingFavorites()
+
+-- ===== MAIN LOOP - SANGAT SIMPLE =====
+local function mainAutoFavorite()
     while AutoFavEnabled do
-        if not (DataService and FavoriteRemote) then
+        if not DataService then
             task.wait(1)
             continue
         end
         
-        -- Get inventory
         local success, inventory = pcall(function()
             return DataService:GetExpect({ "Inventory", "Items" })
         end)
@@ -1451,52 +1484,60 @@ local function autoFavoriteLoop()
             continue
         end
         
-        local favoritedCount = 0
-        local skippedCount = 0
+        local processed = 0
+        local skipped = 0
         
-        -- Process each item
         for _, item in pairs(inventory) do
             if not AutoFavEnabled then break end
             
-            -- Check if fish
+            -- Cek fish
             local fishInfo = FishData[item.Id]
             if not fishInfo then continue end
             
-            -- Check rarity
+            -- Cek rarity
             local fishRarity = tierToRarity[fishInfo.Tier]
             if fishRarity ~= SelectedRarity then continue end
             
-            -- === IMPORTANT: CHECK IF ALREADY FAVORITED ===
-            local isFavorited = isItemActuallyFavorited(item.UUID)
-            
-            if isFavorited then
-                skippedCount += 1
-                continue -- Skip jika sudah favorite
+            -- ===== CEK PENTING: SUDAH PERMANENT FAVORITED? =====
+            if isPermanentlyFavorited(item.UUID) then
+                skipped += 1
+                continue -- JANGAN SENTUH LAGI
             end
             
-            -- If NOT favorited, favorite it
-            print(`AutoFav: Favorite {fishInfo.Name} (Rarity: {fishRarity})`)
+            -- ===== CEK METADATA =====
+            local metadataFav = false
+            if item.Metadata and item.Metadata.Favorited == true then
+                metadataFav = true
+                markAsFavoritedPermanently(item.UUID) -- Simpan sebagai permanent
+                skipped += 1
+                continue
+            end
             
-            local favSuccess = pcall(function()
-                FavoriteRemote:FireServer(item.UUID)
-            end)
-            
-            if favSuccess then
-                favoritedCount += 1
-                -- Wait a bit after successful favorite
-                task.wait(0.3)
-            else
-                print(`AutoFav: Failed to favorite {fishInfo.Name}`)
-                task.wait(0.1)
+            -- ===== JIKA BELUM, FAVORITE SEKALI SAJA =====
+            if not metadataFav then
+                print(`AutoFav: First-time favorite for {fishInfo.Name}`)
+                
+                local favSuccess = pcall(function()
+                    FavoriteRemote:FireServer(item.UUID)
+                end)
+                
+                if favSuccess then
+                    -- MARK AS PERMANENT - JANGAN PERNAH SENTUH LAGI
+                    markAsFavoritedPermanently(item.UUID)
+                    processed += 1
+                    
+                    -- Delay panjang setelah berhasil
+                    task.wait(1)
+                end
             end
         end
         
-        if favoritedCount > 0 then
-            print(`AutoFav: Successfully favorited {favoritedCount} items, skipped {skippedCount} already favorited`)
+        if processed > 0 then
+            print(`AutoFav: Processed {processed} items, skipped {skipped} (already favorited)`)
         end
         
-        -- Wait before next check (long delay to prevent spam)
-        task.wait(5)
+        -- Delay sangat panjang
+        task.wait(10)
     end
 end
 
@@ -1516,8 +1557,9 @@ favSection:Toggle({
         AutoFavEnabled = state
         
         if state then
-            print("AutoFav: ON - Will only favorite items that are NOT already favorited")
-            task.spawn(autoFavoriteLoop)
+            print("AutoFav: ON - Will ONLY favorite items that have NEVER been favorited before")
+            print("AutoFav: Using permanent storage in workspace")
+            task.spawn(mainAutoFavorite)
         else
             print("AutoFav: OFF")
         end
@@ -1534,6 +1576,12 @@ favSection:Dropdown({
         print(`AutoFav: Rarity changed to {value}`)
     end
 })
+
+-- ===== CLEANUP ON EXIT =====
+game:GetService("Players").LocalPlayer.AncestryChanged:Connect(function()
+    -- Clear storage when player leaves
+    PersistentStorage:ClearAllChildren()
+end)
 -- ==================== EVENT SECTION ====================
 local event = Tab4:Section({
     Title = "Event",
