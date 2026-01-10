@@ -1503,211 +1503,151 @@ favSection:Button({
 })
 
 -- ===============================
--- AUTO PLACE TOTEM V2
+-- AUTO PLACE TOTEM (FINAL HUB-LIKE)
 -- ===============================
 
-local AutoTotem = false
-local SelectedTotem = "Mutation Totem"
-local PlaceDelay = 3600 -- 1 jam default
+task.spawn(function()
+    task.wait(2)
 
--- ===== REMOTES =====
-local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
-local EquipRemote = Net["RE/EquipItem"]
-local SpawnRemote = Net["RE/SpawnTotem"]
+    local Players = game:GetService("Players")
+    local LP = Players.LocalPlayer
+    local RS = game:GetService("ReplicatedStorage")
 
--- ===== BUILD TOTEM DATA =====
-local TotemData = {}
-local TotemList = {}
+    local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
 
-for _, item in pairs(RS.Items:GetChildren()) do
-    local ok, data = pcall(require, item)
-    if ok and data.Data and data.Data.Type == "Totem" then
-        TotemData[data.Data.Name] = data.Data.Id
-        table.insert(TotemList, data.Data.Name)
-    end
-end
+    local EquipItem = Net:WaitForChild("RE/EquipItem")
+    local EquipToolbar = Net:WaitForChild("RE/EquipToolFromToolbar")
+    local SpawnTotem = Net:WaitForChild("RE/SpawnTotem")
 
-print("[AutoTotem] Loaded", #TotemList, "totems:", table.concat(TotemList, ", "))
+    -- ===============================
+    -- STATE
+    -- ===============================
 
--- ===== GET TOTEM UUID FROM INVENTORY =====
-local function getTotemUUID(totemName)
-    if not DataService then 
-        warn("[AutoTotem] DataService not ready!")
-        return nil
-    end
-    
-    local success, result = pcall(function()
-        local inventoryItems = DataService:GetExpect({ "Inventory", "Items" })
-        
-        -- Cari totem by ID
-        local totemId = TotemData[totemName]
-        if not totemId then return nil end
-        
-        for _, item in pairs(inventoryItems) do
-            if item.Id == totemId then
-                return item.UUID
+    local Auto = false
+    local Delay = 3600
+    local SelectedTotem = "Mutation Totem"
+
+    local TotemUUIDCache = {} -- ["Mutation Totem"] = uuid
+
+    -- ===============================
+    -- UUID DETECTOR (HOOK)
+    -- ===============================
+
+    local mt = getrawmetatable(game)
+    setreadonly(mt,false)
+
+    local old = mt.__namecall
+    mt.__namecall = newcclosure(function(self,...)
+        local args = {...}
+        local method = getnamecallmethod()
+
+        if method == "FireServer" then
+            -- Detect equip dari toolbar
+            if self == EquipToolbar and typeof(args[1]) == "string" then
+                print("[CAPTURE] UUID:", args[1])
+                TotemUUIDCache[SelectedTotem] = args[1]
             end
         end
-        
-        return nil
-    end)
-    
-    if success then
-        return result
-    else
-        warn("[AutoTotem] Error getting UUID:", result)
-        return nil
-    end
-end
 
--- ===== COUNT TOTEM =====
-local function countTotem(totemName)
-    if not DataService then return 0 end
-    
-    local success, count = pcall(function()
-        local inventoryItems = DataService:GetExpect({ "Inventory", "Items" })
-        local total = 0
-        local totemId = TotemData[totemName]
-        
-        if not totemId then return 0 end
-        
-        for _, item in pairs(inventoryItems) do
-            if item.Id == totemId then
-                total = total + 1
-            end
+        return old(self,...)
+    end)
+
+    setreadonly(mt,true)
+
+    -- ===============================
+    -- AUTO EQUIP & PLACE
+    -- ===============================
+
+    local function AutoEquipTotem()
+        print("[AUTO] Equipping:", SelectedTotem)
+
+        -- 1. Masukin ke toolbar
+        pcall(function()
+            EquipItem:FireServer(SelectedTotem, "Totems")
+        end)
+
+        task.wait(0.4)
+
+        -- 2. Equip dari toolbar (trigger UUID capture)
+        pcall(function()
+            EquipToolbar:FireServer()
+        end)
+    end
+
+    local function PlaceTotem()
+        local uuid = TotemUUIDCache[SelectedTotem]
+
+        if not uuid then
+            AutoEquipTotem()
+            task.wait(0.5)
+            uuid = TotemUUIDCache[SelectedTotem]
         end
-        
-        return total
-    end)
-    
-    return success and count or 0
-end
 
--- ===== PLACE TOTEM =====
-local function placeTotem()
-    print("[AutoTotem] ========== PLACING TOTEM ==========")
-    print("[AutoTotem] Selected:", SelectedTotem)
-    
-    -- Step 1: Get UUID
-    local uuid = getTotemUUID(SelectedTotem)
-    
-    if not uuid then
-        warn("[AutoTotem] Totem not found in inventory:", SelectedTotem)
-        local count = countTotem(SelectedTotem)
-        print("[AutoTotem] Count:", count)
-        return false
-    end
-    
-    print("[AutoTotem] UUID:", uuid)
-    local count = countTotem(SelectedTotem)
-    print("[AutoTotem] Total in inventory:", count)
-    
-    -- Step 2: Equip totem
-    print("[AutoTotem] Equipping totem...")
-    local equipSuccess, equipErr = pcall(function()
-        EquipRemote:FireServer(uuid, "Totems")
-    end)
-    
-    if not equipSuccess then
-        warn("[AutoTotem] Failed to equip:", equipErr)
-        return false
-    end
-    
-    print("[AutoTotem] ✓ Equipped")
-    task.wait(0.5)
-    
-    -- Step 3: Spawn totem
-    print("[AutoTotem] Spawning totem...")
-    local spawnSuccess, spawnErr = pcall(function()
-        SpawnRemote:FireServer()
-    end)
-    
-    if not spawnSuccess then
-        warn("[AutoTotem] Failed to spawn:", spawnErr)
-        return false
-    end
-    
-    print("[AutoTotem] ✓✓✓ SUCCESS! Placed:", SelectedTotem)
-    print("[AutoTotem] Remaining:", count - 1)
-    
-    return true
-end
+        if not uuid then
+            warn("[AUTO] UUID not detected yet")
+            return
+        end
 
--- ===== WINDUI SECTION =====
-local totemSection = Tab4:Section({
-    Title = "Auto Place Totems",
-    Icon = "snowflake",
-    TextXAlignment = "Left",
-    TextSize = 17
-})
+        pcall(function()
+            SpawnTotem:FireServer()
+        end)
 
--- Toggle
-totemSection:Toggle({
-    Title = "Auto Place Totem",
-    Value = false,
-    Callback = function(state)
-        AutoTotem = state
-        SafeCancel("AutoTotem")
-        
-        if state then
-            print("[AutoTotem] Started - Delay:", PlaceDelay, "seconds")
-            
-            Performance.Tasks["AutoTotem"] = task.spawn(function()
-                while AutoTotem do
-                    local success = placeTotem()
-                    
-                    if not success then
-                        warn("[AutoTotem] Failed to place, stopping...")
-                        AutoTotem = false
-                        break
+        print("[AUTO] Totem placed:", SelectedTotem)
+    end
+
+    -- ===============================
+    -- UI
+    -- ===============================
+
+    local sec = Tab4:Section({
+        Title = "Auto Place Totem",
+        Icon = "snowflake",
+        TextSize = 17
+    })
+
+    sec:Dropdown({
+        Title = "Select Totem",
+        List = {"Mutation Totem","Luck Totem","Shiny Totem"},
+        Default = "Mutation Totem",
+        Callback = function(v)
+            SelectedTotem = v
+        end
+    })
+
+    sec:Input({
+        Title = "Delay (seconds)",
+        Default = "3600",
+        Callback = function(v)
+            local n = tonumber(v)
+            if n then Delay = n end
+        end
+    })
+
+    sec:Toggle({
+        Title = "Auto Place Totem",
+        Default = false,
+        Callback = function(v)
+            Auto = v
+
+            if v then
+                task.spawn(function()
+                    while Auto do
+                        PlaceTotem()
+                        task.wait(Delay)
                     end
-                    
-                    print("[AutoTotem] Waiting", PlaceDelay, "seconds...")
-                    task.wait(PlaceDelay)
-                end
-            end)
-        else
-            print("[AutoTotem] Stopped")
+                end)
+            end
         end
-    end
-})
+    })
 
--- Dropdown
-totemSection:Dropdown({
-    Title = "Select Totem",
-    Values = TotemList,
-    Value = SelectedTotem,
-    Callback = function(value)
-        SelectedTotem = value
-        print("[AutoTotem] Selected:", value)
-        local count = countTotem(value)
-        print("[AutoTotem] You have", count, "x", value)
-    end
-})
+    sec:Button({
+        Title = "Place Once",
+        Callback = PlaceTotem
+    })
 
--- Delay Input
-totemSection:Input({
-    Title = "Place Delay (seconds)",
-    Placeholder = "contoh: 3600",
-    Value = tostring(PlaceDelay),
-    Callback = function(text)
-        local n = tonumber(text)
-        if n and n > 0 then
-            PlaceDelay = n
-            print("[AutoTotem] Delay set to:", n, "seconds (", math.floor(n/60), "minutes )")
-        end
-    end
-})
+    print("[AUTO TOTEM] Loaded ✔")
+end)
 
--- Test Button
-totemSection:Button({
-    Title = "Place Now (Test)",
-    Desc = "Test place totem sekali",
-    Callback = function()
-        print("[AutoTotem] Manual test triggered")
-        placeTotem()
-    end
-})
 
 -- ==================== EVENT SECTION ====================
 local event = Tab4:Section({
