@@ -1264,6 +1264,11 @@ local Tab4 = Window:Tab({
     Icon = "circle-ellipsis"
 })
 
+-- Deklarasi Services dan variabel global DI ATAS
+local RS = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+
 -- AUTO SELL
 local sell = Tab4:Section({
     Title = "Sell",
@@ -1273,7 +1278,8 @@ local sell = Tab4:Section({
 })
 
 local SellAllRF = RS.Packages._Index["sleitnick_net@0.2.0"].net["RF/SellAllItems"]
-local AutoSell = false
+local AutoSellFish = false  -- Renamed untuk clarity
+local AutoSellTimer = false -- Renamed untuk clarity
 local SellAt = 100
 local Selling = false
 local SellMinute = 5
@@ -1314,7 +1320,7 @@ sell:Toggle({
     Value = false,
     Icon = "dollar-sign",
     Callback = function(state)
-        AutoSell = state
+        AutoSellFish = state
     end
 })
 
@@ -1333,25 +1339,33 @@ sell:Toggle({
     Value = false,
     Icon = "clock",
     Callback = function(state)
-        AutoSell = state
+        AutoSellTimer = state
         if state then LastSell = os.clock() end
     end
 })
 
 -- Combined Auto Sell Heartbeat
 SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect(function()
-    if not AutoSell or Selling then return end
+    if not (AutoSellFish or AutoSellTimer) or Selling then return end
     
-    if getFishCount() >= SellAt then
+    -- Auto sell by fish count
+    if AutoSellFish and getFishCount() >= SellAt then
         Selling = true
-        pcall(function() SellAllRF:InvokeServer() end)
+        pcall(function() 
+            SellAllRF:InvokeServer() 
+            print("Auto selling fish...")
+        end)
         task.delay(1.5, function() Selling = false end)
     end
     
-    if os.clock() - LastSell >= (SellMinute * 60) then
+    -- Auto sell by timer
+    if AutoSellTimer and os.clock() - LastSell >= (SellMinute * 60) then
         if getFishCount() > 0 then
             Selling = true
-            pcall(function() SellAllRF:InvokeServer() end)
+            pcall(function() 
+                SellAllRF:InvokeServer() 
+                print("Timer-based auto sell...")
+            end)
             LastSell = os.clock()
             task.delay(1.5, function() Selling = false end)
         else
@@ -1360,24 +1374,20 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
     end
 end))
 
-local totem = Tab4:Section({
-     Title = "Auto Spawn Totem",
-     Icon = "snowflake",
-     TextXAlignment = "left",
-     TextSize = 17
+--==============================
+-- AUTO PLACE TOTEM
+--==============================
+local tootem = Tab4:Section({     
+    Title = "Auto Place Totem",
+    Icon = "list-collapse",
+    TextXAlignment = "Left",
+    TextSize = 17,    
 })
 
---==============================
--- AUTO PLACE TOTEM (SAFE REWRITE)
---==============================
+-- Gunkan Net yang sama dari atas
+local TotemNet = RS.Packages._Index["sleitnick_net@0.2.0"].net
 
-local RS = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
-
-local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
-
--- Totem IDs (VALID)
+-- Totem IDs
 local TOTEMS = {
     ["Mutations Totem"] = "be68fbc3-a16d-4696-bc71-12f58446ad76",
     ["Luck Totem"]      = "de2e86b3-acf6-4ec8-ad33-10b35cd0d8a4"
@@ -1387,11 +1397,8 @@ local TOTEMS = {
 local AutoTotem = false
 local SelectedTotem = "Mutations Totem"
 local DelayMinutes = 60
-local Running = false
+local TotemRunning = false  -- Renamed untuk hindari konflik
 
---==============================
--- INVENTORY CHECK (SAFE)
---==============================
 local function HasTotem(id)
     local backpack = LP:FindFirstChild("Backpack")
     if not backpack then return false end
@@ -1409,65 +1416,69 @@ local function HasTotem(id)
     return false
 end
 
---==============================
--- PLACE LOGIC
---==============================
 local function PlaceTotem()
     local id = TOTEMS[SelectedTotem]
-    if not id then return end
+    if not id then 
+        print("Totem ID not found")
+        return 
+    end
+    
     if not HasTotem(id) then
+        print("Totem not in inventory")
         AutoTotem = false
         return
     end
 
     -- Equip from inventory
-    Net["RE/Equipltem"]:FireServer(id, "Totems")
+    pcall(function()
+        TotemNet["RE/Equipltem"]:FireServer(id, "Totems")
+    end)
+    
     task.wait(0.3)
 
     -- Activate tool
     local char = LP.Character
-    if not char then return end
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool then
-        tool:Activate()
+    if char then
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then
+            pcall(function()
+                tool:Activate()
+                print("Totem placed:", SelectedTotem)
+            end)
+        end
     end
 end
 
---==============================
--- MAIN LOOP
---==============================
-local function StartLoop()
-    if Running then return end
-    Running = true
+local function StartTotemLoop()
+    if TotemRunning then return end
+    TotemRunning = true
 
     task.spawn(function()
-        while AutoTotem do
-            pcall(PlaceTotem)
-
+        while AutoTotem and TotemRunning do
+            PlaceTotem()
+            
             local waitTime = DelayMinutes * 60
             for i = 1, waitTime do
-                if not AutoTotem then break end
+                if not AutoTotem or not TotemRunning then break end
                 task.wait(1)
             end
         end
-        Running = false
+        TotemRunning = false
     end)
 end
 
---==============================
--- UI (MINIMAL & SAFE)
---==============================
-
-totem:Dropdown({
+-- UI untuk Auto Totem
+tootem:Dropdown({
     Title = "Select Totem",
     Values = {"Mutations Totem", "Luck Totem"},
     Value = SelectedTotem,
     Callback = function(v)
         SelectedTotem = v
+        print("Selected totem:", v)
     end
 })
 
-totem:Input({
+tootem:Input({
     Title = "Totem Delay (Minutes)",
     Placeholder = "60",
     Value = tostring(DelayMinutes),
@@ -1475,17 +1486,22 @@ totem:Input({
         local n = tonumber(v)
         if n and n > 0 then
             DelayMinutes = math.floor(n)
+            print("Delay set to:", DelayMinutes, "minutes")
         end
     end
 })
 
-totem:Toggle({
+tootem:Toggle({
     Title = "Auto Place Totem",
     Value = false,
     Callback = function(v)
         AutoTotem = v
+        print("Auto Place Totem:", v)
+        
         if v then
-            StartLoop()
+            StartTotemLoop()
+        else
+            TotemRunning = false
         end
     end
 })
@@ -1504,22 +1520,26 @@ local NPCs = {
     "Scott","Ron","Jeffery","McBoatson","Scientist","Silly Fisherman","Tim","Santa"
 }
 
-local auto = false
+local autoClaim = false
 event:Toggle({
     Title = "Auto Claim",
     Desc = "Auto Claim Christmas Presents",
     Value = false,
     Callback = function(s)
-        auto = s
+        autoClaim = s
         SafeCancel("AutoClaim")
         
         if s then
             Performance.Tasks["AutoClaim"] = task.spawn(function()
-                while auto do
+                while autoClaim do
                     for i = 1, #NPCs do
-                        if not auto then break end
-                        pcall(RS.Packages._Index["sleitnick_net@0.2.0"].net["RF/SpecialDialogueEvent"].InvokeServer, 
-                              RS.Packages._Index["sleitnick_net@0.2.0"].net["RF/SpecialDialogueEvent"], NPCs[i], "ChristmasPresents")
+                        if not autoClaim then break end
+                        pcall(function()
+                            RS.Packages._Index["sleitnick_net@0.2.0"].net["RF/SpecialDialogueEvent"]:InvokeServer(
+                                NPCs[i], "ChristmasPresents"
+                            )
+                            print("Claiming from:", NPCs[i])
+                        end)
                         task.wait(0.15)
                     end
                     task.wait(2)
@@ -1530,34 +1550,43 @@ event:Toggle({
 })
 
 -- AUTO PRESENT FACTORY
-local Net = RS:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
-local Auto = false
-local Running = false
+local FactoryNet = RS:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+local AutoFactory = false
+local FactoryRunning = false
 
-local function RunSequence()
-    if Running then return end
-    Running = true
+local function RunFactorySequence()
+    if FactoryRunning then return end
+    FactoryRunning = true
 
     Performance.Tasks["PresentFactory"] = task.spawn(function()
-        while Auto do
-            Net:WaitForChild("RE/EquipItem"):FireServer("0e98569c-edd0-4d75-bab9-7788a9ea0a4f", "Gears")
-            task.wait(0.2)
-            Net:WaitForChild("RE/EquipToolFromHotbar"):FireServer(5)
-            task.wait(0.2)
-            Net:WaitForChild("RF/RedeemGift"):InvokeServer()
+        while AutoFactory and FactoryRunning do
+            pcall(function()
+                FactoryNet:WaitForChild("RE/EquipItem"):FireServer("0e98569c-edd0-4d75-bab9-7788a9ea0a4f", "Gears")
+                task.wait(0.2)
+                FactoryNet:WaitForChild("RE/EquipToolFromHotbar"):FireServer(5)
+                task.wait(0.2)
+                FactoryNet:WaitForChild("RF/RedeemGift"):InvokeServer()
+                print("Factory cycle completed")
+            end)
             task.wait(5)
         end
-        Running = false
+        FactoryRunning = false
     end)
 end
 
 event:Toggle({
     Title = "Auto Present Factory",
     Desc = "Auto Gift Present To Factory",
-    Default = false,
+    Value = false,
     Callback = function(v)
-        Auto = v
-        if Auto then RunSequence() end
+        AutoFactory = v
+        print("Auto Present Factory:", v)
+        
+        if AutoFactory then 
+            RunFactorySequence() 
+        else
+            FactoryRunning = false
+        end
     end
 })
 
