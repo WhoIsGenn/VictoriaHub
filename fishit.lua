@@ -1366,7 +1366,7 @@ end))
 
 local AutoFavEnabled = false
 local SelectedRarity = "Mythic"
-local FavoritedUUIDs = {} -- Track yang udah di-favorite
+local FavoritedUUIDs = {} -- Track permanen selama sesi game
 
 -- ===== RARITY DATA =====
 local tierToRarity = {
@@ -1398,6 +1398,18 @@ for _, item in pairs(RS.Items:GetChildren()) do
     end
 end
 
+-- ===== FUNGSI CEK FAVORITE =====
+local function isAlreadyFavorited(item)
+    -- 1. Cek metadata
+    if item.Metadata and item.Metadata.Favorited then
+        return true
+    end
+    -- 2. Cek tracking kita
+    if FavoritedUUIDs[item.UUID] then
+        return true
+    end
+    return false
+end
 
 -- ===== WINDUI SECTION =====
 local favSection = Tab4:Section({
@@ -1415,10 +1427,8 @@ favSection:Toggle({
         AutoFavEnabled = state
         SafeCancel("AutoFavorite")
         
-        -- Reset tracking saat toggle ON
         if state then
-            FavoritedUUIDs = {}
-            
+            -- Tracking TIDAK di-reset, jadi ikan yang udah difavorite tidak akan di-unfavorite
             
             Performance.Tasks["AutoFavorite"] = task.spawn(function()
                 while AutoFavEnabled do
@@ -1432,7 +1442,6 @@ favSection:Toggle({
                     end)
                     
                     if not success then
-                        
                         task.wait(2)
                         continue
                     end
@@ -1450,14 +1459,10 @@ favSection:Toggle({
                         local fishRarity = tierToRarity[fishInfo.Tier]
                         if fishRarity ~= SelectedRarity then continue end
                         
-                        -- Skip kalau sudah di-favorite (cek metadata ATAU tracking)
-                        if item.Metadata and item.Metadata.Favorited then 
-                            FavoritedUUIDs[item.UUID] = true -- Track yang udah favorited
+                        -- Skip kalau sudah di-favorite
+                        if isAlreadyFavorited(item) then
                             continue 
                         end
-                        
-                        -- Skip kalau udah pernah di-favorite oleh script
-                        if FavoritedUUIDs[item.UUID] then continue end
                         
                         -- Favorite
                         local favSuccess = pcall(function()
@@ -1466,22 +1471,22 @@ favSection:Toggle({
                         
                         if favSuccess then
                             favorited = favorited + 1
-                            FavoritedUUIDs[item.UUID] = true -- Simpan UUID yang udah di-favorite
-                            
+                            FavoritedUUIDs[item.UUID] = true -- Simpan tracking permanen
+                            task.wait(0.1) -- Delay setelah berhasil
+                        else
+                            task.wait(0.05) -- Delay minimal jika gagal
                         end
-                        
-                        task.wait(0.1)
                     end
                     
                     if favorited > 0 then
-                        
+                        print(`AutoFav: {favorited} ikan di-favorite`)
                     end
                     
                     task.wait(2)
                 end
             end)
         else
-           
+            print("AutoFav: Mati")
         end
     end
 })
@@ -1493,7 +1498,7 @@ favSection:Dropdown({
     Value = SelectedRarity,
     Callback = function(value)
         SelectedRarity = value
-        
+        print(`AutoFav: Rarity diubah ke {value}`)
     end
 })
 
