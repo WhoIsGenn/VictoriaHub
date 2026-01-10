@@ -1360,7 +1360,7 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
     end
 end))
 
---- ===============================
+-- ===============================
 -- AUTO PLACE TOTEM - FIXED VERSION
 -- ===============================
 
@@ -1560,7 +1560,7 @@ TotemSection:Toggle({
 TotemSection:Dropdown({
     Title = "Select Totem",
     Desc = "Choose which totem to spawn",
-    Default = _G.SelectedTotemName,
+    Value = _G.SelectedTotemName,
     List = {"Mutation Totem", "Luck Totem", "Shiny Totem"},
     Callback = function(value)
         _G.SelectedTotemName = value
