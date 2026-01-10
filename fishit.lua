@@ -1258,18 +1258,18 @@ item:Toggle({
     end
 })
 
--- ==================== TAB 4: AUTO ====================
+--- ==================== TAB 4: AUTO ====================
 local Tab4 = Window:Tab({
     Title = "Auto",
     Icon = "circle-ellipsis"
 })
 
--- Deklarasi Services dan variabel global DI ATAS
-local RS = game:GetService("ReplicatedStorage")
+-- Deklarasi variabel lokal UNTUK TAB INI SAJA
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- AUTO SELL
+-- AUTO SELL SECTION
 local sell = Tab4:Section({
     Title = "Sell",
     Icon = "coins",
@@ -1277,41 +1277,64 @@ local sell = Tab4:Section({
     TextSize = 17
 })
 
-local SellAllRF = RS.Packages._Index["sleitnick_net@0.2.0"].net["RF/SellAllItems"]
-local AutoSellFish = false  -- Renamed untuk clarity
-local AutoSellTimer = false -- Renamed untuk clarity
+-- Setup Sell Function
+local SellAllRF = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/SellAllItems"]
+local AutoSellFish = false
+local AutoSellTimer = false
 local SellAt = 100
 local Selling = false
 local SellMinute = 5
 local LastSell = 0
 
--- Item utility
+-- Item utility setup
 local ItemUtility, DataService
 task.spawn(function()
-    ItemUtility = require(RS.Shared.ItemUtility)
-    DataService = require(RS.Packages.Replion).Client:WaitReplion("Data")
+    local success, result = pcall(function()
+        ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
+        DataService = require(ReplicatedStorage.Packages.Replion).Client:WaitReplion("Data")
+        print("ItemUtility and DataService loaded")
+    end)
+    if not success then
+        warn("Failed to load ItemUtility or DataService:", result)
+    end
 end)
 
 local function getFishCount()
-    if not (DataService and ItemUtility) then return 0 end
-    local items = DataService:GetExpect({ "Inventory", "Items" })
+    if not (DataService and ItemUtility) then 
+        print("DataService or ItemUtility not loaded yet")
+        return 0 
+    end
+    
+    local success, items = pcall(function()
+        return DataService:GetExpect({ "Inventory", "Items" })
+    end)
+    
+    if not success or not items then return 0 end
+    
     local count = 0
     for _, v in pairs(items) do
-        local itemData = ItemUtility.GetItemDataFromItemType("Items", v.Id)
-        if itemData and itemData.Data and itemData.Data.Type == "Fish" then
+        local itemSuccess, itemData = pcall(function()
+            return ItemUtility.GetItemDataFromItemType("Items", v.Id)
+        end)
+        
+        if itemSuccess and itemData and itemData.Data and itemData.Data.Type == "Fish" then
             count += 1
         end
     end
     return count
 end
 
+-- UI Elements for Auto Sell
 sell:Input({
     Title = "Auto Sell When Fish ≥",
     Placeholder = "contoh: 100",
     Value = tostring(SellAt),
     Callback = function(text)
         local n = tonumber(text)
-        if n and n > 0 then SellAt = math.floor(n) end
+        if n and n > 0 then 
+            SellAt = math.floor(n)
+            print("Sell threshold set to:", SellAt)
+        end
     end
 })
 
@@ -1321,6 +1344,7 @@ sell:Toggle({
     Icon = "dollar-sign",
     Callback = function(state)
         AutoSellFish = state
+        print("Auto Sell Fish:", state)
     end
 })
 
@@ -1330,7 +1354,10 @@ sell:Input({
     Value = tostring(SellMinute),
     Callback = function(text)
         local n = tonumber(text)
-        if n and n > 0 then SellMinute = math.floor(n) end
+        if n and n > 0 then 
+            SellMinute = math.floor(n)
+            print("Sell interval set to:", SellMinute, "minutes")
+        end
     end
 })
 
@@ -1340,43 +1367,61 @@ sell:Toggle({
     Icon = "clock",
     Callback = function(state)
         AutoSellTimer = state
+        print("Auto Sell Timer:", state)
         if state then LastSell = os.clock() end
     end
 })
 
--- Combined Auto Sell Heartbeat
-SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect(function()
-    if not (AutoSellFish or AutoSellTimer) or Selling then return end
-    
-    -- Auto sell by fish count
-    if AutoSellFish and getFishCount() >= SellAt then
-        Selling = true
-        pcall(function() 
-            SellAllRF:InvokeServer() 
-            print("Auto selling fish...")
-        end)
-        task.delay(1.5, function() Selling = false end)
-    end
-    
-    -- Auto sell by timer
-    if AutoSellTimer and os.clock() - LastSell >= (SellMinute * 60) then
-        if getFishCount() > 0 then
-            Selling = true
-            pcall(function() 
-                SellAllRF:InvokeServer() 
-                print("Timer-based auto sell...")
-            end)
-            LastSell = os.clock()
-            task.delay(1.5, function() Selling = false end)
-        else
-            LastSell = os.clock()
+-- Auto Sell Loop
+local function StartAutoSell()
+    local connection
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not (AutoSellFish or AutoSellTimer) or Selling then return end
+        
+        -- Auto sell by fish count
+        if AutoSellFish then
+            local count = getFishCount()
+            if count >= SellAt then
+                Selling = true
+                pcall(function() 
+                    SellAllRF:InvokeServer() 
+                    print("Auto selling", count, "fish...")
+                end)
+                task.delay(1.5, function() 
+                    Selling = false 
+                end)
+            end
         end
-    end
-end))
+        
+        -- Auto sell by timer
+        if AutoSellTimer and os.clock() - LastSell >= (SellMinute * 60) then
+            local count = getFishCount()
+            if count > 0 then
+                Selling = true
+                pcall(function() 
+                    SellAllRF:InvokeServer() 
+                    print("Timer-based auto sell for", count, "fish...")
+                end)
+                LastSell = os.clock()
+                task.delay(1.5, function() 
+                    Selling = false 
+                end)
+            else
+                LastSell = os.clock()
+            end
+        end
+    end)
+    
+    return connection
+end
 
---==============================
--- AUTO PLACE TOTEM
---==============================
+-- Start auto sell loop
+local autoSellConnection
+task.spawn(function()
+    autoSellConnection = StartAutoSell()
+end)
+
+-- AUTO TOTEM SECTION
 local tootem = Tab4:Section({     
     Title = "Auto Place Totem",
     Icon = "list-collapse",
@@ -1384,59 +1429,61 @@ local tootem = Tab4:Section({
     TextSize = 17,    
 })
 
--- Gunkan Net yang sama dari atas
-local TotemNet = RS.Packages._Index["sleitnick_net@0.2.0"].net
-
--- Totem IDs
+-- Setup Totem
+local TotemNet = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net
 local TOTEMS = {
     ["Mutations Totem"] = "be68fbc3-a16d-4696-bc71-12f58446ad76",
-    ["Luck Totem"]      = "de2e86b3-acf6-4ec8-ad33-10b35cd0d8a4"
+    ["Luck Totem"] = "de2e86b3-acf6-4ec8-ad33-10b35cd0d8a4"
 }
 
--- STATE
 local AutoTotem = false
 local SelectedTotem = "Mutations Totem"
 local DelayMinutes = 60
-local TotemRunning = false  -- Renamed untuk hindari konflik
+local TotemRunning = false
 
 local function HasTotem(id)
     local backpack = LP:FindFirstChild("Backpack")
     if not backpack then return false end
 
     for _, tool in ipairs(backpack:GetChildren()) do
-        if tool:GetAttribute("ItemId") == id then
+        local itemId = tool:GetAttribute("ItemId")
+        if itemId == id then
             return true
         end
-        local v = tool:FindFirstChild("ItemId")
-        if v and v.Value == id then
+        
+        local itemValue = tool:FindFirstChild("ItemId")
+        if itemValue and itemValue.Value == id then
             return true
         end
     end
-
     return false
 end
 
 local function PlaceTotem()
     local id = TOTEMS[SelectedTotem]
     if not id then 
-        print("Totem ID not found")
+        warn("Totem ID not found for:", SelectedTotem)
         return 
     end
     
     if not HasTotem(id) then
-        print("Totem not in inventory")
-        AutoTotem = false
+        warn("Totem not in inventory:", SelectedTotem)
         return
     end
 
-    -- Equip from inventory
-    pcall(function()
+    -- Equip totem
+    local success = pcall(function()
         TotemNet["RE/Equipltem"]:FireServer(id, "Totems")
     end)
     
+    if not success then
+        warn("Failed to equip totem")
+        return
+    end
+    
     task.wait(0.3)
 
-    -- Activate tool
+    -- Activate totem
     local char = LP.Character
     if char then
         local tool = char:FindFirstChildOfClass("Tool")
@@ -1458,16 +1505,19 @@ local function StartTotemLoop()
             PlaceTotem()
             
             local waitTime = DelayMinutes * 60
+            print("Waiting", waitTime, "seconds before next totem...")
+            
             for i = 1, waitTime do
                 if not AutoTotem or not TotemRunning then break end
                 task.wait(1)
             end
         end
         TotemRunning = false
+        print("Totem loop stopped")
     end)
 end
 
--- UI untuk Auto Totem
+-- UI Elements for Auto Totem
 tootem:Dropdown({
     Title = "Select Totem",
     Values = {"Mutations Totem", "Luck Totem"},
@@ -1506,7 +1556,7 @@ tootem:Toggle({
     end
 })
 
--- ==================== EVENT SECTION ====================
+-- EVENT SECTION
 local event = Tab4:Section({
     Title = "Event",
     Icon = "snowflake",
@@ -1516,8 +1566,8 @@ local event = Tab4:Section({
 
 -- AUTO CLAIM CHRISTMAS
 local NPCs = {
-    "Alien Merchant","Billy Bob","Seth","Joe","Aura Kid","Boat Expert",
-    "Scott","Ron","Jeffery","McBoatson","Scientist","Silly Fisherman","Tim","Santa"
+    "Alien Merchant", "Billy Bob", "Seth", "Joe", "Aura Kid", "Boat Expert",
+    "Scott", "Ron", "Jeffery", "McBoatson", "Scientist", "Silly Fisherman", "Tim", "Santa"
 }
 
 local autoClaim = false
@@ -1527,17 +1577,16 @@ event:Toggle({
     Value = false,
     Callback = function(s)
         autoClaim = s
-        SafeCancel("AutoClaim")
+        print("Auto Claim Christmas:", s)
         
         if s then
-            Performance.Tasks["AutoClaim"] = task.spawn(function()
+            task.spawn(function()
+                local claimNet = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net
                 while autoClaim do
                     for i = 1, #NPCs do
                         if not autoClaim then break end
                         pcall(function()
-                            RS.Packages._Index["sleitnick_net@0.2.0"].net["RF/SpecialDialogueEvent"]:InvokeServer(
-                                NPCs[i], "ChristmasPresents"
-                            )
+                            claimNet["RF/SpecialDialogueEvent"]:InvokeServer(NPCs[i], "ChristmasPresents")
                             print("Claiming from:", NPCs[i])
                         end)
                         task.wait(0.15)
@@ -1550,29 +1599,8 @@ event:Toggle({
 })
 
 -- AUTO PRESENT FACTORY
-local FactoryNet = RS:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
 local AutoFactory = false
 local FactoryRunning = false
-
-local function RunFactorySequence()
-    if FactoryRunning then return end
-    FactoryRunning = true
-
-    Performance.Tasks["PresentFactory"] = task.spawn(function()
-        while AutoFactory and FactoryRunning do
-            pcall(function()
-                FactoryNet:WaitForChild("RE/EquipItem"):FireServer("0e98569c-edd0-4d75-bab9-7788a9ea0a4f", "Gears")
-                task.wait(0.2)
-                FactoryNet:WaitForChild("RE/EquipToolFromHotbar"):FireServer(5)
-                task.wait(0.2)
-                FactoryNet:WaitForChild("RF/RedeemGift"):InvokeServer()
-                print("Factory cycle completed")
-            end)
-            task.wait(5)
-        end
-        FactoryRunning = false
-    end)
-end
 
 event:Toggle({
     Title = "Auto Present Factory",
@@ -1582,14 +1610,31 @@ event:Toggle({
         AutoFactory = v
         print("Auto Present Factory:", v)
         
-        if AutoFactory then 
-            RunFactorySequence() 
+        if v then
+            task.spawn(function()
+                local factoryNet = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+                FactoryRunning = true
+                
+                while AutoFactory and FactoryRunning do
+                    pcall(function()
+                        factoryNet:WaitForChild("RE/EquipItem"):FireServer("0e98569c-edd0-4d75-bab9-7788a9ea0a4f", "Gears")
+                        task.wait(0.2)
+                        factoryNet:WaitForChild("RE/EquipToolFromHotbar"):FireServer(5)
+                        task.wait(0.2)
+                        factoryNet:WaitForChild("RF/RedeemGift"):InvokeServer()
+                        print("Factory cycle completed")
+                    end)
+                    task.wait(5)
+                end
+                FactoryRunning = false
+            end)
         else
             FactoryRunning = false
         end
     end
 })
 
+print("Tab 4 (Auto) loaded successfully!")
 -- ==================== TAB 5: WEBHOOK ====================
 local Tab0 = Window:Tab({
     Title = "Webhook",
