@@ -1361,11 +1361,12 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
 end))
 
 -- ===============================
--- AUTO FAVORITE - FULL DEBUG
+-- AUTO FAVORITE - UUID TRACKING
 -- ===============================
 
 local AutoFavEnabled = false
 local SelectedRarity = "Mythic"
+local ProcessedUUIDs = {} -- PERMANENT TRACKING - jangan touch UUID yang udah pernah di-process
 
 -- ===== RARITY DATA =====
 local tierToRarity = {
@@ -1416,18 +1417,12 @@ favSection:Toggle({
         SafeCancel("AutoFavorite")
         
         if state then
-            print("[AutoFav] ========== STARTED ==========")
-            print("[AutoFav] Selected Rarity:", SelectedRarity)
+            print("[AutoFav] Started - Rarity:", SelectedRarity)
+            print("[AutoFav] Processed UUIDs count:", #ProcessedUUIDs)
             
             Performance.Tasks["AutoFavorite"] = task.spawn(function()
-                local cycleCount = 0
-                
                 while AutoFavEnabled do
-                    cycleCount = cycleCount + 1
-                    print("[AutoFav] ===== CYCLE", cycleCount, "=====")
-                    
                     if not (DataService and ItemUtility) then 
-                        warn("[AutoFav] DataService/ItemUtility not ready")
                         task.wait(1)
                         continue
                     end
@@ -1437,102 +1432,47 @@ favSection:Toggle({
                     end)
                     
                     if not success then
-                        warn("[AutoFav] Failed to get inventory")
                         task.wait(2)
                         continue
                     end
                     
-                    print("[AutoFav] Total items:", #inventoryItems)
-                    
-                    local checked = 0
                     local favorited = 0
-                    local skipped = 0
-                    local alreadyFav = 0
                     
-                    for idx, item in pairs(inventoryItems) do
+                    for _, item in pairs(inventoryItems) do
                         if not AutoFavEnabled then break end
                         
                         -- Cek apakah fish
                         local fishInfo = FishData[item.Id]
                         if not fishInfo then continue end
                         
-                        checked = checked + 1
-                        
                         -- Get rarity
                         local fishRarity = tierToRarity[fishInfo.Tier]
+                        if fishRarity ~= SelectedRarity then continue end
                         
-                        -- Debug print untuk 3 item pertama yang match rarity
-                        if fishRarity == SelectedRarity and checked <= 3 then
-                            print("[AutoFav] DEBUG Fish #" .. checked .. ":")
-                            print("  Name:", fishInfo.Name)
-                            print("  UUID:", item.UUID)
-                            print("  Metadata:", item.Metadata)
-                            
-                            if item.Metadata then
-                                print("  Metadata.Favorited:", item.Metadata.Favorited)
-                                print("  Metadata.Favorited type:", type(item.Metadata.Favorited))
-                                print("  Metadata.Favorited == true?", item.Metadata.Favorited == true)
-                                print("  Metadata.Favorited == 1?", item.Metadata.Favorited == 1)
-                            else
-                                print("  Metadata is NIL!")
-                            end
-                        end
-                        
-                        -- Skip kalau bukan rarity yang dipilih
-                        if fishRarity ~= SelectedRarity then 
-                            skipped = skipped + 1
-                            continue 
-                        end
-                        
-                        -- CEK FAVORITED - MULTIPLE WAYS
-                        local isFavorited = false
-                        
-                        if item.Metadata then
-                            -- Cek berbagai kemungkinan nilai
-                            if item.Metadata.Favorited == true then
-                                isFavorited = true
-                            elseif item.Metadata.Favorited == 1 then
-                                isFavorited = true
-                            elseif type(item.Metadata.Favorited) == "boolean" and item.Metadata.Favorited then
-                                isFavorited = true
-                            end
-                        end
-                        
-                        if isFavorited then 
-                            alreadyFav = alreadyFav + 1
-                            if checked <= 5 then
-                                print("[AutoFav] SKIP (already fav):", fishInfo.Name)
-                            end
+                        -- CRITICAL: Skip kalau UUID ini PERNAH di-process
+                        if ProcessedUUIDs[item.UUID] then 
                             continue 
                         end
                         
                         -- Favorite
-                        print("[AutoFav] Attempting to favorite:", fishInfo.Name, "UUID:", item.UUID)
-                        
-                        local favSuccess, favErr = pcall(function()
+                        local favSuccess = pcall(function()
                             FavoriteRemote:FireServer(item.UUID)
                         end)
                         
                         if favSuccess then
                             favorited = favorited + 1
-                            print("[AutoFav] ✓ SUCCESS:", fishInfo.Name)
-                            
-                            -- CRITICAL: Delay lebih lama biar metadata sync dari server!
-                            task.wait(0.5)
-                        else
-                            warn("[AutoFav] FAILED:", fishInfo.Name, "Error:", favErr)
+                            ProcessedUUIDs[item.UUID] = true -- MARK as processed PERMANENTLY
+                            print("[AutoFav] ✓ Favorited:", fishInfo.Name)
                         end
+                        
+                        task.wait(0.1)
                     end
                     
-                    print("[AutoFav] Cycle Summary:")
-                    print("  - Fish checked:", checked)
-                    print("  - Already favorited:", alreadyFav)
-                    print("  - Newly favorited:", favorited)
-                    print("  - Skipped (wrong rarity):", skipped)
+                    if favorited > 0 then
+                        print("[AutoFav] Favorited:", favorited, "fish")
+                    end
                     
-                    -- Delay lebih lama sebelum cycle berikutnya
-                    -- Biar metadata punya waktu sync dari server
-                    task.wait(5)
+                    task.wait(2)
                 end
             end)
         else
@@ -1549,6 +1489,16 @@ favSection:Dropdown({
     Callback = function(value)
         SelectedRarity = value
         print("[AutoFav] Rarity changed to:", value)
+    end
+})
+
+-- Button untuk reset tracking (kalau user mau unfavorite manual)
+favSection:Button({
+    Title = "Reset Tracking",
+    Desc = "Clear daftar fish yang udah di-favorite (kalau ada yang di-unfavorite manual)",
+    Callback = function()
+        ProcessedUUIDs = {}
+        print("[AutoFav] Tracking cleared!")
     end
 })
 -- ==================== EVENT SECTION ====================
