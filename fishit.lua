@@ -1531,7 +1531,7 @@ print("[AutoTotem] Loaded", #TotemList, "totems:", table.concat(TotemList, ", ")
 
 -- ===== GET TOTEM UUID FROM INVENTORY =====
 local function getTotemUUID(totemName)
-    if not (DataService and ItemUtility) then 
+    if not DataService then 
         warn("[AutoTotem] DataService not ready!")
         return nil
     end
@@ -1539,13 +1539,12 @@ local function getTotemUUID(totemName)
     local success, result = pcall(function()
         local inventoryItems = DataService:GetExpect({ "Inventory", "Items" })
         
-        -- Cari totem by name
+        -- Cari totem by ID
+        local totemId = TotemData[totemName]
+        if not totemId then return nil end
+        
         for _, item in pairs(inventoryItems) do
-            local fishInfo = FishData and FishData[item.Id]
-            
-            -- Cek manual pakai TotemData
-            local totemId = TotemData[totemName]
-            if totemId and item.Id == totemId then
+            if item.Id == totemId then
                 return item.UUID
             end
         end
@@ -1563,7 +1562,7 @@ end
 
 -- ===== COUNT TOTEM =====
 local function countTotem(totemName)
-    if not (DataService and ItemUtility) then return 0 end
+    if not DataService then return 0 end
     
     local success, count = pcall(function()
         local inventoryItems = DataService:GetExpect({ "Inventory", "Items" })
