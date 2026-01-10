@@ -1397,7 +1397,7 @@ item:Dropdown({
 item:Input({
     Title = "Totem Delay (Minutes)",
     Placeholder = "Contoh: 60",
-    Default = tostring(DelayMinutes),
+    Value = tostring(DelayMinutes), -- ✅ FIX
     Callback = function(v)
         local num = tonumber(v)
         if num and num > 0 then
@@ -1408,6 +1408,7 @@ item:Input({
         end
     end
 })
+
 
 item:Toggle({
     Title = "Auto Place Totem",
