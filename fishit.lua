@@ -1361,15 +1361,16 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
 end))
 
 -- ===============================
--- AUTO PLACE TOTEM - FULL REWRITE
+-- AUTO PLACE TOTEM - DEBUG VERSION
 -- ===============================
+
+print("[AutoTotem] Script loading...")
 
 -- ===== CONFIG =====
 local Config = {
     AutoPlaceTotem = false,
     SelectedTotem = "Mutation Totem",
     PlaceDelay = 3600,
-    HotbarSlot = 5, -- Default slot 5, ubah kalau beda
 }
 
 -- ===== SERVICES =====
@@ -1379,61 +1380,109 @@ local IsReady = false
 local AutoTask
 
 -- ===== INITIALIZATION =====
+print("[AutoTotem] Starting initialization...")
+
 task.spawn(function()
-    -- Wait services
-    local maxWait = 30
-    local waited = 0
+    print("[AutoTotem] Waiting for ItemUtility and DataService...")
     
-    while (not ItemUtility or not DataService) and waited < maxWait do
-        pcall(function()
-            ItemUtility = require(RS.Shared.ItemUtility)
-            DataService = require(RS.Packages.Replion).Client:WaitReplion("Data")
-        end)
-        task.wait(0.5)
-        waited += 0.5
+    -- Wait ItemUtility
+    local success1 = pcall(function()
+        ItemUtility = require(RS.Shared.ItemUtility)
+    end)
+    
+    if success1 then
+        print("[AutoTotem] ✓ ItemUtility loaded")
+    else
+        warn("[AutoTotem] ✗ ItemUtility FAILED")
+        return
     end
     
-    if not (ItemUtility and DataService) then
-        warn("[AutoTotem] Failed to load services!")
+    -- Wait DataService
+    local success2 = pcall(function()
+        DataService = require(RS.Packages.Replion).Client:WaitReplion("Data")
+    end)
+    
+    if success2 then
+        print("[AutoTotem] ✓ DataService loaded")
+    else
+        warn("[AutoTotem] ✗ DataService FAILED")
         return
     end
     
     -- Wait Net folder
-    NetFolder = RS:WaitForChild("Packages"):WaitForChild("_Index")
-        :WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+    print("[AutoTotem] Waiting for Net folder...")
     
-    if not NetFolder then
-        warn("[AutoTotem] Net folder not found!")
+    local success3 = pcall(function()
+        NetFolder = RS:WaitForChild("Packages", 10)
+            :WaitForChild("_Index", 10)
+            :WaitForChild("sleitnick_net@0.2.0", 10)
+            :WaitForChild("net", 10)
+    end)
+    
+    if success3 and NetFolder then
+        print("[AutoTotem] ✓ Net folder found:", NetFolder:GetFullName())
+    else
+        warn("[AutoTotem] ✗ Net folder FAILED")
         return
     end
     
+    -- Check remotes
+    local equipRemote = NetFolder:FindFirstChild("RE/EquipItem")
+    local spawnRemote = NetFolder:FindFirstChild("RE/SpawnTotem")
+    
+    if equipRemote then
+        print("[AutoTotem] ✓ EquipItem remote found")
+    else
+        warn("[AutoTotem] ✗ EquipItem remote NOT FOUND")
+    end
+    
+    if spawnRemote then
+        print("[AutoTotem] ✓ SpawnTotem remote found")
+    else
+        warn("[AutoTotem] ✗ SpawnTotem remote NOT FOUND")
+    end
+    
     IsReady = true
-    print("[AutoTotem] ✓ Ready!")
+    print("[AutoTotem] ========== READY ==========")
 end)
 
 -- ===== FIND TOTEM BY NAME =====
 local function FindTotemUUID(totemName)
-    if not IsReady then return nil end
+    print("[AutoTotem] FindTotemUUID called for:", totemName)
+    
+    if not IsReady then 
+        warn("[AutoTotem] Not ready yet!")
+        return nil 
+    end
     
     local success, result = pcall(function()
+        print("[AutoTotem] Getting inventory...")
         local inventory = DataService:GetExpect({"Inventory", "Items"})
+        print("[AutoTotem] Inventory items count:", #inventory)
         
-        for _, item in pairs(inventory) do
+        for idx, item in pairs(inventory) do
             local itemData = ItemUtility.GetItemDataFromItemType("Items", item.Id)
             
-            if itemData 
-               and itemData.Data 
-               and itemData.Data.Type == "Totem" 
-               and itemData.Data.Name == totemName 
-            then
-                return item.UUID
+            if itemData and itemData.Data then
+                print("[AutoTotem] Item #" .. idx .. ":", itemData.Data.Name, "Type:", itemData.Data.Type or "nil")
+                
+                if itemData.Data.Type == "Totem" and itemData.Data.Name == totemName then
+                    print("[AutoTotem] ✓ FOUND TOTEM UUID:", item.UUID)
+                    return item.UUID
+                end
             end
         end
         
+        warn("[AutoTotem] Totem not found in inventory!")
         return nil
     end)
     
-    return success and result or nil
+    if not success then
+        warn("[AutoTotem] Error in FindTotemUUID:", result)
+        return nil
+    end
+    
+    return result
 end
 
 -- ===== COUNT TOTEM =====
@@ -1464,87 +1513,121 @@ end
 
 -- ===== PLACE TOTEM FUNCTION =====
 local function PlaceTotem()
+    print("[AutoTotem] ========== PlaceTotem CALLED ==========")
+    
     if not IsReady then 
-        warn("[AutoTotem] Not ready!")
+        warn("[AutoTotem] System not ready!")
+        WindUI:Notify("Error", "System belum ready!", 2)
         return false 
     end
     
-    -- Step 1: Find totem UUID
+    print("[AutoTotem] Step 1: Finding totem UUID...")
     local uuid = FindTotemUUID(Config.SelectedTotem)
     
     if not uuid then
         warn("[AutoTotem] Totem not found:", Config.SelectedTotem)
-        WindUI:Notify("Warning", Config.SelectedTotem .. " habis! (0 left)", 3)
-        Config.AutoPlaceTotem = false
+        WindUI:Notify("Error", Config.SelectedTotem .. " tidak ditemukan!", 3)
         return false
     end
     
+    print("[AutoTotem] UUID found:", uuid)
     local count = CountTotem(Config.SelectedTotem)
-    print("[AutoTotem] Found", count, "x", Config.SelectedTotem, "UUID:", uuid)
+    print("[AutoTotem] Total totem:", count)
     
-    -- Step 2: Equip totem (CORRECT: "Totems" not "Items")
-    local success1 = pcall(function()
-        NetFolder:WaitForChild("RE/EquipItem"):FireServer(uuid, "Totems")
+    -- Step 2: Equip totem
+    print("[AutoTotem] Step 2: Equipping totem...")
+    
+    local equipRemote = NetFolder:WaitForChild("RE/EquipItem", 5)
+    if not equipRemote then
+        warn("[AutoTotem] EquipItem remote not found!")
+        WindUI:Notify("Error", "EquipItem remote tidak ada!", 2)
+        return false
+    end
+    
+    local success1, err1 = pcall(function()
+        print("[AutoTotem] Firing EquipItem with UUID:", uuid, "Category: Totems")
+        equipRemote:FireServer(uuid, "Totems")
     end)
     
     if not success1 then
-        warn("[AutoTotem] Failed to equip totem")
+        warn("[AutoTotem] Failed to equip:", err1)
+        WindUI:Notify("Error", "Gagal equip totem: " .. tostring(err1), 3)
         return false
     end
     
-    print("[AutoTotem] ✓ Equipped totem")
-    task.wait(0.5) -- Wait untuk totem equipped
+    print("[AutoTotem] ✓ Totem equipped, waiting 0.5s...")
+    task.wait(0.5)
     
-    -- Step 3: Spawn totem (langsung place tanpa hotbar)
-    local success2 = pcall(function()
-        NetFolder:WaitForChild("RE/SpawnTotem"):FireServer()
+    -- Step 3: Spawn totem
+    print("[AutoTotem] Step 3: Spawning totem...")
+    
+    local spawnRemote = NetFolder:WaitForChild("RE/SpawnTotem", 5)
+    if not spawnRemote then
+        warn("[AutoTotem] SpawnTotem remote not found!")
+        WindUI:Notify("Error", "SpawnTotem remote tidak ada!", 2)
+        return false
+    end
+    
+    local success2, err2 = pcall(function()
+        print("[AutoTotem] Firing SpawnTotem...")
+        spawnRemote:FireServer()
     end)
     
     if not success2 then
-        warn("[AutoTotem] Failed to spawn totem")
+        warn("[AutoTotem] Failed to spawn:", err2)
+        WindUI:Notify("Error", "Gagal spawn totem: " .. tostring(err2), 3)
         return false
     end
     
-    print("[AutoTotem] ✓ Placed:", Config.SelectedTotem, "(" .. (count - 1) .. " left)")
-    WindUI:Notify("Success", "Placed: " .. Config.SelectedTotem .. " (" .. (count - 1) .. " left)", 3)
+    print("[AutoTotem] ✓✓✓ SUCCESS! Totem placed!")
+    print("[AutoTotem] Remaining:", (count - 1), "x", Config.SelectedTotem)
+    WindUI:Notify("Success", "✓ " .. Config.SelectedTotem .. " placed! (" .. (count - 1) .. " left)", 3)
     
     return true
 end
 
 -- ===== AUTO LOOP =====
 local function StartAuto()
+    print("[AutoTotem] StartAuto called")
+    
     if AutoTask then 
-        warn("[AutoTotem] Already running")
+        warn("[AutoTotem] Already running!")
         return 
     end
     
     if not IsReady then
-        WindUI:Notify("Error", "System belum ready! Tunggu...", 3)
+        WindUI:Notify("Error", "System belum ready!", 3)
         return
     end
     
     Config.AutoPlaceTotem = true
     
     AutoTask = task.spawn(function()
+        print("[AutoTotem] Auto loop started")
+        
         while Config.AutoPlaceTotem do
+            print("[AutoTotem] Loop iteration - placing totem...")
             local success = PlaceTotem()
             
             if not success then
+                print("[AutoTotem] Failed to place, stopping auto")
                 Config.AutoPlaceTotem = false
                 break
             end
             
+            print("[AutoTotem] Waiting", Config.PlaceDelay, "seconds...")
             task.wait(Config.PlaceDelay)
         end
         
         AutoTask = nil
-        print("[AutoTotem] Stopped")
+        print("[AutoTotem] Auto loop stopped")
     end)
     
     WindUI:Notify("Info", "Auto Totem: ON", 2)
 end
 
 local function StopAuto()
+    print("[AutoTotem] StopAuto called")
     Config.AutoPlaceTotem = false
     
     if AutoTask then
@@ -1556,6 +1639,8 @@ local function StopAuto()
 end
 
 -- ===== WINDUI INTERFACE =====
+print("[AutoTotem] Creating UI...")
+
 local TotemSection = Tab4:Section({
     Title = "Auto Place Totems",
     Icon = "snowflake",
@@ -1564,7 +1649,7 @@ local TotemSection = Tab4:Section({
 })
 
 -- Status
-local StatusParagraph = TotemSection:Paragraph({
+TotemSection:Paragraph({
     Title = "Status",
     Desc = "Initializing..."
 })
@@ -1572,9 +1657,9 @@ local StatusParagraph = TotemSection:Paragraph({
 task.spawn(function()
     while not IsReady do task.wait(0.5) end
     pcall(function()
-        StatusParagraph = TotemSection:Paragraph({
+        TotemSection:Paragraph({
             Title = "Status",
-            Desc = "✓ Ready"
+            Desc = "✓ Ready to use!"
         })
     end)
 end)
@@ -1584,6 +1669,7 @@ TotemSection:Toggle({
     Title = "Auto Place Totem",
     Value = false,
     Callback = function(state)
+        print("[AutoTotem] Toggle clicked:", state)
         if state then
             StartAuto()
         else
@@ -1592,7 +1678,7 @@ TotemSection:Toggle({
     end
 })
 
--- Dropdown - coba pakai Multi parameter
+-- Dropdown
 TotemSection:Dropdown({
     Title = "Select Totem",
     Desc = "Pilih totem yang mau di spawn",
@@ -1604,10 +1690,10 @@ TotemSection:Dropdown({
         "Shiny Totem"
     },
     Callback = function(value)
+        print("[AutoTotem] Dropdown selected:", value)
         Config.SelectedTotem = value
         WindUI:Notify("Info", "Selected: " .. value, 2)
         
-        -- Update counter
         local count = CountTotem(value)
         WindUI:Notify("Info", "You have " .. count .. "x " .. value, 2)
     end
@@ -1623,22 +1709,24 @@ TotemSection:Input({
         if n and n > 0 then
             Config.PlaceDelay = n
             WindUI:Notify("Info", "Delay: " .. n .. "s (" .. math.floor(n/60) .. " menit)", 2)
-        else
-            WindUI:Notify("Error", "Masukkan angka > 0", 2)
         end
     end
 })
 
 -- Manual Place (Test)
 TotemSection:Button({
-    Title = "Place Now (Test)",
-    Desc = "Manual place totem 1x untuk testing",
+    Title = "🔥 PLACE NOW (TEST)",
+    Desc = "Klik ini untuk test manual place",
     Callback = function()
+        print("[AutoTotem] ========== TEST BUTTON CLICKED ==========")
+        
         if not IsReady then
-            WindUI:Notify("Error", "Belum ready!", 2)
+            warn("[AutoTotem] Not ready!")
+            WindUI:Notify("Error", "Belum ready! Tunggu sebentar", 2)
             return
         end
         
+        print("[AutoTotem] Calling PlaceTotem()...")
         PlaceTotem()
     end
 })
@@ -1648,6 +1736,8 @@ TotemSection:Button({
     Title = "Check Totem Count",
     Desc = "Cek jumlah totem di inventory",
     Callback = function()
+        print("[AutoTotem] Check inventory clicked")
+        
         if not IsReady then
             WindUI:Notify("Error", "Belum ready!", 2)
             return
@@ -1657,6 +1747,8 @@ TotemSection:Button({
         local luck = CountTotem("Luck Totem")
         local shiny = CountTotem("Shiny Totem")
         
+        print("[AutoTotem] Mutation:", mutation, "Luck:", luck, "Shiny:", shiny)
+        
         WindUI:Notify("Info", string.format(
             "Mutation: %dx | Luck: %dx | Shiny: %dx",
             mutation, luck, shiny
@@ -1664,7 +1756,7 @@ TotemSection:Button({
     end
 })
 
-
+print("[AutoTotem] UI created successfully!")
 
 -- ==================== EVENT SECTION ====================
 local event = Tab4:Section({
