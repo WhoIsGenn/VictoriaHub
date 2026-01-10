@@ -1393,13 +1393,23 @@ local function getInventoryFish()
         
         for _, v in pairs(inventoryItems) do
             local itemData = ItemUtility.GetItemDataFromItemType("Items", v.Id)
-            if itemData and itemData.Data and itemData.Data.Type == "Fish" then
-                table.insert(fishes, { 
-                    UUID = v.UUID, 
-                    Metadata = v.Metadata,
-                    Tier = itemData.Data.Tier,
-                    Name = itemData.Data.Name
-                })
+            
+            -- Debug: print struktur itemData
+            if itemData then
+                -- Cek semua kemungkinan lokasi Tier
+                local tier = itemData.Tier or (itemData.Data and itemData.Data.Tier) or v.Tier
+                local name = itemData.Name or (itemData.Data and itemData.Data.Name) or "Unknown"
+                local fishType = itemData.Type or (itemData.Data and itemData.Data.Type)
+                
+                if fishType == "Fish" then
+                    table.insert(fishes, { 
+                        UUID = v.UUID, 
+                        Metadata = v.Metadata,
+                        Tier = tier,
+                        Name = name,
+                        ItemData = itemData  -- Simpan full data untuk debug
+                    })
+                end
             end
         end
         
@@ -1445,6 +1455,12 @@ favSection:Toggle({
                     
                     for _, fish in pairs(fishes) do
                         if not AutoFav then break end
+                        
+                        -- Debug: print full itemData structure pertama kali
+                        if _ == 1 then
+                            print("[AutoFav] DEBUG - First fish itemData structure:")
+                            print(game:GetService("HttpService"):JSONEncode(fish.ItemData))
+                        end
                         
                         local fishRarity = tierToRarity[fish.Tier]
                         
