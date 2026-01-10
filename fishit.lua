@@ -1438,10 +1438,8 @@ favSection:Toggle({
                         continue
                     end
                     
-                    -- Tunggu sebentar biar metadata sync (khusus pas awal rejoin)
-                    task.wait(0.5)
-                    
                     local favorited = 0
+                    local alreadyFav = 0
                     
                     for _, item in pairs(inventoryItems) do
                         if not AutoFavEnabled then break end
@@ -1454,27 +1452,24 @@ favSection:Toggle({
                         local fishRarity = tierToRarity[fishInfo.Tier]
                         if fishRarity ~= SelectedRarity then continue end
                         
-                        -- CRITICAL: Cek status favorite dari metadata
+                        -- CRITICAL CHECK: Kalau sudah favorited, JANGAN TOUCH!
+                        -- RE/FavoriteItem adalah TOGGLE bukan SET, jadi FireServer = toggle on/off
                         local isFavorited = item.Metadata and item.Metadata.Favorited == true
                         
-                        -- Update tracking untuk yang sudah favorited
                         if isFavorited then
+                            -- Sudah favorited, track tapi JANGAN FireServer
                             if not FavoritedUUIDs[item.UUID] then
-                                print("[AutoFav] Already favorited (from metadata):", fishInfo.Name)
+                                alreadyFav = alreadyFav + 1
                                 FavoritedUUIDs[item.UUID] = true
                             end
-                            continue
+                            continue -- SKIP, jangan sentuh yang udah favorited!
                         end
                         
-                        -- Skip kalau udah pernah di-favorite oleh script
-                        if FavoritedUUIDs[item.UUID] then 
-                            -- Double check: kalau metadata bilang unfavorited tapi kita udah favorite, skip aja
-                            print("[AutoFav] Skipping (already processed):", fishInfo.Name)
-                            continue 
-                        end
+                        -- Kalau udah pernah di-favorite oleh script, skip
+                        if FavoritedUUIDs[item.UUID] then continue end
                         
-                        -- Favorite
-                        print("[AutoFav] Attempting to favorite:", fishInfo.Name)
+                        -- Fish belum favorited, sekarang favorite
+                        print("[AutoFav] Favoriting:", fishInfo.Name)
                         
                         local favSuccess = pcall(function()
                             FavoriteRemote:FireServer(item.UUID)
@@ -1483,9 +1478,14 @@ favSection:Toggle({
                         if favSuccess then
                             favorited = favorited + 1
                             FavoritedUUIDs[item.UUID] = true
-                            print("[AutoFav] ✓ SUCCESS Favorited:", fishInfo.Name)
-                            task.wait(0.2) -- Delay lebih lama biar server sync
+                            print("[AutoFav] ✓ Favorited:", fishInfo.Name)
                         end
+                        
+                        task.wait(0.15)
+                    end
+                    
+                    if favorited > 0 or alreadyFav > 0 then
+                        print("[AutoFav] Summary - New favorited:", favorited, "| Already favorited:", alreadyFav)
                     end
                     
                     if favorited > 0 then
