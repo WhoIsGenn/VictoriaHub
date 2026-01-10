@@ -1360,7 +1360,7 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
     end
 end))
 
---// SECTION (PASTIKAN TAB4 SUDAH ADA SEBELUM INI)
+--// SECTION
 local TotemSection = Tab4:Section({
     Title = "Auto Place Totem",
     Icon = "snowflake",
@@ -1380,17 +1380,17 @@ local Net = RS
 
 --// STATE
 local AutoEnabled = false
-local AutoTask
-local PlaceDelay = 1
+local AutoTask = nil
+local PlaceDelay = 60
 local SelectedTotem = "Mutations Totem"
 
---// TOTEM IDS
+--// TOTEMS
 local Totems = {
     ["Mutations Totem"] = "be68fbc3-a16d-4696-bc71-12f58446ad76",
     ["Luck Totem"]      = "de2e86b3-acf6-4ec8-ad33-10b35cd0d8a4"
 }
 
---// REMOTES (CACHE SEKALI)
+--// REMOTES
 local EquipRemote = Net:WaitForChild("RE/EquipItem")
 local PlaceRemote =
     Net:FindFirstChild("RE/PlaceTotem")
@@ -1398,6 +1398,7 @@ local PlaceRemote =
 
 --// CORE
 local function PlaceTotem()
+    if not PlaceRemote then return end
     local id = Totems[SelectedTotem]
     if not id then return end
 
@@ -1408,14 +1409,12 @@ local function PlaceTotem()
     task.wait(0.3)
 
     pcall(function()
-        if PlaceRemote then
-            PlaceRemote:FireServer()
-        end
+        PlaceRemote:FireServer()
     end)
 end
 
---// AUTO LOOP
-local function Start()
+--// LOOP
+local function StartAuto()
     if AutoTask then return end
     AutoTask = task.spawn(function()
         while AutoEnabled do
@@ -1425,7 +1424,7 @@ local function Start()
     end)
 end
 
-local function Stop()
+local function StopAuto()
     AutoEnabled = false
     if AutoTask then
         task.cancel(AutoTask)
@@ -1433,39 +1432,40 @@ local function Stop()
     end
 end
 
---// TOGGLE
+--// TOGGLE (WORKING)
 TotemSection:Toggle({
     Title = "Auto Place Totem",
-    Desc = "Automatically place selected totem",
-    Default = false,
+    Value = false,
     Callback = function(v)
         AutoEnabled = v
         if v then
-            Start()
+            StartAuto()
         else
-            Stop()
+            StopAuto()
         end
     end
 })
 
---// DROPDOWN
+--// DROPDOWN (WORKING)
 TotemSection:Dropdown({
     Title = "Select Totem",
-    Default = SelectedTotem,
-    List = {"Mutations Totem", "Luck Totem"},
+    Values = {"Mutations Totem", "Luck Totem"},
+    Value = "Mutations Totem",
     Callback = function(v)
         SelectedTotem = v
     end
 })
 
---// SLIDER
-TotemSection:Slider({
-    Title = "Place Delay",
-    Default = 1,
-    Min = 0.5,
-    Max = 5,
-    Callback = function(v)
-        PlaceDelay = v
+--// INPUT DELAY (GANTI SLIDER)
+TotemSection:Input({
+    Title = "Place Delay (seconds)",
+    Placeholder = "Example: 1",
+    Value = tostring(PlaceDelay),
+    Callback = function(text)
+        local num = tonumber(text)
+        if num and num >= 0.1 then
+            PlaceDelay = num
+        end
     end
 })
 
@@ -1477,6 +1477,7 @@ TotemSection:Button({
         PlaceTotem()
     end
 })
+
 
 
 
