@@ -1360,171 +1360,152 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
     end
 end))
 
-local tootem = Tab4:Section({
-    Title = "Auto Place Tootems",
+--// UI SECTION
+local totemSection = Tab4:Section({
+    Title = "Auto Place Totem",
     Icon = "snowflake",
     TextXAlignment = "Left",
     TextSize = 17
 })
 
--- AUTO PLACE TOTEM
-local Net = RS:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
-local Auto = false
-local Running = false
+--// SERVICES
+local RS = game:GetService("ReplicatedStorage")
 
--- Data Totem
+--// NET
+local Net = RS
+    :WaitForChild("Packages")
+    :WaitForChild("_Index")
+    :WaitForChild("sleitnick_net@0.2.0")
+    :WaitForChild("net")
+
+--// STATE
+local AutoEnabled = false
+local AutoTask = nil
+local PlaceDelay = 1
+local SelectedTotem = "Mutations Totem"
+
+--// TOTEM IDS
 local Totems = {
     ["Mutations Totem"] = "be68fbc3-a16d-4696-bc71-12f58446ad76",
-    ["Luck Totem"] = "de2e86b3-acf6-4ec8-ad33-10b35cd0d8a4"
+    ["Luck Totem"]      = "de2e86b3-acf6-4ec8-ad33-10b35cd0d8a4"
 }
 
--- UI Variables
-local SelectedTotem = "Mutations Totem"
-local PlaceDelay = 1 -- Default delay
+--// REMOTES (CACHE SEKALI)
+local EquipRemote = Net:WaitForChild("RE/EquipItem")
 
-local function RunSequence()
-    if Running then return end
-    Running = true
+local PlaceRemote =
+    Net:FindFirstChild("RE/PlaceTotem") or
+    Net:FindFirstChild("RE/PlaceItem") or
+    Net:FindFirstChild("RE/Build") or
+    Net:FindFirstChild("RE/Construct")
 
-    local function PlaceTotem()
-        -- 1. Equip totem from backpack
-        local success1 = pcall(function()
-            Net:WaitForChild("RE/EquipItem"):FireServer(Totems[SelectedTotem], "Gears")
-        end)
-        
-        if not success1 then
-            WindUI:Notify("Error", "Failed to equip totem", 2)
-            return
-        end
-        
-        task.wait(0.2)
-        
-        -- 2. Try to place the totem
-        local success2 = pcall(function()
-            -- Try different remote event names
-            local remoteNames = {
-                "RE/PlaceTotem",
-                "RE/PlaceItem", 
-                "RE/Build",
-                "RE/Construct",
-                "RE/PlaceObject",
-                "RE/BuildTotem" -- Tambahan kemungkinan
-            }
-            
-            local placed = false
-            for _, remoteName in ipairs(remoteNames) do
-                local remote = Net:FindFirstChild(remoteName)
-                if remote then
-                    remote:FireServer()
-                    placed = true
-                    break
-                end
-            end
-            
-            if not placed then
-                error("No place remote found")
-            end
-        end)
-        
-        if not success2 then
-            WindUI:Notify("Error", "Failed to place totem", 3)
-        end
+--// VALIDATION
+if not PlaceRemote then
+    WindUI:Notify("Fatal Error", "Place remote not found!", 5)
+end
+
+--// CORE FUNCTION
+local function PlaceTotem()
+    local totemId = Totems[SelectedTotem]
+    if not totemId then return end
+
+    -- Equip
+    local okEquip = pcall(function()
+        EquipRemote:FireServer(totemId, "Gears")
+    end)
+
+    if not okEquip then
+        WindUI:Notify("Error", "Equip failed", 2)
+        return
     end
 
-    -- Perbaikan: Simpan task reference
-    Performance.Tasks = Performance.Tasks or {}
-    Performance.Tasks["PlaceTotem"] = task.spawn(function()
-        while Auto do
+    task.wait(0.3)
+
+    -- Place
+    local okPlace = pcall(function()
+        PlaceRemote:FireServer()
+    end)
+
+    if not okPlace then
+        WindUI:Notify("Error", "Place failed", 2)
+    end
+end
+
+--// START LOOP
+local function StartAuto()
+    if AutoTask then return end
+
+    AutoTask = task.spawn(function()
+        while AutoEnabled do
             PlaceTotem()
             task.wait(PlaceDelay)
         end
-        Running = false
     end)
 end
 
--- WindUI Toggle
-tootem:Toggle({
+--// STOP LOOP
+local function StopAuto()
+    AutoEnabled = false
+    if AutoTask then
+        task.cancel(AutoTask)
+        AutoTask = nil
+    end
+end
+
+--// TOGGLE
+totemSection:Toggle({
     Title = "Auto Place Totem",
     Desc = "Automatically place selected totem",
     Default = false,
     Callback = function(v)
-        Auto = v
-        if Auto then 
-            RunSequence() 
+        AutoEnabled = v
+        if v then
+            StartAuto()
         else
-            -- Pastikan task berhenti saat toggle dimatikan
-            if Performance.Tasks and Performance.Tasks["PlaceTotem"] then
-                Performance.Tasks["PlaceTotem"] = nil
-            end
+            StopAuto()
         end
     end
 })
 
--- WindUI Dropdown for Totem Selection
-tootem:Dropdown({
+--// DROPDOWN
+totemSection:Dropdown({
     Title = "Select Totem",
     Desc = "Choose which totem to place",
-    Default = "Mutations Totem",
+    Default = SelectedTotem,
     List = {"Mutations Totem", "Luck Totem"},
     Callback = function(v)
         SelectedTotem = v
-        WindUI:Notify("Info", "Totem selected: " .. v, 2)
+        WindUI:Notify("Totem", "Selected: "..v, 2)
     end
 })
 
--- WindUI Slider for Delay
-tootem:Slider({
+--// SLIDER
+totemSection:Slider({
     Title = "Place Delay",
-    Desc = "Delay between placing totems (seconds)",
+    Desc = "Delay between placement (seconds)",
     Default = 1,
     Min = 0.5,
     Max = 5,
     Callback = function(v)
         PlaceDelay = v
-        WindUI:Notify("Info", "Delay set to: " .. v .. "s", 2)
+        WindUI:Notify("Delay", v.."s", 2)
     end
 })
 
--- Optional: Manual Place Button
-tootem:Button({
+--// MANUAL BUTTON
+totemSection:Button({
     Title = "Place Once",
-    Desc = "Place totem manually",
+    Desc = "Place totem one time",
     Callback = function()
-        if not Running then
-            local function ManualPlace()
-                local success1 = pcall(function()
-                    Net:WaitForChild("RE/EquipItem"):FireServer(Totems[SelectedTotem], "Gears")
-                end)
-                
-                if not success1 then
-                    WindUI:Notify("Error", "Failed to equip totem", 2)
-                    return
-                end
-                
-                task.wait(0.2)
-                
-                local success2 = pcall(function()
-                    local remote = Net:FindFirstChild("RE/PlaceTotem") or Net:FindFirstChild("RE/PlaceItem")
-                    if remote then
-                        remote:FireServer()
-                    else
-                        error("No place remote found")
-                    end
-                end)
-                
-                if success2 then
-                    WindUI:Notify("Success", "Totem placed!", 2)
-                else
-                    WindUI:Notify("Error", "Failed to place totem", 3)
-                end
-            end
-            
-            ManualPlace()
-        else
-            WindUI:Notify("Warning", "Auto Place is running, disable it first", 3)
+        if AutoEnabled then
+            WindUI:Notify("Warning", "Disable Auto first", 2)
+            return
         end
+        PlaceTotem()
+        WindUI:Notify("Success", "Totem placed", 2)
     end
 })
+
 
 -- ==================== EVENT SECTION ====================
 local event = Tab4:Section({
