@@ -1366,6 +1366,7 @@ end))
 
 local AutoFavEnabled = false
 local SelectedRarity = "Mythic"
+local FavoritedUUIDs = {} -- Track yang udah di-favorite
 
 -- ===== RARITY DATA =====
 local tierToRarity = {
@@ -1415,7 +1416,9 @@ favSection:Toggle({
         AutoFavEnabled = state
         SafeCancel("AutoFavorite")
         
+        -- Reset tracking saat toggle ON
         if state then
+            FavoritedUUIDs = {}
             print("[AutoFav] Started - Rarity:", SelectedRarity)
             
             Performance.Tasks["AutoFavorite"] = task.spawn(function()
@@ -1448,8 +1451,14 @@ favSection:Toggle({
                         local fishRarity = tierToRarity[fishInfo.Tier]
                         if fishRarity ~= SelectedRarity then continue end
                         
-                        -- Skip kalau sudah di-favorite
-                        if item.Metadata and item.Metadata.Favorited then continue end
+                        -- Skip kalau sudah di-favorite (cek metadata ATAU tracking)
+                        if item.Metadata and item.Metadata.Favorited then 
+                            FavoritedUUIDs[item.UUID] = true -- Track yang udah favorited
+                            continue 
+                        end
+                        
+                        -- Skip kalau udah pernah di-favorite oleh script
+                        if FavoritedUUIDs[item.UUID] then continue end
                         
                         -- Favorite
                         local favSuccess = pcall(function()
@@ -1458,6 +1467,7 @@ favSection:Toggle({
                         
                         if favSuccess then
                             favorited = favorited + 1
+                            FavoritedUUIDs[item.UUID] = true -- Simpan UUID yang udah di-favorite
                             print("[AutoFav] ✓ Favorited:", fishInfo.Name)
                         end
                         
