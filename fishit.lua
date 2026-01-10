@@ -1366,6 +1366,7 @@ end))
 
 local AutoFavEnabled = false
 local SelectedRarity = "Mythic"
+local ProcessingUUIDs = {} -- Untuk prevent double processing
 
 -- ===== RARITY DATA =====
 local tierToRarity = {
@@ -1397,32 +1398,22 @@ for _, item in pairs(RS.Items:GetChildren()) do
     end
 end
 
--- ===== FUNGSI CEK FAVORITE DENGAN ITEMUTILITY =====
-local function isAlreadyFavorited(uuid)
-    if not ItemUtility then return false end
+-- ===== FUNGSI GET INVENTORY ITEM BY UUID =====
+local function getInventoryItem(uuid)
+    if not DataService then return nil end
     
-    local success, favorited = pcall(function()
-        return ItemUtility:IsItemFavorited(uuid)
-    end)
-    
-    if success then
-        return favorited
-    end
-    
-    -- Fallback ke metode lama jika pcall gagal
-    local success2, inventory = pcall(function()
+    local success, inventory = pcall(function()
         return DataService:GetExpect({ "Inventory", "Items" })
     end)
     
-    if success2 then
+    if success then
         for _, item in pairs(inventory) do
             if item.UUID == uuid then
-                return item.Metadata and item.Metadata.Favorited == true
+                return item
             end
         end
     end
-    
-    return false
+    return nil
 end
 
 -- ===== WINDUI SECTION =====
@@ -1442,9 +1433,11 @@ favSection:Toggle({
         SafeCancel("AutoFavorite")
         
         if state then
+            ProcessingUUIDs = {} -- Reset processing saat mulai
+            
             Performance.Tasks["AutoFavorite"] = task.spawn(function()
                 while AutoFavEnabled do
-                    if not (DataService and ItemUtility) then 
+                    if not DataService then 
                         task.wait(1)
                         continue
                     end
@@ -1460,9 +1453,16 @@ favSection:Toggle({
                     
                     local favorited = 0
                     local skipped = 0
+                    local errors = 0
                     
                     for _, item in pairs(inventoryItems) do
                         if not AutoFavEnabled then break end
+                        
+                        -- Skip jika sedang diproses
+                        if ProcessingUUIDs[item.UUID] then
+                            task.wait(0.01)
+                            continue
+                        end
                         
                         -- Cek apakah fish
                         local fishInfo = FishData[item.Id]
@@ -1472,34 +1472,66 @@ favSection:Toggle({
                         local fishRarity = tierToRarity[fishInfo.Tier]
                         if fishRarity ~= SelectedRarity then continue end
                         
-                        -- Cek apakah sudah di-favorite DENGAN BENAR
-                        if isAlreadyFavorited(item.UUID) then
-                            skipped = skipped + 1
-                            continue 
+                        -- MARK sebagai sedang diproses
+                        ProcessingUUIDs[item.UUID] = true
+                        
+                        -- Cek apakah sudah di-favorite (dari metadata)
+                        local isCurrentlyFavorited = false
+                        if item.Metadata then
+                            isCurrentlyFavorited = item.Metadata.Favorited == true
                         end
                         
-                        -- Favorite
-                        local favSuccess = pcall(function()
-                            FavoriteRemote:FireServer(item.UUID)
-                        end)
-                        
-                        if favSuccess then
-                            favorited = favorited + 1
-                            task.wait(0.15) -- Delay lebih aman
+                        -- Jika BELUM favorite, baru kita favorite
+                        if not isCurrentlyFavorited then
+                            -- Favorite dengan retry mechanism
+                            local retryCount = 0
+                            local favSuccess = false
+                            
+                            while retryCount < 2 and not favSuccess do
+                                favSuccess = pcall(function()
+                                    FavoriteRemote:FireServer(item.UUID)
+                                end)
+                                
+                                if favSuccess then
+                                    favorited = favorited + 1
+                                    
+                                    -- Verifikasi setelah favorite
+                                    task.wait(0.2) -- Tunggu update metadata
+                                    local updatedItem = getInventoryItem(item.UUID)
+                                    if updatedItem and updatedItem.Metadata and updatedItem.Metadata.Favorited then
+                                        print(`AutoFav: ✓ {fishInfo.Name} (Tier {fishInfo.Tier}) difavorite`)
+                                    else
+                                        print(`AutoFav: ? {fishInfo.Name} - Verifikasi gagal`)
+                                    end
+                                else
+                                    retryCount += 1
+                                    if retryCount < 2 then
+                                        task.wait(0.5) -- Tunggu sebelum retry
+                                    else
+                                        errors += 1
+                                        print(`AutoFav: ✗ Gagal favorite {fishInfo.Name} setelah {retryCount} percobaan`)
+                                    end
+                                end
+                            end
+                        else
+                            skipped += 1
                         end
                         
-                        task.wait(0.05) -- Delay antar item
+                        -- UNMARK setelah selesai
+                        task.wait(0.5) -- Delay lebih panjang antara item
+                        ProcessingUUIDs[item.UUID] = nil
                     end
                     
-                    if favorited > 0 then
-                        print(`AutoFav: {favorited} ikan di-favorite (Skipped: {skipped} yang sudah favorite)`)
+                    if favorited > 0 or errors > 0 then
+                        print(`AutoFav: Loop selesai - Favorite: {favorited}, Skipped: {skipped}, Errors: {errors}`)
                     end
                     
-                    task.wait(2.5) -- Delay antar loop
+                    task.wait(3) -- Delay panjang antar loop
                 end
             end)
         else
             print("AutoFav: Mati")
+            ProcessingUUIDs = {} -- Reset saat mati
         end
     end
 })
