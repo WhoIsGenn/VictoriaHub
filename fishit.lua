@@ -1361,7 +1361,7 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
 end))
 
 -- ===============================
--- AUTO FAVORITE BY RARITY - DUAL MODE
+-- AUTO FAVORITE BY RARITY - INVENTORY LOOP
 -- ===============================
 
 local AutoFavEnabled = false
@@ -1382,7 +1382,6 @@ local FavRarityList = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythi
 
 -- ===== REMOTES =====
 local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
-local ObtainedFishEvent = Net["RE/ObtainedNewFishNotification"]
 local FavoriteRemote = Net["RE/FavoriteItem"]
 
 -- ===== BUILD FISH DATA =====
@@ -1400,147 +1399,6 @@ end
 
 print("[AutoFav] Loaded", #FishData, "fish data")
 
--- ===== FAVORITE FROM INVENTORY (BATCH) =====
-local function favoriteInventoryByRarity()
-    print("[AutoFav] ========== BATCH MODE START ==========")
-    print("[AutoFav] Selected Rarity:", SelectedRarity)
-    
-    if not (DataService and ItemUtility) then 
-        warn("[AutoFav] DataService or ItemUtility not ready!")
-        return 0
-    end
-    
-    local success, result = pcall(function()
-        local inventoryItems = DataService:GetExpect({ "Inventory", "Items" })
-        print("[AutoFav] Total items in inventory:", #inventoryItems)
-        
-        local favorited = 0
-        local fishCount = 0
-        local skipped = 0
-        
-        for idx, item in pairs(inventoryItems) do
-            -- DEBUG: Print item structure untuk 3 item pertama
-            if idx <= 3 then
-                print("[AutoFav] Item #" .. idx .. " structure:")
-                print("  - Id:", item.Id)
-                print("  - UUID:", item.UUID)
-                print("  - Metadata.Favorited:", item.Metadata and item.Metadata.Favorited or "nil")
-            end
-            
-            -- Cek apakah fish
-            local fishInfo = FishData[item.Id]
-            
-            if fishInfo then
-                fishCount = fishCount + 1
-                
-                -- Get rarity
-                local fishRarity = tierToRarity[fishInfo.Tier]
-                
-                if idx <= 5 then
-                    print("[AutoFav] Fish found:", fishInfo.Name, "| Tier:", fishInfo.Tier, "| Rarity:", fishRarity)
-                end
-                
-                -- Skip kalau bukan rarity yang dipilih
-                if fishRarity ~= SelectedRarity then 
-                    skipped = skipped + 1
-                    continue 
-                end
-                
-                -- Skip kalau sudah di-favorite
-                if item.Metadata and item.Metadata.Favorited then 
-                    print("[AutoFav] Already favorited:", fishInfo.Name)
-                    continue 
-                end
-                
-                -- Favorite
-                print("[AutoFav] Attempting to favorite:", fishInfo.Name, "UUID:", item.UUID)
-                
-                local favSuccess, favErr = pcall(function()
-                    FavoriteRemote:FireServer(item.UUID)
-                end)
-                
-                if favSuccess then
-                    favorited = favorited + 1
-                    print("[AutoFav] ✓ SUCCESS:", fishInfo.Name)
-                else
-                    warn("[AutoFav] FAILED:", fishInfo.Name, "Error:", favErr)
-                end
-                
-                task.wait(0.1)
-            end
-        end
-        
-        print("[AutoFav] Summary:")
-        print("  - Total fish found:", fishCount)
-        print("  - Skipped (wrong rarity):", skipped)
-        print("  - Favorited:", favorited)
-        
-        return favorited
-    end)
-    
-    if success then
-        return result
-    else
-        warn("[AutoFav] Error:", result)
-        return 0
-    end
-end
-
--- ===== EVENT HANDLER (REAL-TIME) =====
-SafeConnect("AutoFavoriteEvent", ObtainedFishEvent.OnClientEvent:Connect(function(itemId, _, eventData)
-    print("[AutoFav] ========== EVENT TRIGGERED ==========")
-    print("[AutoFav] ItemId:", itemId)
-    print("[AutoFav] AutoFavEnabled:", AutoFavEnabled)
-    
-    if not AutoFavEnabled then return end
-    
-    -- Get UUID
-    local uuid = eventData.InventoryItem and eventData.InventoryItem.UUID
-    print("[AutoFav] UUID:", uuid)
-    
-    if not uuid then 
-        warn("[AutoFav] No UUID in event data!")
-        return 
-    end
-    
-    -- Get fish info
-    local fishInfo = FishData[itemId]
-    print("[AutoFav] Fish Info:", fishInfo and fishInfo.Name or "NOT FOUND")
-    
-    if not fishInfo then 
-        warn("[AutoFav] Fish ID not in database:", itemId)
-        return 
-    end
-    
-    -- Get rarity from tier
-    local fishRarity = tierToRarity[fishInfo.Tier]
-    print("[AutoFav] Fish:", fishInfo.Name, "| Tier:", fishInfo.Tier, "| Rarity:", fishRarity)
-    print("[AutoFav] Selected Rarity:", SelectedRarity)
-    
-    if not fishRarity then 
-        warn("[AutoFav] Invalid tier:", fishInfo.Tier)
-        return 
-    end
-    
-    -- Check if rarity matches
-    if fishRarity == SelectedRarity then
-        print("[AutoFav] MATCH! Attempting to favorite...")
-        
-        local favSuccess, favErr = pcall(function()
-            FavoriteRemote:FireServer(uuid)
-        end)
-        
-        if favSuccess then
-            print("[AutoFav] ✓✓✓ SUCCESS! Favorited:", fishInfo.Name)
-            WindUI:Notify("Auto Favorite", "✓ " .. fishInfo.Name, 2)
-        else
-            warn("[AutoFav] FAILED to favorite:", favErr)
-        end
-    else
-        print("[AutoFav] NO MATCH - Rarity mismatch")
-    end
-end))
-
 -- ===== WINDUI SECTION =====
 local favSection = Tab4:Section({
     Title = "Auto Favorite",
@@ -1549,18 +1407,72 @@ local favSection = Tab4:Section({
     TextSize = 17
 })
 
--- Toggle (Real-time mode)
+-- Toggle
 favSection:Toggle({
-    Title = "Auto Favorite (Real-time)",
-    Desc = "Auto favorite saat dapat fish baru",
+    Title = "Auto Favorite",
     Value = false,
     Callback = function(state)
         AutoFavEnabled = state
+        SafeCancel("AutoFavorite")
         
         if state then
-            WindUI:Notify("Auto Favorite", "ON - Real-time mode", 2)
+            print("[AutoFav] Started - Rarity:", SelectedRarity)
+            
+            Performance.Tasks["AutoFavorite"] = task.spawn(function()
+                while AutoFavEnabled do
+                    if not (DataService and ItemUtility) then 
+                        task.wait(1)
+                        continue
+                    end
+                    
+                    local success, inventoryItems = pcall(function()
+                        return DataService:GetExpect({ "Inventory", "Items" })
+                    end)
+                    
+                    if not success then
+                        warn("[AutoFav] Failed to get inventory")
+                        task.wait(2)
+                        continue
+                    end
+                    
+                    local favorited = 0
+                    
+                    for _, item in pairs(inventoryItems) do
+                        if not AutoFavEnabled then break end
+                        
+                        -- Cek apakah fish
+                        local fishInfo = FishData[item.Id]
+                        if not fishInfo then continue end
+                        
+                        -- Get rarity
+                        local fishRarity = tierToRarity[fishInfo.Tier]
+                        if fishRarity ~= SelectedRarity then continue end
+                        
+                        -- Skip kalau sudah di-favorite
+                        if item.Metadata and item.Metadata.Favorited then continue end
+                        
+                        -- Favorite
+                        local favSuccess = pcall(function()
+                            FavoriteRemote:FireServer(item.UUID)
+                        end)
+                        
+                        if favSuccess then
+                            favorited = favorited + 1
+                            print("[AutoFav] ✓ Favorited:", fishInfo.Name)
+                        end
+                        
+                        task.wait(0.1)
+                    end
+                    
+                    if favorited > 0 then
+                        print("[AutoFav] Total favorited this cycle:", favorited)
+                    end
+                    
+                    task.wait(2)
+                end
+            end)
         else
-            WindUI:Notify("Auto Favorite", "OFF", 2)
+            print("[AutoFav] Stopped")
         end
     end
 })
@@ -1572,26 +1484,7 @@ favSection:Dropdown({
     Value = SelectedRarity,
     Callback = function(value)
         SelectedRarity = value
-        WindUI:Notify("Auto Favorite", "Rarity: " .. value, 2)
-    end
-})
-
--- Button (Batch mode - favorite inventory sekarang)
-favSection:Button({
-    Title = "Favorite Inventory Now",
-    Desc = "Favorite semua fish di inventory dengan rarity yang dipilih",
-    Callback = function()
-        WindUI:Notify("Auto Favorite", "Processing inventory...", 2)
-        
-        task.spawn(function()
-            local count = favoriteInventoryByRarity()
-            
-            if count > 0 then
-                WindUI:Notify("Success", "✓ Favorited " .. count .. "x " .. SelectedRarity .. " fish!", 3)
-            else
-                WindUI:Notify("Info", "No " .. SelectedRarity .. " fish to favorite", 2)
-            end
-        end)
+        print("[AutoFav] Rarity changed to:", value)
     end
 })
 
