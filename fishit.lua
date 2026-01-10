@@ -1388,11 +1388,12 @@ end
 item:Dropdown({
     Title = "Select Totem",
     Values = {"Mutations Totem", "Luck Totem"},
-    Default = SelectedTotem,
+    Value = SelectedTotem, -- ✅ FIX
     Callback = function(v)
         SelectedTotem = v
     end
 })
+
 
 item:Input({
     Title = "Totem Delay (Minutes)",
