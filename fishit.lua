@@ -1503,12 +1503,13 @@ favSection:Button({
 })
 
 -- =====================================
--- AUTO PLACE TOTEM (CLEAN FINAL VERSION)
+-- FULL AUTO PLACE TOTEM (FINAL STABLE)
 -- =====================================
 
 task.spawn(function()
+
     -- =========================
-    -- BASIC SETUP
+    -- SERVICES & STATE
     -- =========================
     local RS = game:GetService("ReplicatedStorage")
 
@@ -1516,14 +1517,15 @@ task.spawn(function()
     local Delay = 3600
     local SelectedTotem = "Mutation Totem"
 
-    local Remotes = {
-        EquipItem = nil,
-        EquipToolbar = nil,
-        SpawnTotem = nil
+    local Remotes = {}
+    local TotemUUIDs = {
+        ["Mutation Totem"] = nil,
+        ["Luck Totem"] = nil,
+        ["Shiny Totem"] = nil
     }
 
     -- =========================
-    -- UI (PASTI MUNCUL)
+    -- UI (SAFE)
     -- =========================
     task.wait(0.2)
 
@@ -1539,6 +1541,7 @@ task.spawn(function()
         Value = SelectedTotem,
         Callback = function(v)
             SelectedTotem = v
+            print("[AutoTotem] Selected:", v)
         end
     })
 
@@ -1564,56 +1567,77 @@ task.spawn(function()
     })
 
     sec:Button({
-        Title = "Debug Remotes",
+        Title = "UUID Status",
         Callback = function()
-            print("[AutoTotem] Remotes:", Remotes)
+            for k, v in pairs(TotemUUIDs) do
+                print(k, v and "✔ captured" or "✖ missing")
+            end
         end
     })
 
     print("[AutoTotem] UI Loaded ✔")
 
     -- =========================
-    -- REMOTE SCAN (AMAN)
+    -- REMOTE SCAN (SAFE LOOP)
     -- =========================
     task.spawn(function()
         local Net
 
         while not Net do
             pcall(function()
-                Net = RS.Packages
-                    :FindFirstChild("_Index")
-                    :FindFirstChild("sleitnick_net@0.2.0")
-                    :FindFirstChild("net")
+                Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
             end)
             task.wait(1)
         end
 
-        print("[AutoTotem] Net found ✔")
-
-        while true do
-            for _, r in ipairs(Net:GetChildren()) do
-                if r:IsA("RemoteEvent") then
-                    if r.Name == "RE/EquipItem" then
-                        Remotes.EquipItem = r
-                    elseif r.Name == "RE/EquipToolFromToolbar" then
-                        Remotes.EquipToolbar = r
-                    elseif r.Name == "RE/SpawnTotem" then
-                        Remotes.SpawnTotem = r
-                    end
+        for _, r in ipairs(Net:GetChildren()) do
+            if r:IsA("RemoteEvent") then
+                if r.Name == "RE/EquipItem" then
+                    Remotes.EquipItem = r
+                elseif r.Name == "RE/EquipToolFromToolbar" then
+                    Remotes.EquipToolbar = r
+                elseif r.Name == "RE/SpawnTotem" then
+                    Remotes.SpawnTotem = r
                 end
             end
+        end
 
-            if Remotes.EquipItem and Remotes.EquipToolbar and Remotes.SpawnTotem then
-                print("[AutoTotem] All remotes ready ✔")
-                break
-            end
-
-            task.wait(1)
+        if Remotes.EquipItem and Remotes.EquipToolbar and Remotes.SpawnTotem then
+            print("[AutoTotem] Remotes ready ✔")
+        else
+            warn("[AutoTotem] Some remotes missing")
         end
     end)
 
     -- =========================
-    -- AUTO LOOP (PLACE)
+    -- UUID CAPTURE (CORE)
+    -- =========================
+    task.spawn(function()
+        while not Remotes.EquipToolbar do task.wait(1) end
+
+        local old
+        old = hookmetamethod(game, "__namecall", function(self, ...)
+            local args = {...}
+            local method = getnamecallmethod()
+
+            if self == Remotes.EquipToolbar and method == "FireServer" then
+                local uuid = args[1]
+                if typeof(uuid) == "string" and uuid:find("-") then
+                    if not TotemUUIDs[SelectedTotem] then
+                        TotemUUIDs[SelectedTotem] = uuid
+                        print("[AutoTotem] UUID captured for", SelectedTotem, uuid)
+                    end
+                end
+            end
+
+            return old(self, ...)
+        end)
+
+        print("[AutoTotem] UUID capture armed ✔")
+    end)
+
+    -- =========================
+    -- FULL AUTO LOOP
     -- =========================
     task.spawn(function()
         while true do
@@ -1622,18 +1646,29 @@ task.spawn(function()
             if not Auto then continue end
             if not Remotes.SpawnTotem then continue end
 
-            print("[AutoTotem] Place attempt:", SelectedTotem)
+            local uuid = TotemUUIDs[SelectedTotem]
+            if not uuid then
+                warn("[AutoTotem] UUID missing for", SelectedTotem, "- equip once manually")
+                task.wait(2)
+                continue
+            end
 
-            -- NOTE:
-            -- Tanpa UUID dulu (biar aman & ga error)
+            print("[AutoTotem] Auto placing:", SelectedTotem)
+
             pcall(function()
+                Remotes.EquipItem:FireServer(uuid, "Totems")
+                task.wait(0.15)
+                Remotes.EquipToolbar:FireServer(uuid)
+                task.wait(0.15)
                 Remotes.SpawnTotem:FireServer()
             end)
 
             task.wait(Delay)
         end
     end)
+
 end)
+
 
 -- ==================== EVENT SECTION ====================
 local event = Tab4:Section({
