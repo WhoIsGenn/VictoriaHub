@@ -1580,135 +1580,50 @@ task.spawn(function()
 
     print("[AutoTotem] UI Loaded ✔")
 
-    -- ===============================
-    -- BACKGROUND REMOTE SCAN (SAFE)
-    -- ===============================
-
-    task.spawn(function()
-        while task.wait(1) do
-            if Remotes.SpawnTotem then continue end
-
-            local ok, net = pcall(function()
-                return RS.Packages._Index["sleitnick_net@0.2.0"].net
-            end)
-
-            if ok and net then
-                Remotes.EquipItem = net:FindFirstChild("RE/EquipItem")
-                Remotes.EquipToolbar = net:FindFirstChild("RE/EquipToolFromToolbar")
-                Remotes.SpawnTotem = net:FindFirstChild("RE/SpawnTotem")
-
-                if Remotes.EquipItem and Remotes.EquipToolbar and Remotes.SpawnTotem then
-                    print("[AutoTotem] Remotes detected ✔")
-                    break
-                end
-            end
-        end
-    end)
-
-    -- ===============================
-    -- AUTO LOOP (GA BLOK UI)
-    -- ===============================
-
-    task.spawn(function()
-        while task.wait(1) do
-            if not AutoTotem then continue end
-            if not Remotes.SpawnTotem then continue end
-
-            print("[AutoTotem] Spawning:", SelectedTotem)
-            pcall(function()
-                Remotes.SpawnTotem:FireServer()
-            end)
-
-            task.wait(Delay)
-        end
-    end)
-
-end)
-
 -- ===============================
--- AUTO TOTEM - UUID CAPTURE CORE
+-- AUTO TOTEM - REMOTE SCANNER
 -- ===============================
 
 task.spawn(function()
-    task.wait(1)
-
     local RS = game:GetService("ReplicatedStorage")
-
     local Net
-    pcall(function()
-        Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
-    end)
-    if not Net then
-        warn("[AutoTotem] Net not found")
-        return
+
+    print("[AutoTotem] Scanning net...")
+
+    while not Net do
+        pcall(function()
+            Net = RS.Packages
+                :FindFirstChild("_Index")
+                :FindFirstChild("sleitnick_net@0.2.0")
+                :FindFirstChild("net")
+        end)
+        task.wait(1)
     end
 
-    local EquipItem = Net:FindFirstChild("RE/EquipItem")
-    local EquipToolbar = Net:FindFirstChild("RE/EquipToolFromToolbar")
+    print("[AutoTotem] Net found ✔")
 
-    if not EquipItem or not EquipToolbar then
-        warn("[AutoTotem] Equip remotes missing")
-        return
-    end
+    while true do
+        for _, v in ipairs(Net:GetChildren()) do
+            if v:IsA("RemoteEvent") then
+                print("[AutoTotem] Remote:", v.Name)
 
-    -- ===============================
-    -- UUID CACHE
-    -- ===============================
-
-    _G.TotemUUIDs = _G.TotemUUIDs or {
-        ["Mutation Totem"] = nil,
-        ["Luck Totem"] = nil,
-        ["Shiny Totem"] = nil
-    }
-
-    print("[AutoTotem] UUID capture ready")
-
-    -- ===============================
-    -- CAPTURE UUID SAAT EQUIP TOOLBAR
-    -- ===============================
-
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local args = {...}
-        local method = getnamecallmethod()
-
-        if self == EquipToolbar and method == "FireServer" then
-            local uuid = args[1]
-            if typeof(uuid) == "string" then
-                -- heuristic: UUID panjang + ada dash
-                if uuid:find("-") then
-                    print("[AutoTotem] UUID captured:", uuid)
-
-                    -- simpan ke slot kosong
-                    for name, v in pairs(_G.TotemUUIDs) do
-                        if not v then
-                            _G.TotemUUIDs[name] = uuid
-                            print("[AutoTotem] Assigned to:", name)
-                            break
-                        end
-                    end
+                if v.Name == "RE/EquipItem" then
+                    _G.EquipItemRemote = v
+                elseif v.Name == "RE/EquipToolFromToolbar" then
+                    _G.EquipToolbarRemote = v
+                elseif v.Name == "RE/SpawnTotem" then
+                    _G.SpawnTotemRemote = v
                 end
             end
         end
 
-        return oldNamecall(self, ...)
-    end)
+        if _G.EquipItemRemote and _G.EquipToolbarRemote and _G.SpawnTotemRemote then
+            print("[AutoTotem] ALL REMOTES READY ✔")
+            break
+        end
 
-    -- ===============================
-    -- AUTO SILENT EQUIP (BACKGROUND)
-    -- ===============================
-
-    _G.AutoTotemSilentEquip = function(totemUUID)
-        if not totemUUID then return end
-
-        pcall(function()
-            EquipItem:FireServer(totemUUID, "Totems")
-            task.wait(0.15)
-            EquipToolbar:FireServer(totemUUID)
-        end)
+        task.wait(1.5)
     end
-
-    print("[AutoTotem] Silent equip function ready ✔")
 end)
 
 
