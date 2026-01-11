@@ -1502,22 +1502,17 @@ favSection:Button({
     end
 })
 
--- ===============================
--- AUTO PLACE TOTEM - UI ONLY FIX
--- ===============================
+-- =====================================
+-- AUTO PLACE TOTEM (CLEAN FINAL VERSION)
+-- =====================================
 
 task.spawn(function()
-    task.wait(0.5)
-
-    local Players = game:GetService("Players")
+    -- =========================
+    -- BASIC SETUP
+    -- =========================
     local RS = game:GetService("ReplicatedStorage")
-    local LP = Players.LocalPlayer
 
-    -- ===============================
-    -- STATE
-    -- ===============================
-
-    local AutoTotem = false
+    local Auto = false
     local Delay = 3600
     local SelectedTotem = "Mutation Totem"
 
@@ -1527,9 +1522,10 @@ task.spawn(function()
         SpawnTotem = nil
     }
 
-    -- ===============================
-    -- UI (DIBUAT DULU, NO DEPENDENCY)
-    -- ===============================
+    -- =========================
+    -- UI (PASTI MUNCUL)
+    -- =========================
+    task.wait(0.2)
 
     local sec = Tab4:Section({
         Title = "Auto Place Totem",
@@ -1538,7 +1534,7 @@ task.spawn(function()
     })
 
     sec:Dropdown({
-        Title = "Totem Type",
+        Title = "Select Totem",
         Values = {"Mutation Totem", "Luck Totem", "Shiny Totem"},
         Value = SelectedTotem,
         Callback = function(v)
@@ -1562,70 +1558,82 @@ task.spawn(function()
         Title = "Auto Place Totem",
         Value = false,
         Callback = function(v)
-            AutoTotem = v
+            Auto = v
             print("[AutoTotem] Toggle:", v)
         end
     })
 
     sec:Button({
-        Title = "Place Now (Manual)",
+        Title = "Debug Remotes",
         Callback = function()
-            if Remotes.SpawnTotem then
-                Remotes.SpawnTotem:FireServer()
-            else
-                warn("[AutoTotem] SpawnTotem remote not ready")
-            end
+            print("[AutoTotem] Remotes:", Remotes)
         end
     })
 
     print("[AutoTotem] UI Loaded ✔")
 
--- ===============================
--- AUTO TOTEM - REMOTE SCANNER
--- ===============================
+    -- =========================
+    -- REMOTE SCAN (AMAN)
+    -- =========================
+    task.spawn(function()
+        local Net
 
-task.spawn(function()
-    local RS = game:GetService("ReplicatedStorage")
-    local Net
+        while not Net do
+            pcall(function()
+                Net = RS.Packages
+                    :FindFirstChild("_Index")
+                    :FindFirstChild("sleitnick_net@0.2.0")
+                    :FindFirstChild("net")
+            end)
+            task.wait(1)
+        end
 
-    print("[AutoTotem] Scanning net...")
+        print("[AutoTotem] Net found ✔")
 
-    while not Net do
-        pcall(function()
-            Net = RS.Packages
-                :FindFirstChild("_Index")
-                :FindFirstChild("sleitnick_net@0.2.0")
-                :FindFirstChild("net")
-        end)
-        task.wait(1)
-    end
-
-    print("[AutoTotem] Net found ✔")
-
-    while true do
-        for _, v in ipairs(Net:GetChildren()) do
-            if v:IsA("RemoteEvent") then
-                print("[AutoTotem] Remote:", v.Name)
-
-                if v.Name == "RE/EquipItem" then
-                    _G.EquipItemRemote = v
-                elseif v.Name == "RE/EquipToolFromToolbar" then
-                    _G.EquipToolbarRemote = v
-                elseif v.Name == "RE/SpawnTotem" then
-                    _G.SpawnTotemRemote = v
+        while true do
+            for _, r in ipairs(Net:GetChildren()) do
+                if r:IsA("RemoteEvent") then
+                    if r.Name == "RE/EquipItem" then
+                        Remotes.EquipItem = r
+                    elseif r.Name == "RE/EquipToolFromToolbar" then
+                        Remotes.EquipToolbar = r
+                    elseif r.Name == "RE/SpawnTotem" then
+                        Remotes.SpawnTotem = r
+                    end
                 end
             end
-        end
 
-        if _G.EquipItemRemote and _G.EquipToolbarRemote and _G.SpawnTotemRemote then
-            print("[AutoTotem] ALL REMOTES READY ✔")
-            break
-        end
+            if Remotes.EquipItem and Remotes.EquipToolbar and Remotes.SpawnTotem then
+                print("[AutoTotem] All remotes ready ✔")
+                break
+            end
 
-        task.wait(1.5)
-    end
+            task.wait(1)
+        end
+    end)
+
+    -- =========================
+    -- AUTO LOOP (PLACE)
+    -- =========================
+    task.spawn(function()
+        while true do
+            task.wait(1)
+
+            if not Auto then continue end
+            if not Remotes.SpawnTotem then continue end
+
+            print("[AutoTotem] Place attempt:", SelectedTotem)
+
+            -- NOTE:
+            -- Tanpa UUID dulu (biar aman & ga error)
+            pcall(function()
+                Remotes.SpawnTotem:FireServer()
+            end)
+
+            task.wait(Delay)
+        end
+    end)
 end)
-
 
 -- ==================== EVENT SECTION ====================
 local event = Tab4:Section({
