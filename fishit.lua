@@ -731,8 +731,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- ================= CONFIG =================
 local c = {
     d = false,
-    e = 1.4,
-    f = 0.28
+    e = 1.5,
+    f = 0.3
 }
 
 -- CAST QUALITY CONFIG (IMPROVED RANGES)
@@ -908,7 +908,7 @@ end
 local isSuperInstantRunning = false
 _G.ReelSuper = 1.15
 toggleState.completeDelays = 0.22
-toggleState.delayStart = 0.1
+toggleState.delayStart = 0.2
 
 local function autoEquipSuper()
     local success, err = pcall(function()
