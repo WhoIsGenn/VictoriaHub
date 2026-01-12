@@ -603,23 +603,6 @@ local function lempar()
     end)
 end
 
--- Tambahan: Function untuk shake (klik cepat)
-local function shake()
-    safeCall("shake", function()
-        -- Coba event yang mungkin untuk shake/klik minigame
-        -- Ganti dengan event yang benar di game Anda
-        pcall(function()
-            net["RE/FishingMinigameClick"]:FireServer()
-        end)
-        pcall(function()
-            net["RE/FishingClick"]:FireServer()
-        end)
-        pcall(function()
-            net["RE/Click"]:FireServer()
-        end)
-    end)
-end
-
 local function instant_cycle()
     charge()
     lempar()
@@ -627,9 +610,109 @@ local function instant_cycle()
     catch()
 end
 
--- Variable untuk mendeteksi sedang fishing atau tidak
-local isCurrentlyFishing = false
-local shakeThread = nil
+-- Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+-- Function untuk virtual mouse click
+local function simulateMouseClick()
+    -- Menggunakan VirtualInputManager untuk simulasi mouse click
+    pcall(function()
+        -- Mouse button down (left click)
+        VirtualInputManager:SendMouseButtonEvent(
+            mouse.X,  -- X position
+            mouse.Y,  -- Y position
+            0,        -- Left mouse button (0 = left, 1 = middle, 2 = right)
+            true,     -- Down
+            game,     -- Game instance
+            0         -- Click delta time
+        )
+        
+        task.wait(0.05) -- Tunggu sebentar
+        
+        -- Mouse button up
+        VirtualInputManager:SendMouseButtonEvent(
+            mouse.X,
+            mouse.Y,
+            0,
+            false,    -- Up
+            game,
+            0
+        )
+    end)
+end
+
+-- Deteksi fishing minigame dengan cara sederhana
+local isFishingMinigameActive = false
+local clickThread = nil
+
+-- Function untuk deteksi minigame (sederhana)
+local function simpleCheckForFishing()
+    -- Cara 1: Cek jika ada notifikasi fishing di workspace
+    local fishingText = workspace:FindFirstChild("FishingNotification") or
+                       workspace:FindFirstChild("FishingText") or
+                       workspace:FindFirstChild("Catch!")
+    
+    if fishingText then
+        return true
+    end
+    
+    -- Cara 2: Cek PlayerGui untuk UI fishing
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if playerGui then
+        for _, gui in ipairs(playerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.Enabled then
+                -- Cari elemen yang umum di fishing minigame
+                local fishingElements = {"FishingBar", "FishBar", "CatchBar", "Minigame", "Progress"}
+                for _, elementName in ipairs(fishingElements) do
+                    if gui:FindFirstChild(elementName) then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Cara 3: Cek berdasarkan waktu (jika hook baru dilempar)
+    return false
+end
+
+-- Thread untuk auto click
+local function startAutoClicking()
+    if clickThread then
+        task.cancel(clickThread)
+    end
+    
+    clickThread = task.spawn(function()
+        print("Auto clicker started for fishing minigame")
+        local clickCount = 0
+        
+        while isFishingMinigameActive and _G.AutoFishing and mode == "Legit" do
+            simulateMouseClick()
+            clickCount = clickCount + 1
+            
+            -- Update mouse position (biar tetap di tengah layar)
+            pcall(function()
+                local viewport = workspace.CurrentCamera.ViewportSize
+                mouse.X = viewport.X / 2
+                mouse.Y = viewport.Y / 2
+            end)
+            
+            task.wait(0.08) -- Click sangat cepat (12.5 clicks per second)
+        end
+        
+        print("Auto clicker stopped. Total clicks:", clickCount)
+        clickThread = nil
+    end)
+end
+
+-- Monitoring thread
+local monitorThread = nil
 
 local Tab3 = Window:Tab({
     Title = "Main",
@@ -671,12 +754,15 @@ fishing:Dropdown({
                 task.cancel(fishThread) 
                 fishThread = nil
             end
-            -- Hentikan shake thread
-            if shakeThread then
-                task.cancel(shakeThread)
-                shakeThread = nil
+            if monitorThread then
+                task.cancel(monitorThread)
+                monitorThread = nil
             end
-            isCurrentlyFishing = false
+            if clickThread then
+                task.cancel(clickThread)
+                clickThread = nil
+            end
+            isFishingMinigameActive = false
         end
     end
 })
@@ -727,85 +813,107 @@ fishing:Toggle({
                 fishThread = task.spawn(function()
                     while _G.AutoFishing and mode == "Instant" do
                         instant_cycle()
-                        task.wait(_G.InstantDelay) -- Pakai delay yang bisa diatur
+                        task.wait(_G.InstantDelay)
                     end
                 end)
             else
-                -- Mode Legit dengan tambahan auto shake
+                -- Mode Legit dengan auto click
                 _G.Instant = false
+                
+                -- Hentikan semua thread sebelumnya
                 if fishThread then 
                     task.cancel(fishThread) 
                     fishThread = nil
                 end
-                
-                -- Hentikan thread shake sebelumnya jika ada
-                if shakeThread then
-                    task.cancel(shakeThread)
-                    shakeThread = nil
+                if monitorThread then
+                    task.cancel(monitorThread)
+                    monitorThread = nil
+                end
+                if clickThread then
+                    task.cancel(clickThread)
+                    clickThread = nil
                 end
                 
+                -- Mulai auto fishing biasa
                 fishThread = task.spawn(function()
                     while _G.AutoFishing and mode == "Legit" do
-                        -- Tandai sedang memancing
-                        isCurrentlyFishing = true
-                        
-                        -- Aktifkan auto fishing
                         autoon()
+                        task.wait(3) -- Tunggu 3 detik sebelum check lagi
+                    end
+                end)
+                
+                -- Mulai monitoring untuk fishing minigame
+                monitorThread = task.spawn(function()
+                    local lastHookTime = 0
+                    local hookInterval = 5 -- Asumsi hook setiap 5 detik
+                    
+                    while _G.AutoFishing and mode == "Legit" do
+                        -- Check jika sedang fishing minigame
+                        local wasFishing = isFishingMinigameActive
+                        isFishingMinigameActive = simpleCheckForFishing()
                         
-                        -- Tunggu sebentar untuk memberi waktu hook muncul
-                        task.wait(0.5)
-                        
-                        -- Mulai auto shake dengan delay yang cepat
-                        -- Ini akan berjalan selama sedang fishing
-                        local shakeActive = true
-                        local shakeTask = task.spawn(function()
-                            while shakeActive and _G.AutoFishing and mode == "Legit" and isCurrentlyFishing do
-                                shake()
-                                task.wait(0.15) -- Delay cepat untuk shake
+                        -- Deteksi berdasarkan waktu juga (fallback)
+                        local currentTime = tick()
+                        if currentTime - lastHookTime > hookInterval then
+                            -- Asumsi hook kena, mulai auto click
+                            if not isFishingMinigameActive then
+                                isFishingMinigameActive = true
+                                lastHookTime = currentTime
                             end
-                        end)
-                        
-                        -- Tunggu beberapa detik (durasi fishing normal)
-                        for i = 1, 20 do -- Maksimal 10 detik (20 x 0.5)
-                            if not _G.AutoFishing or mode ~= "Legit" then
-                                break
-                            end
-                            task.wait(0.5)
                         end
                         
-                        -- Hentikan shake untuk siklus berikutnya
-                        shakeActive = false
-                        isCurrentlyFishing = false
-                        
-                        if shakeTask then
-                            task.cancel(shakeTask)
+                        -- Start/stop auto clicker berdasarkan state
+                        if isFishingMinigameActive and not wasFishing then
+                            print("Fishing minigame detected - starting auto clicker")
+                            startAutoClicking()
+                            
+                            -- Auto stop setelah 7 detik (durasi fishing biasa)
+                            task.spawn(function()
+                                task.wait(7)
+                                if isFishingMinigameActive then
+                                    isFishingMinigameActive = false
+                                    if clickThread then
+                                        task.cancel(clickThread)
+                                        clickThread = nil
+                                    end
+                                end
+                            end)
+                        elseif not isFishingMinigameActive and wasFishing then
+                            print("Fishing minigame ended")
+                            if clickThread then
+                                task.cancel(clickThread)
+                                clickThread = nil
+                            end
                         end
                         
-                        -- Tunggu sebentar sebelum siklus berikutnya
-                        task.wait(0.5)
+                        task.wait(0.5) -- Check setiap 0.5 detik
                     end
                     
-                    -- Cleanup ketika loop berhenti
-                    if shakeThread then
-                        task.cancel(shakeThread)
-                        shakeThread = nil
+                    -- Cleanup
+                    if clickThread then
+                        task.cancel(clickThread)
+                        clickThread = nil
                     end
-                    isCurrentlyFishing = false
+                    isFishingMinigameActive = false
                 end)
             end
         else
             -- Matikan semua
             autooff()
             _G.Instant = false
-            if fishThread then 
-                task.cancel(fishThread) 
-                fishThread = nil
+            
+            -- Hentikan semua thread
+            local threads = {fishThread, monitorThread, clickThread}
+            for _, thread in ipairs(threads) do
+                if thread then
+                    task.cancel(thread)
+                end
             end
-            if shakeThread then
-                task.cancel(shakeThread)
-                shakeThread = nil
-            end
-            isCurrentlyFishing = false
+            
+            fishThread = nil
+            monitorThread = nil
+            clickThread = nil
+            isFishingMinigameActive = false
         end
     end
 })
