@@ -728,103 +728,126 @@ fishing:Toggle({
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- ========== CONFIG ==========
-local c={
-    d=false,
-    e=1.3,
-    f=0.28,
-    randomCast=true,  -- Enable random cast power
-    onlyBestCatch=true,  -- Only accept Perfect/Amazing/Great
-    allowedResults={"Perfect", "Amazing", "Great"}
+-- ================= CONFIG =================
+local c = {
+    d = false,
+    e = 1.4,
+    f = 0.25
 }
 
-local g=ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+-- CAST QUALITY CONFIG (IMPROVED RANGES)
+local CastQuality = {
+    Enabled = true,
+    Mode = "random", -- "Random", "Fixed", "Cycle"
+    FixedQuality = "Perfect",
+    Qualities = {
+        Perfect = {
+            AngleMin = -1.2332,
+            AngleMax = -1.2332,
+            PowerMin = 1.0000,
+            PowerMax = 1.0000
+        },
+        Amazing = {
+            AngleMin = -1.2332,
+            AngleMax = -1.2332,
+            PowerMin = 1.0000,
+            PowerMax = 1.0000
+        },
+        Great = {
+            AngleMin = -1.2332,
+            AngleMax = -1.2332,
+            PowerMin = 1.0000,
+            PowerMax = 1.0000
+        }
+    },
+    CycleIndex = 1
+}
 
+local g = ReplicatedStorage
+    :WaitForChild("Packages")
+    :WaitForChild("_Index")
+    :WaitForChild("sleitnick_net@0.2.0")
+    :WaitForChild("net")
+
+-- ================= REMOTES =================
 local h,i,j,k,l
 pcall(function()
-    h=g:WaitForChild("RF/ChargeFishingRod")
-    i=g:WaitForChild("RF/RequestFishingMinigameStarted")
-    j=g:WaitForChild("RE/FishingCompleted")
-    k=g:WaitForChild("RE/EquipToolFromHotbar")
-    l=g:WaitForChild("RF/CancelFishingInputs")
+    h = g:WaitForChild("RF/ChargeFishingRod")
+    i = g:WaitForChild("RF/RequestFishingMinigameStarted")
+    j = g:WaitForChild("RE/FishingCompleted")
+    k = g:WaitForChild("RE/EquipToolFromHotbar")
+    l = g:WaitForChild("RF/CancelFishingInputs")
 end)
 
-local m=nil
-local n=nil
+local m,n
 
--- ========== RANDOM CAST FUNCTION ==========
-local function getRandomCastPower()
-    if not c.randomCast then return math.huge end
-    
-    local rand = math.random(1, 100)
-    if rand <= 65 then
-        return math.random(92, 100) -- 65%: High power (Perfect/Amazing)
-    elseif rand <= 90 then
-        return math.random(82, 91)  -- 25%: Medium-high (Amazing/Great)
-    else
-        return math.random(75, 81)  -- 10%: Medium (Great/Good)
+-- ================= GET CAST VALUES =================
+local function getCastValues()
+    if not CastQuality.Enabled then
+        return -139.63796997070312, 0.9964792798079721
     end
+    
+    local quality
+    
+    if CastQuality.Mode == "Fixed" then
+        quality = CastQuality.Qualities[CastQuality.FixedQuality]
+    elseif CastQuality.Mode == "Cycle" then
+        local qualityNames = {"Perfect", "Amazing", "Great"}
+        quality = CastQuality.Qualities[qualityNames[CastQuality.CycleIndex]]
+        CastQuality.CycleIndex = (CastQuality.CycleIndex % 3) + 1
+    else -- Random
+        local qualityNames = {"Perfect", "Amazing", "Great"}
+        local randomQuality = qualityNames[math.random(#qualityNames)]
+        quality = CastQuality.Qualities[randomQuality]
+    end
+    
+    -- Random value dalam range
+    local angle = math.random() * (quality.AngleMax - quality.AngleMin) + quality.AngleMin
+    local power = math.random() * (quality.PowerMax - quality.PowerMin) + quality.PowerMin
+    
+    return angle, power
 end
 
--- ========== CHECK RESULT FUNCTION ==========
-local function isGoodCatch(result)
-    if not c.onlyBestCatch then return true end
-    
-    for _, allowed in ipairs(c.allowedResults) do
-        if string.find(string.lower(tostring(result)), string.lower(allowed)) then
-            return true
-        end
-    end
-    return false
-end
-
--- ========== FISHING FUNCTION ==========
+-- ================= ORIGINAL CAST =================
 local function p()
     task.spawn(function()
         pcall(function()
-            local q,r=l:InvokeServer()
+            local q = l:InvokeServer()
             if not q then
                 while not q do
-                    local s=l:InvokeServer()
+                    local s = l:InvokeServer()
                     if s then break end
                     task.wait(0.05)
                 end
             end
 
-            -- Random cast power
-            local castPower = getRandomCastPower()
-            local t,u=h:InvokeServer(castPower)
-            
+            local t = h:InvokeServer(math.huge)
             if not t then
                 while not t do
-                    local v=h:InvokeServer(castPower)
+                    local v = h:InvokeServer(math.huge)
                     if v then break end
                     task.wait(0.05)
                 end
             end
 
-            local minigameResult = i:InvokeServer(-139.63,0.996)
-            
-            -- Note: Kalau server return result, check di sini
-            -- if minigameResult and not isGoodCatch(minigameResult) then
-            --     return -- Skip kalau hasil jelek
-            -- end
+            local angle, power = getCastValues()
+            i:InvokeServer(angle, power)
         end)
     end)
 
     task.spawn(function()
         task.wait(c.f)
         if c.d then
-            pcall(j.FireServer,j)
+            pcall(j.FireServer, j)
         end
     end)
 end
 
--- ========== LOOP FUNCTION ==========
+-- ================= LOOP =================
 local function w()
-    n=task.spawn(function()
+    n = task.spawn(function()
         while c.d do
-            pcall(k.FireServer,k,1)
+            pcall(k.FireServer, k, 1)
             task.wait(1.5)
         end
     end)
@@ -837,25 +860,20 @@ local function w()
     end
 end
 
--- ========== TOGGLE FUNCTION ==========
-local function x(y)
-    c.d=y
-    if y then
+-- ================= TOGGLE =================
+local function x(state)
+    c.d = state
+    if state then
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m=task.spawn(w)
+        m = task.spawn(w)
     else
         if m then task.cancel(m) end
         if n then task.cancel(n) end
-        m=nil
-        n=nil
-        pcall(l.InvokeServer,l)
+        m,n = nil,nil
+        pcall(l.InvokeServer, l)
     end
 end
-
--- ========== USAGE ==========
--- x(true)  -- Start
--- x(false) -- Stop
 
 -- ========== BLANTANT V1 CONFIG & FUNCTIONS (FIXED) ==========
 local netFolder = ReplicatedStorage:WaitForChild('Packages')
@@ -888,9 +906,9 @@ FishingController.RequestChargeFishingRod = function(...)
 end
 
 local isSuperInstantRunning = false
-_G.ReelSuper = 1.15
-toggleState.completeDelays = 0.30
-toggleState.delayStart = 0.3
+_G.ReelSuper = 1.2
+toggleState.completeDelays = 0.22
+toggleState.delayStart = 0.1
 
 local function autoEquipSuper()
     local success, err = pcall(function()
@@ -1483,6 +1501,174 @@ favSection:Button({
         print("[AutoFav] Tracking cleared!")
     end
 })
+
+-- =====================================
+-- FULL AUTO PLACE TOTEM (FINAL STABLE)
+-- =====================================
+
+task.spawn(function()
+
+    -- =========================
+    -- SERVICES & STATE
+    -- =========================
+    local RS = game:GetService("ReplicatedStorage")
+
+    local Auto = false
+    local Delay = 3600
+    local SelectedTotem = "Mutation Totem"
+
+    local Remotes = {}
+    local TotemUUIDs = {
+        ["Mutation Totem"] = nil,
+        ["Luck Totem"] = nil,
+        ["Shiny Totem"] = nil
+    }
+
+    -- =========================
+    -- UI (SAFE)
+    -- =========================
+    task.wait(0.2)
+
+    local sec = Tab4:Section({
+        Title = "Auto Place Totem",
+        Icon = "snowflake",
+        TextSize = 17
+    })
+
+    sec:Dropdown({
+        Title = "Select Totem",
+        Values = {"Mutation Totem", "Luck Totem", "Shiny Totem"},
+        Value = SelectedTotem,
+        Callback = function(v)
+            SelectedTotem = v
+            print("[AutoTotem] Selected:", v)
+        end
+    })
+
+    sec:Input({
+        Title = "Delay (seconds)",
+        Placeholder = "3600",
+        Value = "3600",
+        Callback = function(v)
+            local n = tonumber(v)
+            if n and n > 0 then
+                Delay = n
+            end
+        end
+    })
+
+    sec:Toggle({
+        Title = "Auto Place Totem",
+        Value = false,
+        Callback = function(v)
+            Auto = v
+            print("[AutoTotem] Toggle:", v)
+        end
+    })
+
+    sec:Button({
+        Title = "UUID Status",
+        Callback = function()
+            for k, v in pairs(TotemUUIDs) do
+                print(k, v and "✔ captured" or "✖ missing")
+            end
+        end
+    })
+
+    print("[AutoTotem] UI Loaded ✔")
+
+    -- =========================
+    -- REMOTE SCAN (SAFE LOOP)
+    -- =========================
+    task.spawn(function()
+        local Net
+
+        while not Net do
+            pcall(function()
+                Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
+            end)
+            task.wait(1)
+        end
+
+        for _, r in ipairs(Net:GetChildren()) do
+            if r:IsA("RemoteEvent") then
+                if r.Name == "RE/EquipItem" then
+                    Remotes.EquipItem = r
+                elseif r.Name == "RE/EquipToolFromToolbar" then
+                    Remotes.EquipToolbar = r
+                elseif r.Name == "RE/SpawnTotem" then
+                    Remotes.SpawnTotem = r
+                end
+            end
+        end
+
+        if Remotes.EquipItem and Remotes.EquipToolbar and Remotes.SpawnTotem then
+            print("[AutoTotem] Remotes ready ✔")
+        else
+            warn("[AutoTotem] Some remotes missing")
+        end
+    end)
+
+    -- =========================
+    -- UUID CAPTURE (CORE)
+    -- =========================
+    task.spawn(function()
+        while not Remotes.EquipToolbar do task.wait(1) end
+
+        local old
+        old = hookmetamethod(game, "__namecall", function(self, ...)
+            local args = {...}
+            local method = getnamecallmethod()
+
+            if self == Remotes.EquipToolbar and method == "FireServer" then
+                local uuid = args[1]
+                if typeof(uuid) == "string" and uuid:find("-") then
+                    if not TotemUUIDs[SelectedTotem] then
+                        TotemUUIDs[SelectedTotem] = uuid
+                        print("[AutoTotem] UUID captured for", SelectedTotem, uuid)
+                    end
+                end
+            end
+
+            return old(self, ...)
+        end)
+
+        print("[AutoTotem] UUID capture armed ✔")
+    end)
+
+    -- =========================
+    -- FULL AUTO LOOP
+    -- =========================
+    task.spawn(function()
+        while true do
+            task.wait(1)
+
+            if not Auto then continue end
+            if not Remotes.SpawnTotem then continue end
+
+            local uuid = TotemUUIDs[SelectedTotem]
+            if not uuid then
+                warn("[AutoTotem] UUID missing for", SelectedTotem, "- equip once manually")
+                task.wait(2)
+                continue
+            end
+
+            print("[AutoTotem] Auto placing:", SelectedTotem)
+
+            pcall(function()
+                Remotes.EquipItem:FireServer(uuid, "Totems")
+                task.wait(0.15)
+                Remotes.EquipToolbar:FireServer(uuid)
+                task.wait(0.15)
+                Remotes.SpawnTotem:FireServer()
+            end)
+
+            task.wait(Delay)
+        end
+    end)
+
+end)
+
 
 -- ==================== EVENT SECTION ====================
 local event = Tab4:Section({
