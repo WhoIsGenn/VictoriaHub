@@ -731,14 +731,14 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- ================= CONFIG =================
 local c = {
     d = false,
-    e = 1.5,
-    f = 0.3
+    e = 1.45,
+    f = 0.32
 }
 
 -- CAST QUALITY CONFIG (IMPROVED RANGES)
 local CastQuality = {
     Enabled = true,
-    Mode = "random", -- "Random", "Fixed", "Cycle"
+    Mode = "perfect", -- "Random", "Fixed", "Cycle"
     FixedQuality = "Perfect",
     Qualities = {
         Perfect = {
@@ -875,89 +875,6 @@ local function x(state)
     end
 end
 
--- ========== BLANTANT V1 CONFIG & FUNCTIONS (FIXED) ==========
-local netFolder = ReplicatedStorage:WaitForChild('Packages')
-    :WaitForChild('_Index')
-    :WaitForChild('sleitnick_net@0.2.0')
-    :WaitForChild('net')
-
-local Remotes = {}
-Remotes.RF_RequestFishingMinigameStarted = netFolder:WaitForChild("RF/RequestFishingMinigameStarted")
-Remotes.RF_ChargeFishingRod = netFolder:WaitForChild("RF/ChargeFishingRod")
-Remotes.RF_CancelFishing = netFolder:WaitForChild("RF/CancelFishingInputs")
-Remotes.RE_FishingCompleted = netFolder:WaitForChild("RE/FishingCompleted")
-Remotes.RE_EquipTool = netFolder:WaitForChild("RE/EquipToolFromHotbar")
-
-local toggleState = {
-    blatantRunning = false,
-}
-
-local FishingController = require(
-    ReplicatedStorage:WaitForChild('Controllers')
-        :WaitForChild('FishingController')
-)
-
-local oldCharge = FishingController.RequestChargeFishingRod
-FishingController.RequestChargeFishingRod = function(...)
-    if toggleState.blatantRunning then
-        return
-    end
-    return oldCharge(...)
-end
-
-local isSuperInstantRunning = false
-_G.ReelSuper = 1.15
-toggleState.completeDelays = 0.22
-toggleState.delayStart = 0.2
-
-local function autoEquipSuper()
-    local success, err = pcall(function()
-        Remotes.RE_EquipTool:FireServer(1)
-    end)
-end
-
-local function superInstantFishingCycle()
-    task.spawn(function()
-        pcall(function()
-            Remotes.RF_CancelFishing:InvokeServer()
-            task.wait(0.05)
-            Remotes.RF_ChargeFishingRod:InvokeServer(tick())
-            task.wait(0.05)
-            Remotes.RF_RequestFishingMinigameStarted:InvokeServer(-139.63796997070312, 0.9964792798079721)
-            task.wait(toggleState.completeDelays)
-            Remotes.RE_FishingCompleted:FireServer()
-        end)
-    end)
-end
-
-local function startSuperInstantFishing()
-    if isSuperInstantRunning then return end
-    isSuperInstantRunning = true
-    toggleState.blatantRunning = true
-
-    -- Auto equip fishing rod
-    autoEquipSuper()
-    task.wait(0.5)
-
-    task.spawn(function()
-        while isSuperInstantRunning do
-            superInstantFishingCycle()
-            task.wait(math.max(_G.ReelSuper, 0.1))
-        end
-    end)
-end
-
-local function stopSuperInstantFishing()
-    isSuperInstantRunning = false
-    toggleState.blatantRunning = false
-    
-    -- Cancel any ongoing fishing
-    pcall(function()
-        Remotes.RF_CancelFishing:InvokeServer()
-    end)
-    
-end
-
 -- ========== AUTO PERFECTION FUNCTIONS (ASLI) ==========
 local RS = game:GetService("ReplicatedStorage")
 local Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
@@ -1028,67 +945,9 @@ local function doRecoveryFishing()
     end)
 end
 
--- ========== SECTION 1: BLANTANT V1 ==========
-blantantV1 = Tab3:Section({ 
-    Title = "Blantant V1",
-    Icon = "fish",
-    TextTransparency = 0.05,
-    TextXAlignment = "Left",
-    TextSize = 17,
-})
-
-blantantV1:Toggle({
-    Title = "Blatant V1",
-    Value = false,
-    Callback = function(value)
-        if value then
-            startSuperInstantFishing()
-        else
-            stopSuperInstantFishing()
-        end
-    end
-})
-
-blantantV1:Input({
-    Title = "Reel Delay",
-    Placeholder = "Delay (seconds)",
-    Default = tostring(_G.ReelSuper),
-    Callback = function(input)
-        local num = tonumber(input)
-        if num and num >= 0 then
-            _G.ReelSuper = num
-        end
-    end
-})
-
-blantantV1:Input({
-    Title = "Custom Complete Delay",
-    Placeholder = "Delay (seconds)",
-    Default = tostring(toggleState.completeDelays),
-    Callback = function(input)
-        local num = tonumber(input)
-        if num and num > 0 then
-            toggleState.completeDelays = num
-        end
-    end
-})
-
-blantantV1:Button({
-    Title = "Recovery Fishing",
-    Callback = function()
-        doRecoveryFishing()
-        WindUI:Notify({
-            Title = "Recovery Fishing",
-            Content = "Recovery completed!",
-            Duration = 3,
-            Icon = "check"
-        })
-    end
-})
-
 -- ========== SECTION 2: BLANTANT V2 ==========
 blantantV2 = Tab3:Section({ 
-    Title = "Blantant V2",
+    Title = "Blantant Featured",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -1096,7 +955,7 @@ blantantV2 = Tab3:Section({
 })
 
 blantantV2:Toggle({
-    Title = "Blantant V2",
+    Title = "Blantant",
     Value = c.d,
     Callback = function(z2)
         x(z2)
@@ -1503,168 +1362,490 @@ favSection:Button({
 })
 
 -- =====================================
--- FULL AUTO PLACE TOTEM (FINAL STABLE)
+-- AUTO PLACE TOTEM V2 (HUB STYLE)
+-- Pilih totem → Auto detect → Auto spawn
 -- =====================================
 
 task.spawn(function()
+    print("[AutoTotem V2] Loading...")
 
     -- =========================
-    -- SERVICES & STATE
+    -- SERVICES
     -- =========================
     local RS = game:GetService("ReplicatedStorage")
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
 
-    local Auto = false
-    local Delay = 3600
-    local SelectedTotem = "Mutation Totem"
-
-    local Remotes = {}
-    local TotemUUIDs = {
-        ["Mutation Totem"] = nil,
-        ["Luck Totem"] = nil,
-        ["Shiny Totem"] = nil
+    -- =========================
+    -- CONFIG
+    -- =========================
+    local Config = {
+        Enabled = false,
+        SelectedTotem = "Mutation Totem",
+        AutoSpawnDelay = 3600, -- Cooldown between spawns
+        CheckInventoryDelay = 2, -- Check inventory setiap X detik
     }
 
     -- =========================
-    -- UI (SAFE)
+    -- STATE
     -- =========================
-    task.wait(0.2)
+    local State = {
+        Remotes = {},
+        CurrentTotemUUID = nil,
+        LastSpawnTime = 0,
+        IsSpawning = false,
+        InventoryChecked = false
+    }
+
+    -- =========================
+    -- TOTEM DATABASE
+    -- =========================
+    local TotemDatabase = {
+        ["Mutation Totem"] = {
+            displayName = "Mutation Totem",
+            searchKeywords = {"mutation", "Mutation"},
+            category = "Totems"
+        },
+        ["Luck Totem"] = {
+            displayName = "Luck Totem",
+            searchKeywords = {"luck", "Luck"},
+            category = "Totems"
+        },
+        ["Shiny Totem"] = {
+            displayName = "Shiny Totem",
+            searchKeywords = {"shiny", "Shiny"},
+            category = "Totems"
+        }
+    }
+
+    -- =========================
+    -- FIND REMOTES
+    -- =========================
+    local function findRemotes()
+        print("[AutoTotem] Searching for remotes...")
+        
+        local function searchInFolder(folder)
+            if not folder then return end
+            
+            for _, child in ipairs(folder:GetDescendants()) do
+                if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+                    local name = child.Name:lower()
+                    
+                    -- Equip Item
+                    if name:find("equipitem") and not State.Remotes.EquipItem then
+                        State.Remotes.EquipItem = child
+                        print("  ✔ Found EquipItem:", child:GetFullName())
+                    end
+                    
+                    -- Equip Toolbar
+                    if (name:find("equiptool") and name:find("toolbar")) or 
+                       (name:find("equiptool") and name:find("hotbar")) then
+                        State.Remotes.EquipToolbar = child
+                        print("  ✔ Found EquipToolbar:", child:GetFullName())
+                    end
+                    
+                    -- Spawn Totem
+                    if name:find("spawntotem") or name:find("placetotem") then
+                        State.Remotes.SpawnTotem = child
+                        print("  ✔ Found SpawnTotem:", child:GetFullName())
+                    end
+                end
+            end
+        end
+
+        -- Search in common locations
+        local searchPaths = {
+            RS:FindFirstChild("Packages"),
+            RS:FindFirstChild("Network"),
+            RS:FindFirstChild("Remotes"),
+            RS:FindFirstChild("Net"),
+        }
+
+        for _, path in ipairs(searchPaths) do
+            if path then searchInFolder(path) end
+        end
+
+        -- Verify all remotes found
+        local allFound = State.Remotes.EquipItem and 
+                        State.Remotes.EquipToolbar and 
+                        State.Remotes.SpawnTotem
+
+        if allFound then
+            print("[AutoTotem] ✔ All remotes ready!")
+            return true
+        else
+            warn("[AutoTotem] ✖ Missing remotes - retrying in 3s...")
+            return false
+        end
+    end
+
+    -- =========================
+    -- DETECT TOTEM IN INVENTORY
+    -- =========================
+    local function detectTotemUUID(totemName)
+        local totemInfo = TotemDatabase[totemName]
+        if not totemInfo then return nil end
+
+        print(string.format("[AutoTotem] Detecting '%s' in inventory...", totemName))
+
+        local detectedUUID = nil
+
+        -- Method 1: Hook EquipToolbar calls
+        local oldNamecall
+        local hookActive = true
+        
+        oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+            if not hookActive then return oldNamecall(self, ...) end
+            
+            local method = getnamecallmethod()
+            local args = {...}
+
+            -- Capture UUID from toolbar equip
+            if self == State.Remotes.EquipToolbar and method == "FireServer" then
+                local uuid = args[1]
+                if typeof(uuid) == "string" and #uuid > 20 then
+                    detectedUUID = uuid
+                    hookActive = false -- Stop hook after capture
+                end
+            end
+
+            return oldNamecall(self, ...)
+        end))
+
+        -- Auto-equip totem to trigger hook
+        task.spawn(function()
+            for attempt = 1, 3 do
+                if detectedUUID then break end
+                
+                pcall(function()
+                    -- Try to find and equip totem
+                    -- This assumes inventory has items with searchable names
+                    local inventory = LocalPlayer:FindFirstChild("Backpack") or 
+                                     LocalPlayer:FindFirstChild("Character")
+                    
+                    if inventory then
+                        for _, item in ipairs(inventory:GetChildren()) do
+                            if item:IsA("Tool") then
+                                for _, keyword in ipairs(totemInfo.searchKeywords) do
+                                    if item.Name:find(keyword) then
+                                        -- Equip to trigger hook
+                                        State.Remotes.EquipToolbar:FireServer(item:GetAttribute("UUID") or item.Name)
+                                        task.wait(0.3)
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+                
+                task.wait(0.5)
+            end
+        end)
+
+        -- Wait for detection
+        local timeout = tick() + 5
+        while not detectedUUID and tick() < timeout do
+            task.wait(0.1)
+        end
+
+        hookActive = false
+
+        if detectedUUID then
+            print(string.format("[AutoTotem] ✔ Detected UUID: %s", detectedUUID))
+            return detectedUUID
+        else
+            warn(string.format("[AutoTotem] ✖ Could not detect '%s'", totemName))
+            return nil
+        end
+    end
+
+    -- =========================
+    -- ALTERNATIVE: SCAN PLAYER DATA
+    -- =========================
+    local function scanPlayerDataForTotem(totemName)
+        local totemInfo = TotemDatabase[totemName]
+        if not totemInfo then return nil end
+
+        print("[AutoTotem] Scanning PlayerData for totem...")
+
+        local foundUUID = nil
+
+        pcall(function()
+            -- Common inventory storage locations
+            local dataPaths = {
+                LocalPlayer:FindFirstChild("PlayerData"),
+                LocalPlayer:FindFirstChild("Data"),
+                LocalPlayer:FindFirstChild("Inventory"),
+                RS:FindFirstChild("PlayerData"),
+            }
+
+            for _, dataFolder in ipairs(dataPaths) do
+                if dataFolder then
+                    -- Search recursively
+                    for _, item in ipairs(dataFolder:GetDescendants()) do
+                        if item:IsA("ValueBase") or item:IsA("Folder") then
+                            local itemName = item.Name or ""
+                            
+                            -- Check if matches totem keywords
+                            for _, keyword in ipairs(totemInfo.searchKeywords) do
+                                if itemName:find(keyword) then
+                                    -- Try to find UUID attribute or child
+                                    foundUUID = item:GetAttribute("UUID") or 
+                                               item:GetAttribute("Id") or
+                                               item:FindFirstChild("UUID") and item.UUID.Value or
+                                               item.Value
+                                    
+                                    if foundUUID and typeof(foundUUID) == "string" then
+                                        print(string.format("[AutoTotem] ✔ Found UUID in data: %s", foundUUID))
+                                        return foundUUID
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+
+        return foundUUID
+    end
+
+    -- =========================
+    -- SMART TOTEM DETECTION
+    -- =========================
+    local function smartDetectTotem(totemName)
+        print(string.format("[AutoTotem] Starting smart detection for '%s'...", totemName))
+
+        -- Try Method 1: Scan PlayerData
+        local uuid = scanPlayerDataForTotem(totemName)
+        if uuid then return uuid end
+
+        -- Try Method 2: Hook & Auto-equip
+        uuid = detectTotemUUID(totemName)
+        if uuid then return uuid end
+
+        warn("[AutoTotem] ✖ All detection methods failed!")
+        return nil
+    end
+
+    -- =========================
+    -- SPAWN TOTEM
+    -- =========================
+    local function spawnTotem()
+        if State.IsSpawning then 
+            warn("[AutoTotem] Already spawning, skipping...")
+            return false 
+        end
+
+        if not State.CurrentTotemUUID then
+            warn("[AutoTotem] No totem UUID available!")
+            return false
+        end
+
+        State.IsSpawning = true
+        local success = false
+
+        pcall(function()
+            local totemInfo = TotemDatabase[Config.SelectedTotem]
+            
+            print(string.format("[AutoTotem] Spawning '%s'...", Config.SelectedTotem))
+
+            -- Equip sequence
+            State.Remotes.EquipItem:FireServer(State.CurrentTotemUUID, totemInfo.category)
+            task.wait(0.25)
+
+            State.Remotes.EquipToolbar:FireServer(State.CurrentTotemUUID)
+            task.wait(0.25)
+
+            State.Remotes.SpawnTotem:FireServer()
+            task.wait(0.15)
+
+            print("[AutoTotem] ✔ Totem spawned successfully!")
+            success = true
+            State.LastSpawnTime = tick()
+        end)
+
+        State.IsSpawning = false
+        return success
+    end
+
+    -- =========================
+    -- AUTO SPAWN LOOP
+    -- =========================
+    local function autoSpawnLoop()
+        while true do
+            task.wait(1)
+
+            if not Config.Enabled then continue end
+            if not State.Remotes.SpawnTotem then continue end
+
+            -- Check if cooldown passed
+            local timeSinceSpawn = tick() - State.LastSpawnTime
+            if timeSinceSpawn < Config.AutoSpawnDelay then continue end
+
+            -- Check if UUID available
+            if not State.CurrentTotemUUID then
+                print("[AutoTotem] No UUID - attempting detection...")
+                State.CurrentTotemUUID = smartDetectTotem(Config.SelectedTotem)
+                
+                if not State.CurrentTotemUUID then
+                    warn("[AutoTotem] Detection failed - waiting 10s before retry...")
+                    task.wait(10)
+                    continue
+                end
+            end
+
+            -- Spawn
+            spawnTotem()
+        end
+    end
+
+    -- =========================
+    -- ON TOTEM CHANGE
+    -- =========================
+    local function onTotemChanged(newTotem)
+        print(string.format("[AutoTotem] Totem changed to '%s'", newTotem))
+        
+        Config.SelectedTotem = newTotem
+        State.CurrentTotemUUID = nil -- Reset UUID
+        State.InventoryChecked = false
+
+        -- Immediately detect new totem
+        if Config.Enabled then
+            task.spawn(function()
+                task.wait(0.5)
+                State.CurrentTotemUUID = smartDetectTotem(newTotem)
+                
+                if State.CurrentTotemUUID then
+                    print("[AutoTotem] ✔ Ready to spawn!")
+                end
+            end)
+        end
+    end
+
+    -- =========================
+    -- UI SETUP
+    -- =========================
+    task.wait(0.3)
 
     local sec = Tab4:Section({
-        Title = "Auto Place Totem",
-        Icon = "snowflake",
+        Title = "Auto Place Totem V2",
+        Icon = "zap",
         TextSize = 17
     })
 
     sec:Dropdown({
         Title = "Select Totem",
         Values = {"Mutation Totem", "Luck Totem", "Shiny Totem"},
-        Value = SelectedTotem,
+        Value = Config.SelectedTotem,
         Callback = function(v)
-            SelectedTotem = v
-            print("[AutoTotem] Selected:", v)
+            onTotemChanged(v)
         end
     })
 
     sec:Input({
-        Title = "Delay (seconds)",
+        Title = "Auto Spawn Delay (seconds)",
         Placeholder = "3600",
-        Value = "3600",
+        Value = tostring(Config.AutoSpawnDelay),
         Callback = function(v)
             local n = tonumber(v)
-            if n and n > 0 then
-                Delay = n
+            if n and n >= 60 then
+                Config.AutoSpawnDelay = n
+                print("[AutoTotem] Delay updated:", n, "seconds")
+            else
+                warn("[AutoTotem] Delay must be >= 60 seconds")
             end
         end
     })
 
     sec:Toggle({
-        Title = "Auto Place Totem",
+        Title = "Enable Auto Spawn",
         Value = false,
         Callback = function(v)
-            Auto = v
-            print("[AutoTotem] Toggle:", v)
+            Config.Enabled = v
+            
+            if v then
+                print("[AutoTotem] ✔ ENABLED - Auto detection started...")
+                
+                -- Immediate detection on enable
+                task.spawn(function()
+                    if not State.CurrentTotemUUID then
+                        State.CurrentTotemUUID = smartDetectTotem(Config.SelectedTotem)
+                    end
+                end)
+            else
+                print("[AutoTotem] ✖ DISABLED")
+            end
         end
     })
 
     sec:Button({
-        Title = "UUID Status",
+        Title = "Spawn Now",
         Callback = function()
-            for k, v in pairs(TotemUUIDs) do
-                print(k, v and "✔ captured" or "✖ missing")
+            if not State.CurrentTotemUUID then
+                print("[AutoTotem] Detecting totem first...")
+                State.CurrentTotemUUID = smartDetectTotem(Config.SelectedTotem)
+            end
+
+            if State.CurrentTotemUUID then
+                spawnTotem()
+            else
+                warn("[AutoTotem] Cannot spawn - totem not found in inventory!")
             end
         end
     })
 
-    print("[AutoTotem] UI Loaded ✔")
-
-    -- =========================
-    -- REMOTE SCAN (SAFE LOOP)
-    -- =========================
-    task.spawn(function()
-        local Net
-
-        while not Net do
-            pcall(function()
-                Net = RS.Packages._Index["sleitnick_net@0.2.0"].net
-            end)
-            task.wait(1)
-        end
-
-        for _, r in ipairs(Net:GetChildren()) do
-            if r:IsA("RemoteEvent") then
-                if r.Name == "RE/EquipItem" then
-                    Remotes.EquipItem = r
-                elseif r.Name == "RE/EquipToolFromToolbar" then
-                    Remotes.EquipToolbar = r
-                elseif r.Name == "RE/SpawnTotem" then
-                    Remotes.SpawnTotem = r
-                end
+    sec:Button({
+        Title = "Re-Detect Totem",
+        Callback = function()
+            print("[AutoTotem] Forcing re-detection...")
+            State.CurrentTotemUUID = smartDetectTotem(Config.SelectedTotem)
+            
+            if State.CurrentTotemUUID then
+                print("[AutoTotem] ✔ Detection successful!")
+            else
+                warn("[AutoTotem] ✖ Detection failed - check inventory!")
             end
         end
+    })
 
-        if Remotes.EquipItem and Remotes.EquipToolbar and Remotes.SpawnTotem then
-            print("[AutoTotem] Remotes ready ✔")
-        else
-            warn("[AutoTotem] Some remotes missing")
+    sec:Button({
+        Title = "Status",
+        Callback = function()
+            print("=== AUTO TOTEM STATUS ===")
+            print("Selected:", Config.SelectedTotem)
+            print("UUID:", State.CurrentTotemUUID or "Not detected")
+            print("Auto Spawn:", Config.Enabled and "ON" or "OFF")
+            print("Next spawn in:", math.max(0, Config.AutoSpawnDelay - (tick() - State.LastSpawnTime)), "seconds")
+            print("Remotes:", State.Remotes.SpawnTotem and "Ready" or "Not found")
         end
-    end)
+    })
+
+    print("[AutoTotem V2] ✔ UI Loaded")
 
     -- =========================
-    -- UUID CAPTURE (CORE)
+    -- INITIALIZE
     -- =========================
     task.spawn(function()
-        while not Remotes.EquipToolbar do task.wait(1) end
-
-        local old
-        old = hookmetamethod(game, "__namecall", function(self, ...)
-            local args = {...}
-            local method = getnamecallmethod()
-
-            if self == Remotes.EquipToolbar and method == "FireServer" then
-                local uuid = args[1]
-                if typeof(uuid) == "string" and uuid:find("-") then
-                    if not TotemUUIDs[SelectedTotem] then
-                        TotemUUIDs[SelectedTotem] = uuid
-                        print("[AutoTotem] UUID captured for", SelectedTotem, uuid)
-                    end
-                end
-            end
-
-            return old(self, ...)
-        end)
-
-        print("[AutoTotem] UUID capture armed ✔")
-    end)
-
-    -- =========================
-    -- FULL AUTO LOOP
-    -- =========================
-    task.spawn(function()
-        while true do
-            task.wait(1)
-
-            if not Auto then continue end
-            if not Remotes.SpawnTotem then continue end
-
-            local uuid = TotemUUIDs[SelectedTotem]
-            if not uuid then
-                warn("[AutoTotem] UUID missing for", SelectedTotem, "- equip once manually")
-                task.wait(2)
-                continue
-            end
-
-            print("[AutoTotem] Auto placing:", SelectedTotem)
-
-            pcall(function()
-                Remotes.EquipItem:FireServer(uuid, "Totems")
-                task.wait(0.15)
-                Remotes.EquipToolbar:FireServer(uuid)
-                task.wait(0.15)
-                Remotes.SpawnTotem:FireServer()
-            end)
-
-            task.wait(Delay)
+        -- Find remotes
+        local remotesFound = false
+        for attempt = 1, 5 do
+            remotesFound = findRemotes()
+            if remotesFound then break end
+            task.wait(3)
         end
+
+        if not remotesFound then
+            warn("[AutoTotem] ✖ Failed to find remotes after 5 attempts!")
+            return
+        end
+
+        -- Start auto loop
+        task.spawn(autoSpawnLoop)
+
+        print("[AutoTotem V2] ✔ Fully initialized!")
+        print("[AutoTotem V2] Select totem & enable to start!")
     end)
 
 end)
