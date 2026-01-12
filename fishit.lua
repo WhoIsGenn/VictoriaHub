@@ -732,7 +732,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local c = {
     d = false,
     e = 1.4,
-    f = 0.25
+    f = 0.28
 }
 
 -- CAST QUALITY CONFIG (IMPROVED RANGES)
@@ -906,7 +906,7 @@ FishingController.RequestChargeFishingRod = function(...)
 end
 
 local isSuperInstantRunning = false
-_G.ReelSuper = 1.2
+_G.ReelSuper = 1.15
 toggleState.completeDelays = 0.22
 toggleState.delayStart = 0.1
 
