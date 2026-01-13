@@ -2557,11 +2557,13 @@ local graphic = Tab7:Section({
 })
 
 -- FPS BOOST (Maximum Optimization)
+-- FPS BOOST (ULTRA POTATO MODE)
 local Cache = {}
+local DestroyedObjects = {}
 local White = Color3.fromRGB(220, 220, 220)
 local FPSBoost = false
 
--- Simple cache
+-- Cache dengan destroy list
 local function cache(o)
     if Cache[o] then return end
     
@@ -2572,14 +2574,39 @@ local function cache(o)
             Reflectance = o.Reflectance,
             CastShadow = o.CastShadow
         }
+        
+        -- Cache mesh untuk MeshPart
+        if o:IsA("MeshPart") then
+            Cache[o].MeshId = o.MeshId
+            Cache[o].TextureID = o.TextureID
+        end
+        
+    elseif o:IsA("SpecialMesh") then
+        Cache[o] = {
+            MeshId = o.MeshId,
+            TextureId = o.TextureId,
+            MeshType = o.MeshType,
+            Scale = o.Scale
+        }
+        
     elseif o:IsA("PointLight") or o:IsA("SpotLight") or o:IsA("SurfaceLight")
         or o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
-        or o:IsA("Fire") or o:IsA("Smoke") then
-        Cache[o] = o.Enabled
+        or o:IsA("Fire") or o:IsA("Smoke") or o:IsA("Sparkles") then
+        Cache[o] = {
+            Parent = o.Parent,
+            Enabled = o:IsA("PointLight") or o:IsA("SpotLight") or o:IsA("SurfaceLight") and o.Enabled or nil
+        }
+        
     elseif o:IsA("Decal") or o:IsA("Texture") then
-        Cache[o] = o.Transparency
+        Cache[o] = {
+            Parent = o.Parent,
+            Transparency = o.Transparency,
+            Texture = o.Texture
+        }
+        
     elseif o:IsA("SurfaceAppearance") then
         Cache[o] = {
+            Parent = o.Parent,
             ColorMap = o.ColorMap,
             MetalnessMap = o.MetalnessMap,
             NormalMap = o.NormalMap,
@@ -2588,7 +2615,7 @@ local function cache(o)
     end
 end
 
--- Apply optimization
+-- Apply ULTRA optimization (DESTROY MODE)
 local function apply(o)
     if o:IsDescendantOf(Player.PlayerGui)
         or (workspace.Terrain and o:IsDescendantOf(workspace.Terrain))
@@ -2599,44 +2626,60 @@ local function apply(o)
     cache(o)
 
     pcall(function()
+        -- PARTS: Make them simple cubes
         if o:IsA("BasePart") or o:IsA("MeshPart") then
             o.Color = White
             o.Material = Enum.Material.SmoothPlastic
             o.Reflectance = 0
             o.CastShadow = false
             
-            -- Disable semua child visual effects
+            -- Remove mesh from MeshPart
+            if o:IsA("MeshPart") then
+                o.MeshId = ""
+                o.TextureID = ""
+            end
+            
+            -- Destroy all visual children
             for _, child in ipairs(o:GetChildren()) do
-                if child:IsA("Decal") or child:IsA("Texture") then
-                    child.Transparency = 1
-                elseif child:IsA("SurfaceAppearance") then
-                    child.ColorMap = ""
-                    child.MetalnessMap = ""
-                    child.NormalMap = ""
-                    child.RoughnessMap = ""
-                elseif child:IsA("PointLight") or child:IsA("SpotLight") or child:IsA("SurfaceLight") then
-                    child.Enabled = false
+                if child:IsA("Decal") or child:IsA("Texture") 
+                    or child:IsA("SurfaceAppearance") 
+                    or child:IsA("SpecialMesh")
+                    or child:IsA("ParticleEmitter") or child:IsA("Beam") or child:IsA("Trail")
+                    or child:IsA("Fire") or child:IsA("Smoke") or child:IsA("Sparkles")
+                    or child:IsA("PointLight") or child:IsA("SpotLight") or child:IsA("SurfaceLight") then
+                    
+                    table.insert(DestroyedObjects, child)
+                    child.Parent = nil
                 end
             end
             
-        elseif o:IsA("PointLight") or o:IsA("SpotLight") or o:IsA("SurfaceLight")
-            or o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
-            or o:IsA("Fire") or o:IsA("Smoke") then
-            o.Enabled = false
+        -- DESTROY: Particles, Effects, Lights
+        elseif o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
+            or o:IsA("Fire") or o:IsA("Smoke") or o:IsA("Sparkles")
+            or o:IsA("PointLight") or o:IsA("SpotLight") or o:IsA("SurfaceLight") then
             
+            table.insert(DestroyedObjects, o)
+            o.Parent = nil
+            
+        -- DESTROY: Decals & Textures
         elseif o:IsA("Decal") or o:IsA("Texture") then
-            o.Transparency = 1
+            table.insert(DestroyedObjects, o)
+            o.Parent = nil
             
+        -- DESTROY: SurfaceAppearance
         elseif o:IsA("SurfaceAppearance") then
-            o.ColorMap = ""
-            o.MetalnessMap = ""
-            o.NormalMap = ""
-            o.RoughnessMap = ""
+            table.insert(DestroyedObjects, o)
+            o.Parent = nil
+            
+        -- DESTROY: SpecialMesh (make everything cube)
+        elseif o:IsA("SpecialMesh") then
+            table.insert(DestroyedObjects, o)
+            o.Parent = nil
         end
     end)
 end
 
--- Restore
+-- Restore everything
 local function restore(o)
     local d = Cache[o]
     if d == nil then return end
@@ -2648,31 +2691,20 @@ local function restore(o)
             o.Reflectance = d.Reflectance
             o.CastShadow = d.CastShadow
             
-            -- Restore child visual effects
-            for _, child in ipairs(o:GetChildren()) do
-                if child:IsA("Decal") or child:IsA("Texture") then
-                    local childCache = Cache[child]
-                    if childCache then
-                        child.Transparency = childCache
-                    end
-                elseif child:IsA("SurfaceAppearance") then
-                    local childCache = Cache[child]
-                    if childCache then
-                        child.ColorMap = childCache.ColorMap
-                        child.MetalnessMap = childCache.MetalnessMap
-                        child.NormalMap = childCache.NormalMap
-                        child.RoughnessMap = childCache.RoughnessMap
-                    end
-                end
+            if o:IsA("MeshPart") and d.MeshId then
+                o.MeshId = d.MeshId
+                o.TextureID = d.TextureID
             end
             
-        elseif o:IsA("PointLight") or o:IsA("SpotLight") or o:IsA("SurfaceLight")
-            or o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
-            or o:IsA("Fire") or o:IsA("Smoke") then
-            o.Enabled = d
+        elseif o:IsA("SpecialMesh") then
+            o.MeshId = d.MeshId
+            o.TextureId = d.TextureId
+            o.MeshType = d.MeshType
+            o.Scale = d.Scale
             
         elseif o:IsA("Decal") or o:IsA("Texture") then
-            o.Transparency = d
+            o.Transparency = d.Transparency
+            o.Texture = d.Texture
             
         elseif o:IsA("SurfaceAppearance") then
             o.ColorMap = d.ColorMap
@@ -2681,6 +2713,20 @@ local function restore(o)
             o.RoughnessMap = d.RoughnessMap
         end
     end)
+end
+
+-- Restore destroyed objects
+local function restoreDestroyed()
+    for _, obj in ipairs(DestroyedObjects) do
+        local d = Cache[obj]
+        if d and d.Parent then
+            pcall(function()
+                obj.Parent = d.Parent
+                restore(obj)
+            end)
+        end
+    end
+    DestroyedObjects = {}
 end
 
 SafeConnect("FPSBoostDescendant", workspace.DescendantAdded:Connect(function(o)
@@ -2701,10 +2747,11 @@ graphic:Toggle({
         Lighting.GlobalShadows = not v
         Lighting.EnvironmentDiffuseScale = v and 0 or 1
         Lighting.EnvironmentSpecularScale = v and 0 or 1
-        Lighting.Brightness = v and 1 or 2
-        Lighting.OutdoorAmbient = v and Color3.fromRGB(128, 128, 128) or Color3.fromRGB(70, 70, 70)
+        Lighting.Brightness = v and 2 or 2
+        Lighting.OutdoorAmbient = v and Color3.fromRGB(150, 150, 150) or Color3.fromRGB(70, 70, 70)
+        Lighting.Ambient = v and Color3.fromRGB(150, 150, 150) or Color3.fromRGB(0, 0, 0)
         
-        -- Disable post-processing effects
+        -- Disable ALL post-processing effects
         for _, e in ipairs(Lighting:GetChildren()) do
             if e:IsA("BloomEffect") or e:IsA("SunRaysEffect") or e:IsA("BlurEffect")
                 or e:IsA("DepthOfFieldEffect") or e:IsA("ColorCorrectionEffect")
@@ -2717,50 +2764,39 @@ graphic:Toggle({
         if workspace:FindFirstChild("Terrain") then
             workspace.Terrain.Decoration = not v
             workspace.Terrain.WaterReflectance = v and 0 or 1
-            workspace.Terrain.WaterTransparency = v and 0.5 or 0.3
+            workspace.Terrain.WaterTransparency = v and 0.8 or 0.3
             workspace.Terrain.WaterWaveSize = v and 0 or 0.15
             workspace.Terrain.WaterWaveSpeed = v and 0 or 10
         end
         
-        -- === RENDERING SETTINGS ===
+        -- === RENDERING SETTINGS (POTATO MODE) ===
         local renderSettings = settings().Rendering
         renderSettings.QualityLevel = v and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic
         renderSettings.MeshPartDetailLevel = v and Enum.MeshPartDetailLevel.Level01 or Enum.MeshPartDetailLevel.Level02
         
-        -- === REDUCE PHYSICS ===
-        if v then
-            -- Disable unnecessary physics
-            for _, part in ipairs(workspace:GetDescendants()) do
-                if part:IsA("BasePart") and not part:IsDescendantOf(Player.Character) then
-                    pcall(function()
-                        if part.CanCollide and not part.Anchored then
-                            part.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
-                        end
-                    end)
-                end
-            end
-        end
-
         -- === PROCESS WORKSPACE OBJECTS ===
-        for _, o in ipairs(workspace:GetDescendants()) do
-            if v then 
-                apply(o) 
-            else 
-                restore(o) 
+        if v then
+            -- Apply potato mode
+            for _, o in ipairs(workspace:GetDescendants()) do
+                apply(o)
             end
+        else
+            -- Restore everything
+            for _, o in ipairs(workspace:GetDescendants()) do
+                restore(o)
+            end
+            restoreDestroyed()
         end
         
         -- === MEMORY CLEANUP ===
         if not v then
             task.wait(1)
             Cache = {}
+            DestroyedObjects = {}
             collectgarbage("collect")
-        end
-        
-        -- === CAMERA OPTIMIZATION ===
-        local camera = workspace.CurrentCamera
-        if camera then
-            camera.FieldOfView = v and 70 or 70 -- Keep same FOV
+        else
+            -- Force garbage collection saat enable juga
+            collectgarbage("collect")
         end
     end
 })
