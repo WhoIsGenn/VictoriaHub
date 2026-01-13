@@ -1291,8 +1291,10 @@ local GlobalFav = {
     Variants = {},
     VariantIdToName = {},
     VariantNames = {},
+    Rarities = {},
     SelectedFishIds = {},
     SelectedVariants = {},
+    SelectedRarities = {},
     AutoFavoriteEnabled = false
 }
 
@@ -1305,6 +1307,12 @@ for _, item in pairs(ReplicatedStorage.Items:GetChildren()) do
         GlobalFav.FishIdToName[id] = name
         GlobalFav.FishNameToId[name] = id
         table.insert(GlobalFav.FishNames, name)
+        
+        -- Collect rarities
+        local rarity = data.Data.Rarity
+        if rarity then
+            GlobalFav.Rarities[rarity] = true
+        end
     end
 end
 
@@ -1326,7 +1334,14 @@ end
 -- Sort variant names alphabetically
 table.sort(GlobalFav.VariantNames)
 
-print("[AutoFav] Loaded", #GlobalFav.FishNames, "fish and", #GlobalFav.VariantNames, "variants")
+-- Convert rarities to array
+local rarityNames = {}
+for rarity in pairs(GlobalFav.Rarities) do
+    table.insert(rarityNames, rarity)
+end
+table.sort(rarityNames)
+
+print("[AutoFav] Loaded", #GlobalFav.FishNames, "fish,", #GlobalFav.VariantNames, "variants, and", #rarityNames, "rarities")
 
 -- ===== WINDUI SECTION =====
 local favSection = Tab4:Section({
@@ -1349,16 +1364,12 @@ favSection:Toggle({
                 Content = "Auto Favorite enabled!",
                 Duration = 3
             })
-            print("[AutoFav] Started")
-            print("[AutoFav] Selected Fish:", #GlobalFav.SelectedFishIds)
-            print("[AutoFav] Selected Variants:", #GlobalFav.SelectedVariants)
         else
             WindUI:Notify({
                 Title = "Auto Favorite",
                 Content = "Auto Favorite disabled!",
                 Duration = 3
             })
-            print("[AutoFav] Stopped")
         end
     end
 })
@@ -1373,24 +1384,12 @@ favSection:Dropdown({
     SearchBarEnabled = true,
     Callback = function(selectedNames)
         GlobalFav.SelectedFishIds = {}
-
         for _, name in ipairs(selectedNames) do
             local id = GlobalFav.FishNameToId[name]
             if id then
                 GlobalFav.SelectedFishIds[id] = true
             end
         end
-
-        local count = 0
-        for _ in pairs(GlobalFav.SelectedFishIds) do count = count + 1 end
-        
-        print("[AutoFav] Fish selected:", count)
-        
-        WindUI:Notify({
-            Title = "Auto Favorite",
-            Content = count .. " fish selected for favoriting",
-            Duration = 2
-        })
     end
 })
 
@@ -1404,7 +1403,6 @@ favSection:Dropdown({
     SearchBarEnabled = true,
     Callback = function(selectedVariants)
         GlobalFav.SelectedVariants = {}
-        
         for _, vName in ipairs(selectedVariants) do
             for vId, name in pairs(GlobalFav.Variants) do
                 if name == vName then
@@ -1412,34 +1410,33 @@ favSection:Dropdown({
                 end
             end
         end
-        
-        local count = 0
-        for _ in pairs(GlobalFav.SelectedVariants) do count = count + 1 end
-        
-        print("[AutoFav] Variants selected:", count)
-        
-        WindUI:Notify({
-            Title = "Auto Favorite",
-            Content = count .. " variants selected for favoriting",
-            Duration = 2
-        })
+    end
+})
+
+-- Rarity Dropdown
+favSection:Dropdown({
+    Title = "Select Rarities",
+    Desc = "Choose which rarities to auto favorite",
+    Values = rarityNames,
+    Multi = true,
+    AllowNone = true,
+    SearchBarEnabled = true,
+    Callback = function(selectedRarities)
+        GlobalFav.SelectedRarities = {}
+        for _, rarity in ipairs(selectedRarities) do
+            GlobalFav.SelectedRarities[rarity] = true
+        end
     end
 })
 
 -- Reset Button
 favSection:Button({
     Title = "Reset Selection",
-    Desc = "Clear all fish and variant selections",
+    Desc = "Clear all fish, variant, and rarity selections",
     Callback = function()
         GlobalFav.SelectedFishIds = {}
         GlobalFav.SelectedVariants = {}
-        print("[AutoFav] Selection cleared!")
-        
-        WindUI:Notify({
-            Title = "Auto Favorite",
-            Content = "All selections cleared!",
-            Duration = 2
-        })
+        GlobalFav.SelectedRarities = {}
     end
 })
 
@@ -1451,40 +1448,39 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
     local fishName = GlobalFav.FishIdToName[itemId] or "Unknown"
     local variantId = data.InventoryItem and data.InventoryItem.Metadata and data.InventoryItem.Metadata.VariantId
 
-    if not uuid then 
-        print("[AutoFav] ✗ No UUID found")
-        return 
-    end
+    if not uuid then return end
 
     local isFishSelected = GlobalFav.SelectedFishIds[itemId]
     local isVariantSelected = variantId and GlobalFav.SelectedVariants[variantId]
     
-    -- Check if any fish selected
-    local hasFishSelection = false
-    for _ in pairs(GlobalFav.SelectedFishIds) do 
-        hasFishSelection = true 
-        break 
+    -- Check rarity from fish data
+    local fishRarity = nil
+    for _, item in pairs(ReplicatedStorage.Items:GetChildren()) do
+        local ok, fishData = pcall(require, item)
+        if ok and fishData.Data and fishData.Data.Id == itemId then
+            fishRarity = fishData.Data.Rarity
+            break
+        end
     end
     
-    -- Check if any variant selected
-    local hasVariantSelection = false
-    for _ in pairs(GlobalFav.SelectedVariants) do 
-        hasVariantSelection = true 
-        break 
-    end
+    local isRaritySelected = fishRarity and GlobalFav.SelectedRarities[fishRarity]
 
+    -- Logic: If any filter is active, check all active filters
+    local hasFishSelection = next(GlobalFav.SelectedFishIds) ~= nil
+    local hasVariantSelection = next(GlobalFav.SelectedVariants) ~= nil
+    local hasRaritySelection = next(GlobalFav.SelectedRarities) ~= nil
+    
     local shouldFavorite = false
 
-    -- Logic:
-    -- 1. If fish selected AND no variant filter = favorite
-    -- 2. If no fish filter AND variant selected = favorite
-    -- 3. If BOTH fish AND variant selected = favorite only if BOTH match
-    
-    if isFishSelected and not hasVariantSelection then
+    if not hasFishSelection and not hasVariantSelection and not hasRaritySelection then
+        -- No filters selected, favorite all
         shouldFavorite = true
-    elseif not hasFishSelection and isVariantSelected then
-        shouldFavorite = true
-    elseif isFishSelected and isVariantSelected then
+    else
+        -- Check active filters
+        if hasFishSelection and not isFishSelected then return end
+        if hasVariantSelection and not isVariantSelected then return end
+        if hasRaritySelection and not isRaritySelected then return end
+        
         shouldFavorite = true
     end
 
@@ -1495,23 +1491,17 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
         
         if success then
             local msg = fishName
-            if isVariantSelected and variantId then
+            if variantId and isVariantSelected then
                 local variantName = GlobalFav.Variants[variantId] or variantId
                 msg = msg .. " (" .. variantName .. ")"
             end
             
             WindUI:Notify({
                 Title = "Auto Favorite",
-                Content = "Favorited " .. msg,
+                Content = " Favorited " .. msg,
                 Duration = 2
             })
-            
-            print("[AutoFav] ✓ Favorited:", msg)
-        else
-            print("[AutoFav] ✗ Failed to favorite:", fishName)
         end
-    else
-        print("[AutoFav] ○ Skipped:", fishName, "(No match)")
     end
 end)
 
