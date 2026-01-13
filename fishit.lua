@@ -1827,7 +1827,6 @@ weather:Toggle({
     end
 })
 
--- ==================== TAB 7: TELEPORT ====================
 local Tab6 = Window:Tab({
     Title = "Teleport",
     Icon = "map-pin",
@@ -1836,7 +1835,7 @@ local Tab6 = Window:Tab({
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 
--- Function untuk mendapatkan HRP yang selalu update
+-- Function untuk mendapatkan HRP
 local function getHRP()
     if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
         return Player.Character.HumanoidRootPart
@@ -1852,23 +1851,24 @@ local island = Tab6:Section({
     TextSize = 17,
 })
 
+-- Pakai CFrame untuk teleport
 local IslandLocations = {
-    ["Ancient Jungle"] = Vector3.new(1518, 1, -186),
-    ["Coral Refs"] = Vector3.new(-3204.128, 4.744, 2278.412),
-    ["Crater Island"] = Vector3.new(988.366, 2.678, 5011.464),
-    ["Enchant Room"] = Vector3.new(3232.390, -1302.855, 1401.953),
-    ["Enchant Room 2"] = Vector3.new(1480, 126, -585),
-    ["Esoteric Island"] = Vector3.new(1990, 5, 1398),
-    ["Fisherman Island"] = Vector3.new(-63.768, 3.262, 2852.105),
-    ["Kohana Volcano"] = Vector3.new(-545.302429, 17.1266193, 118.870537),
-    ["Konoha"] = Vector3.new(-609.842, 19.250, 424.131),
-    ["Sacred Temple"] = Vector3.new(1454.296, -22.125, -634.009),
-    ["Sysyphus Statue"] = Vector3.new(-3734.805, -135.074, -885.983),
-    ["Treasure Room"] = Vector3.new(-3556.384, -279.074, -1610.293),
-    ["Tropical Grove"] = Vector3.new(-2176.410, 53.487, 3638.278),
-    ["Underground Cellar"] = Vector3.new(2135, -93, -701),
-    ["Weather Machine"] = Vector3.new(-1523.458, 2.875, 1914.113),
-    ["Ancient Ruin"] = Vector3.new(6083.515, -585.924, 4632.402),
+    ["Ancient Jungle"] = CFrame.new(1518, 1, -186),
+    ["Coral Refs"] = CFrame.new(-3204.128, 4.744, 2278.412),
+    ["Crater Island"] = CFrame.new(988.366, 2.678, 5011.464),
+    ["Enchant Room"] = CFrame.new(3232.390, -1302.855, 1401.953),
+    ["Enchant Room 2"] = CFrame.new(1480, 126, -585),
+    ["Esoteric Island"] = CFrame.new(1990, 5, 1398),
+    ["Fisherman Island"] = CFrame.new(-63.768, 3.262, 2852.105),
+    ["Kohana Volcano"] = CFrame.new(-545.302429, 17.1266193, 118.870537),
+    ["Konoha"] = CFrame.new(-609.842, 19.250, 424.131),
+    ["Sacred Temple"] = CFrame.new(1454.296, -22.125, -634.009),
+    ["Sysyphus Statue"] = CFrame.new(-3734.805, -135.074, -885.983),
+    ["Treasure Room"] = CFrame.new(-3556.384, -279.074, -1610.293),
+    ["Tropical Grove"] = CFrame.new(-2176.410, 53.487, 3638.278),
+    ["Underground Cellar"] = CFrame.new(2135, -93, -701),
+    ["Weather Machine"] = CFrame.new(-1523.458, 2.875, 1914.113),
+    ["Ancient Ruin"] = CFrame.new(6083.515, -585.924, 4632.402),
 }
 
 local islandNames = {}
@@ -1890,7 +1890,7 @@ island:Button({
         if SelectedIsland and IslandLocations[SelectedIsland] then
             local hrp = getHRP()
             if hrp then
-                hrp.CFrame = CFrame.new(IslandLocations[SelectedIsland])
+                hrp.CFrame = IslandLocations[SelectedIsland]
             end
         end
     end
@@ -1918,21 +1918,9 @@ end
 -- Variables untuk player teleport
 local playerList = getPlayerList()
 local selectedPlayer = playerList[1] or ""
-local dropdownRef
 
--- Function untuk refresh player list
-local function refreshPlayerDropdown()
-    playerList = getPlayerList()
-    selectedPlayer = playerList[1] or ""
-    
-    if dropdownRef then
-        dropdownRef:Refresh(playerList, true)
-        dropdownRef:SetValue(selectedPlayer)
-    end
-end
-
--- Buat dropdown dengan reference
-dropdownRef = tpplayer:Dropdown({
+-- Buat dropdown
+local dropdownRef = tpplayer:Dropdown({
     Title = "Teleport Target",
     Values = playerList,
     Value = selectedPlayer,
@@ -1940,6 +1928,14 @@ dropdownRef = tpplayer:Dropdown({
         selectedPlayer = value
     end
 })
+
+-- Function untuk refresh player list
+local function refreshPlayerDropdown()
+    playerList = getPlayerList()
+    selectedPlayer = playerList[1] or ""
+    dropdownRef:Refresh(playerList, true)
+    selectedPlayer = playerList[1] or ""
+end
 
 -- Auto-refresh ketika player join/leave
 Players.PlayerAdded:Connect(function(player)
@@ -1964,7 +1960,7 @@ tpplayer:Button({
             local myHRP = getHRP()
             
             if targetHRP and myHRP then
-                myHRP.CFrame = targetHRP.CFrame + Vector3.new(0, 3, 0)
+                myHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, -3)
             end
         end
     end
