@@ -1063,7 +1063,7 @@ blantantV2Section:Button({
 -- SECTION 3: AUTO PERFECTION
 autoPerfectionSection = Tab3:Section({ 
     Title = "Auto Perfection",
-    Icon = "check-circle",
+    Icon = "settings",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
     TextSize = 17,
@@ -1833,6 +1833,17 @@ local Tab6 = Window:Tab({
     Icon = "map-pin",
 })
 
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+
+-- Function untuk mendapatkan HRP yang selalu update
+local function getHRP()
+    if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+        return Player.Character.HumanoidRootPart
+    end
+    return nil
+end
+
 -- ISLAND TELEPORT
 local island = Tab6:Section({ 
     Title = "Island",
@@ -1843,21 +1854,21 @@ local island = Tab6:Section({
 
 local IslandLocations = {
     ["Ancient Jungle"] = Vector3.new(1518, 1, -186),
-    ["Coral Refs"] = CFrame.new(-3204.128, 4.744, 2278.412),
-    ["Crater Island"] = CFrame.new(988.366, 2.678, 5011.464),
-    ["Enchant Room"] = CFrame.new(3232.390, -1302.855, 1401.953),
+    ["Coral Refs"] = Vector3.new(-3204.128, 4.744, 2278.412),
+    ["Crater Island"] = Vector3.new(988.366, 2.678, 5011.464),
+    ["Enchant Room"] = Vector3.new(3232.390, -1302.855, 1401.953),
     ["Enchant Room 2"] = Vector3.new(1480, 126, -585),
     ["Esoteric Island"] = Vector3.new(1990, 5, 1398),
-    ["Fisherman Island"] = CFrame.new(-63.768, 3.262, 2852.105),
+    ["Fisherman Island"] = Vector3.new(-63.768, 3.262, 2852.105),
     ["Kohana Volcano"] = Vector3.new(-545.302429, 17.1266193, 118.870537),
-    ["Konoha"] = CFrame.new(-609.842, 19.250, 424.131),
+    ["Konoha"] = Vector3.new(-609.842, 19.250, 424.131),
     ["Sacred Temple"] = Vector3.new(1454.296, -22.125, -634.009),
-    ["Sysyphus Statue"] = CFrame.new(-3734.805, -135.074, -885.983),
-    ["Treasure Room"] = CFrame.new(-3556.384, -279.074, -1610.293),
-    ["Tropical Grove"] = CFrame.new(-2176.410, 53.487, 3638.278),
+    ["Sysyphus Statue"] = Vector3.new(-3734.805, -135.074, -885.983),
+    ["Treasure Room"] = Vector3.new(-3556.384, -279.074, -1610.293),
+    ["Tropical Grove"] = Vector3.new(-2176.410, 53.487, 3638.278),
     ["Underground Cellar"] = Vector3.new(2135, -93, -701),
-    ["Weather Machine"] = CFrame.new(-1523.458, 2.875, 1914.113),
-    ["Ancient Ruin"] = CFrame.new(6083.515, -585.924, 4632.402),
+    ["Weather Machine"] = Vector3.new(-1523.458, 2.875, 1914.113),
+    ["Ancient Ruin"] = Vector3.new(6083.515, -585.924, 4632.402),
 }
 
 local islandNames = {}
@@ -1876,51 +1887,11 @@ island:Dropdown({
 island:Button({
     Title = "Teleport to Island",
     Callback = function()
-        if SelectedIsland and IslandLocations[SelectedIsland] and _G.HRP then
-            _G.HRP.CFrame = CFrame.new(IslandLocations[SelectedIsland])
-        end
-    end
-})
-
--- FISHING SPOT TELEPORT
-local spot = Tab6:Section({ 
-    Title = "Fishing Spot",
-    Icon = "spotlight",
-    TextXAlignment = "Left",
-    TextSize = 17,
-})
-
-local FishingLocations = {
-    ["Levers 1"] = Vector3.new(1475,4,-847),
-    ["Levers 2"] = Vector3.new(882,5,-321),
-    ["levers 3"] = Vector3.new(1425,6,126),
-    ["levers 4"] = Vector3.new(1837,4,-309),
-    ["Sysyphus Statue"] = Vector3.new(-3710, -97, -952),
-    ["King Jelly Spot (For quest elemental)"] = Vector3.new(1473.60, 3.58, -328.23),
-    ["El Shark Gran Maja Spot"] = Vector3.new(1526, 4, -629),
-    ["Ancient Lochness"] = Vector3.new(6078, -586, 4629),
-    ["Christmas Island"] = Vector3.new(918, 2, 1235),
-    ["Christmas Cave"] = Vector3.new(606, -581, 8887),
-}
-
-local fishingNames = {}
-for name in pairs(FishingLocations) do table.insert(fishingNames, name) end
-table.sort(fishingNames)
-
-local SelectedFishing = fishingNames[1]
-spot:Dropdown({
-    Title = "Select Spot",
-    SearchBarEnabled = true,
-    Values = fishingNames,
-    Value = SelectedFishing,
-    Callback = function(Value) SelectedFishing = Value end
-})
-
-spot:Button({
-    Title = "Teleport to Fishing Spot",
-    Callback = function()
-        if SelectedFishing and FishingLocations[SelectedFishing] and _G.HRP then
-            _G.HRP.CFrame = CFrame.new(FishingLocations[SelectedFishing])
+        if SelectedIsland and IslandLocations[SelectedIsland] then
+            local hrp = getHRP()
+            if hrp then
+                hrp.CFrame = CFrame.new(IslandLocations[SelectedIsland])
+            end
         end
     end
 })
@@ -1933,41 +1904,82 @@ local tpplayer = Tab6:Section({
     TextSize = 17,
 })
 
+-- Function untuk mendapatkan player list
 local function getPlayerList()
-    local t = {}
-    for _,p in ipairs(game:GetService("Players"):GetPlayers()) do
-        if p ~= Player then table.insert(t, p.Name) end
+    local playerNames = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Player then
+            table.insert(playerNames, player.Name)
+        end
     end
-    return t
+    return playerNames
 end
 
+-- Variables untuk player teleport
 local playerList = getPlayerList()
 local selectedPlayer = playerList[1] or ""
+local dropdownRef
 
-tpplayer:Dropdown({
+-- Function untuk refresh player list
+local function refreshPlayerDropdown()
+    playerList = getPlayerList()
+    selectedPlayer = playerList[1] or ""
+    
+    if dropdownRef then
+        dropdownRef:Refresh(playerList, true)
+        dropdownRef:SetValue(selectedPlayer)
+    end
+end
+
+-- Buat dropdown dengan reference
+dropdownRef = tpplayer:Dropdown({
     Title = "Teleport Target",
     Values = playerList,
     Value = selectedPlayer,
-    Callback = function(v) selectedPlayer = v end
+    Callback = function(value)
+        selectedPlayer = value
+    end
 })
 
+-- Auto-refresh ketika player join/leave
+Players.PlayerAdded:Connect(function(player)
+    if player ~= Player then
+        refreshPlayerDropdown()
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if player ~= Player then
+        refreshPlayerDropdown()
+    end
+end)
+
+-- Teleport to player function
 tpplayer:Button({
     Title = "Teleport to Player",
     Callback = function()
-        local target = game:GetService("Players"):FindFirstChild(selectedPlayer)
-        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and _G.HRP then
-            _G.HRP.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0,3,0)
+        local target = Players:FindFirstChild(selectedPlayer)
+        if target and target.Character then
+            local targetHRP = target.Character:FindFirstChild("HumanoidRootPart")
+            local myHRP = getHRP()
+            
+            if targetHRP and myHRP then
+                myHRP.CFrame = targetHRP.CFrame + Vector3.new(0, 3, 0)
+            end
         end
     end
 })
 
+-- Refresh button
 tpplayer:Button({
     Title = "Refresh Player List",
     Callback = function()
-        playerList = getPlayerList()
-        selectedPlayer = playerList[1] or ""
+        refreshPlayerDropdown()
     end
 })
+
+-- Initial refresh
+refreshPlayerDropdown()
 
 events = Tab6:Section({
     Title = "Event Teleporter",
