@@ -954,58 +954,9 @@ end
 
 -- ========== UI CREATION (DIGABUNG DI TAB3) ==========
 
--- SECTION 1: BLANTANT V1
-blantantV1Section = Tab3:Section({ 
-    Title = "Blatant V1",
-    Icon = "fish",
-    TextTransparency = 0.05,
-    TextXAlignment = "Left",
-    TextSize = 17,
-})
-
-blantantV1Section:Toggle({
-    Title = "Blatant V1",
-    Value = c.d,
-    Callback = function(z2)
-        x(z2)
-    end
-})
-
-blantantV1Section:Input({
-    Title = "Cancel Delay",
-    Placeholder = "1.7",
-    Default = tostring(c.e),
-    Callback = function(z4)
-        local z5 = tonumber(z4)
-        if z5 and z5 > 0 then
-            c.e = z5
-        end
-    end
-})
-
-blantantV1Section:Input({
-    Title = "Complete Delay",
-    Placeholder = "1.4",
-    Default = tostring(c.f),
-    Callback = function(z7)
-        local z8 = tonumber(z7)
-        if z8 and z8 > 0 then
-            c.f = z8
-        end
-    end
-})
-
--- BUTTON RECOVERY UNTUK BLANTANT V1
-blantantV1Section:Button({
-    Title = "Recovery Fishing",
-    Callback = function()
-        doRecoveryFishing()
-    end
-})
-
 -- SECTION 2: BLANTANT V2
 blantantV2Section = Tab3:Section({ 
-    Title = "Blatant V2",
+    Title = "Blatant V1",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -1013,7 +964,7 @@ blantantV2Section = Tab3:Section({
 })
 
 blantantV2Section:Toggle({
-    Title = "Blatant V2",
+    Title = "Blatant V1",
     Value = toggleState.blatantRunning,
     Callback = function(value)
         toggleState.blatantRunning = value
@@ -1054,6 +1005,55 @@ blantantV2Section:Input({
 
 -- BUTTON RECOVERY UNTUK BLANTANT V2
 blantantV2Section:Button({
+    Title = "Recovery Fishing",
+    Callback = function()
+        doRecoveryFishing()
+    end
+})
+
+-- SECTION 1: BLANTANT V1
+blantantV1Section = Tab3:Section({ 
+    Title = "Blatant V2",
+    Icon = "fish",
+    TextTransparency = 0.05,
+    TextXAlignment = "Left",
+    TextSize = 17,
+})
+
+blantantV1Section:Toggle({
+    Title = "Blatant V2",
+    Value = c.d,
+    Callback = function(z2)
+        x(z2)
+    end
+})
+
+blantantV1Section:Input({
+    Title = "Cancel Delay",
+    Placeholder = "1.7",
+    Default = tostring(c.e),
+    Callback = function(z4)
+        local z5 = tonumber(z4)
+        if z5 and z5 > 0 then
+            c.e = z5
+        end
+    end
+})
+
+blantantV1Section:Input({
+    Title = "Complete Delay",
+    Placeholder = "1.4",
+    Default = tostring(c.f),
+    Callback = function(z7)
+        local z8 = tonumber(z7)
+        if z8 and z8 > 0 then
+            c.f = z8
+        end
+    end
+})
+
+-- BUTTON RECOVERY UNTUK BLANTANT V1
+blantantV1Section:Button({
     Title = "Recovery Fishing",
     Callback = function()
         doRecoveryFishing()
@@ -1869,6 +1869,8 @@ local IslandLocations = {
     ["Underground Cellar"] = CFrame.new(2135, -93, -701),
     ["Weather Machine"] = CFrame.new(-1523.458, 2.875, 1914.113),
     ["Ancient Ruin"] = CFrame.new(6083.515, -585.924, 4632.402),
+    ["Pirate Cave"] = CFrame.new(3416.945, 4.193, 3510.004),
+    ["Treesaure Pirate"] = CFrame.new(3341.121, -301.021, 3093.529),
 }
 
 local islandNames = {}
@@ -2192,11 +2194,54 @@ local playerSettings = Tab7:Section({
     TextSize = 17,
 })
 
--- Ping Display (Optimized)
 local PingEnabled = true
-local Frame, Text
+local Frame, HeaderText, StatsText, CloseButton
 local lastPingUpdate = 0
 local pingUpdateInterval = 0.5
+
+local function makeDraggable(frame)
+    local UserInputService = game:GetService("UserInputService")
+    local dragging
+    local dragInput
+    local dragStart
+    local startPos
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+end
 
 local function createPingDisplay()
     local CG = game:GetService("CoreGui")
@@ -2207,38 +2252,87 @@ local function createPingDisplay()
     Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
     Frame = Instance.new("Frame", Gui)
-    Frame.Size = UDim2.fromOffset(205,34)
-    Frame.Position = UDim2.fromScale(0.5,0.05)
-    Frame.AnchorPoint = Vector2.new(0.5,0)
-    Frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    Frame.Size = UDim2.fromOffset(220, 60)
+    Frame.Position = UDim2.fromScale(0.5, 0.05)
+    Frame.AnchorPoint = Vector2.new(0.5, 0)
+    Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     Frame.BackgroundTransparency = 0.7
     Frame.BorderSizePixel = 0
     Frame.Visible = PingEnabled
     Frame.ZIndex = 1000
-    Instance.new("UICorner",Frame).CornerRadius = UDim.new(0,24)
+    Frame.Active = true -- Enable dragging
 
     local Stroke = Instance.new("UIStroke", Frame)
-    Stroke.Thickness = 3
+    Stroke.Thickness = 2
+    Stroke.Color = Color3.fromRGB(100, 100, 100)
     Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     Stroke.ZIndex = 1001
 
-    local Gradient = Instance.new("UIGradient", Stroke)
-    Gradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(0,255,255)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180,255,255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255,255,255))
-    }
+    -- Close Button
+    CloseButton = Instance.new("TextButton", Frame)
+    CloseButton.Size = UDim2.fromOffset(20, 20)
+    CloseButton.Position = UDim2.new(1, -25, 0, 5)
+    CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    CloseButton.BackgroundTransparency = 0.3
+    CloseButton.BorderSizePixel = 0
+    CloseButton.Font = Enum.Font.GothamBold
+    CloseButton.TextSize = 12
+    CloseButton.Text = "X"
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.ZIndex = 1003
+    
+    local CloseCorner = Instance.new("UICorner", CloseButton)
+    CloseCorner.CornerRadius = UDim.new(0, 3)
 
-    Text = Instance.new("TextLabel", Frame)
-    Text.Size = UDim2.new(1,-30,1,0)
-    Text.Position = UDim2.fromOffset(30,0)
-    Text.BackgroundTransparency = 1
-    Text.Font = Enum.Font.GothamBold
-    Text.TextSize = 10
-    Text.TextXAlignment = Enum.TextXAlignment.Left
-    Text.TextYAlignment = Enum.TextYAlignment.Center
-    Text.TextColor3 = Color3.fromRGB(230,230,230)
-    Text.ZIndex = 1002
+    CloseButton.MouseButton1Click:Connect(function()
+        PingEnabled = false
+        Frame.Visible = false
+    end)
+
+    -- Hover effect for close button
+    CloseButton.MouseEnter:Connect(function()
+        CloseButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+    end)
+
+    CloseButton.MouseLeave:Connect(function()
+        CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    end)
+
+    -- Header Text
+    HeaderText = Instance.new("TextLabel", Frame)
+    HeaderText.Size = UDim2.new(1, -30, 0, 20)
+    HeaderText.Position = UDim2.fromOffset(5, 5)
+    HeaderText.BackgroundTransparency = 1
+    HeaderText.Font = Enum.Font.GothamBold
+    HeaderText.TextSize = 11
+    HeaderText.TextXAlignment = Enum.TextXAlignment.Left
+    HeaderText.TextYAlignment = Enum.TextYAlignment.Center
+    HeaderText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    HeaderText.Text = "VICTORIA PANEL"
+    HeaderText.ZIndex = 1002
+
+    -- Divider Line
+    local Divider = Instance.new("Frame", Frame)
+    Divider.Size = UDim2.new(1, -20, 0, 1)
+    Divider.Position = UDim2.fromOffset(10, 28)
+    Divider.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    Divider.BorderSizePixel = 0
+    Divider.ZIndex = 1002
+
+    -- Stats Text
+    StatsText = Instance.new("TextLabel", Frame)
+    StatsText.Size = UDim2.new(1, -20, 0, 25)
+    StatsText.Position = UDim2.fromOffset(10, 32)
+    StatsText.BackgroundTransparency = 1
+    StatsText.Font = Enum.Font.GothamBold
+    StatsText.TextSize = 10
+    StatsText.TextXAlignment = Enum.TextXAlignment.Center
+    StatsText.TextYAlignment = Enum.TextYAlignment.Center
+    StatsText.TextColor3 = Color3.fromRGB(230, 230, 230)
+    StatsText.ZIndex = 1002
+    
+    -- Make draggable
+    makeDraggable(Frame)
     
     return Frame
 end
@@ -2251,10 +2345,11 @@ if createPingDisplay() then
         if now - lastPingUpdate < pingUpdateInterval then return end
         lastPingUpdate = now
         
-        local ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
-        local fps = math.floor(1 / game:GetService("RunService").RenderStepped:Wait())
+        local Stats = game:GetService("Stats")
+        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        local cpu = math.floor(Stats.PerformanceStats.CPU:GetValue() * 100)
         
-        Text.Text = string.format("PING: %d ms | FPS: %d", ping, math.min(fps, 999))
+        StatsText.Text = string.format("PING: %d ms | CPU: %d%%", ping, math.min(cpu, 100))
     end))
 end
 
@@ -2489,10 +2584,14 @@ local function apply(o)
     if o:IsA("BasePart") then
         o.Color = White
         o.Material = Enum.Material.SmoothPlastic
+        o.Transparency = 0
+        o.Reflectance = 0
     elseif o:IsA("PointLight") or o:IsA("SpotLight") or o:IsA("SurfaceLight")
     or o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
     or o:IsA("Fire") or o:IsA("Smoke") then
         o.Enabled = false
+    elseif o:IsA("Decal") or o:IsA("Texture") then
+        o.Transparency = 1
     end
 end
 
@@ -2502,13 +2601,71 @@ local function restore(o)
 
     if o:IsA("BasePart") then
         o.Color, o.Material = d[1], d[2]
+    elseif o:IsA("Decal") or o:IsA("Texture") then
+        o.Transparency = 0
     else
         o.Enabled = d
     end
 end
 
+-- Optimize lighting dengan lebih agresif
+local function optimizeLighting(v)
+    local Lighting = game:GetService("Lighting")
+    
+    Lighting.GlobalShadows = not v
+    Lighting.EnvironmentDiffuseScale = v and 0 or 1
+    Lighting.EnvironmentSpecularScale = v and 0 or 1
+    Lighting.Ambient = v and Color3.fromRGB(100, 100, 100) or Color3.fromRGB(0, 0, 0)
+    Lighting.OutdoorAmbient = v and Color3.fromRGB(128, 128, 128) or Color3.fromRGB(0, 0, 0)
+    
+    -- Matikan semua efek post-processing
+    for _, e in ipairs(Lighting:GetChildren()) do
+        if e:IsA("PostEffect") then
+            e.Enabled = not v
+        end
+    end
+    
+    -- Optimasi Terrain
+    local Terrain = workspace.Terrain
+    if Terrain then
+        Terrain.WaterReflectance = v and 0 or 0.8
+        Terrain.WaterTransparency = v and 1 or 0.5
+    end
+end
+
+-- Process objects dengan yield untuk hindari freeze
+local function processObjects(v)
+    local objects = workspace:GetDescendants()
+    local batchSize = 100
+    
+    for i = 1, #objects, batchSize do
+        local batchEnd = math.min(i + batchSize - 1, #objects)
+        
+        for j = i, batchEnd do
+            local obj = objects[j]
+            if v then 
+                apply(obj)
+            else 
+                restore(obj)
+            end
+        end
+        
+        -- Yield setiap batch untuk hindari freeze
+        if i % 500 == 0 then
+            game:GetService("RunService").Heartbeat:Wait()
+        end
+    end
+    
+    if not v then
+        Cache = {}
+        collectgarbage("collect")
+    end
+end
+
 SafeConnect("FPSBoostDescendant", workspace.DescendantAdded:Connect(function(o)
-    if FPSBoost then task.wait(); apply(o) end
+    if FPSBoost then 
+        apply(o) 
+    end
 end))
 
 graphic:Toggle({
@@ -2516,22 +2673,12 @@ graphic:Toggle({
     Default = false,
     Callback = function(v)
         FPSBoost = v
-        local Lighting = game:GetService("Lighting")
         
-        Lighting.GlobalShadows = not v
-        Lighting.EnvironmentDiffuseScale = v and 0 or 1
-        Lighting.EnvironmentSpecularScale = v and 0 or 1
-
-        for _,e in ipairs(Lighting:GetChildren()) do
-            if e:IsA("BloomEffect") or e:IsA("SunRaysEffect") or e:IsA("BlurEffect")
-            or e:IsA("DepthOfFieldEffect") or e:IsA("ColorCorrectionEffect") then
-                e.Enabled = not v
-            end
-        end
-
-        for _,o in ipairs(workspace:GetDescendants()) do
-            if v then apply(o) else restore(o) end
-        end
+        -- Optimasi lighting
+        optimizeLighting(v)
+        
+        -- Process semua objects
+        processObjects(v)
     end
 })
 
