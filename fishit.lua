@@ -2260,7 +2260,7 @@ local function createPingDisplay()
     Frame.BorderSizePixel = 0
     Frame.Visible = PingEnabled
     Frame.ZIndex = 1000
-    Frame.Active = true -- Enable dragging
+    Frame.Active = true
 
     local Stroke = Instance.new("UIStroke", Frame)
     Stroke.Thickness = 2
@@ -2289,7 +2289,6 @@ local function createPingDisplay()
         Frame.Visible = false
     end)
 
-    -- Hover effect for close button
     CloseButton.MouseEnter:Connect(function()
         CloseButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
     end)
@@ -2298,14 +2297,14 @@ local function createPingDisplay()
         CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
     end)
 
-    -- Header Text
+    -- Header Text (CENTER)
     HeaderText = Instance.new("TextLabel", Frame)
-    HeaderText.Size = UDim2.new(1, -30, 0, 20)
-    HeaderText.Position = UDim2.fromOffset(5, 5)
+    HeaderText.Size = UDim2.new(1, 0, 0, 20)
+    HeaderText.Position = UDim2.fromOffset(0, 5)
     HeaderText.BackgroundTransparency = 1
     HeaderText.Font = Enum.Font.GothamBold
     HeaderText.TextSize = 11
-    HeaderText.TextXAlignment = Enum.TextXAlignment.Left
+    HeaderText.TextXAlignment = Enum.TextXAlignment.Center -- CENTER!
     HeaderText.TextYAlignment = Enum.TextYAlignment.Center
     HeaderText.TextColor3 = Color3.fromRGB(255, 255, 255)
     HeaderText.Text = "VICTORIA PANEL"
@@ -2347,9 +2346,12 @@ if createPingDisplay() then
         
         local Stats = game:GetService("Stats")
         local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-        local cpu = math.floor(Stats.PerformanceStats.CPU:GetValue() * 100)
         
-        StatsText.Text = string.format("PING: %d ms | CPU: %d%%", ping, math.min(cpu, 100))
+        -- Fix CPU - pakai HeartbeatTimeMs untuk perhitungan yang lebih akurat
+        local heartbeat = Stats.PerformanceStats.Heartbeat.Heartbeat:GetValue()
+        local cpu = math.floor(math.clamp(heartbeat / 0.0166 * 100, 0, 100)) -- 60 FPS = 16.6ms
+        
+        StatsText.Text = string.format("PING: %d ms | CPU: %d%%", ping, cpu)
     end))
 end
 
@@ -2558,34 +2560,37 @@ local graphic = Tab7:Section({
     TextSize = 17,
 })
 
--- FPS BOOST
 local Cache = {}
 local White = Color3.fromRGB(220,220,220)
 local FPSBoost = false
 
 local function cache(o)
     if Cache[o] then return end
+    
     if o:IsA("BasePart") then
         Cache[o] = {o.Color, o.Material}
     elseif o:IsA("PointLight") or o:IsA("SpotLight") or o:IsA("SurfaceLight")
     or o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
     or o:IsA("Fire") or o:IsA("Smoke") then
         Cache[o] = o.Enabled
+    elseif o:IsA("Decal") or o:IsA("Texture") then
+        -- CACHE DECAL/TEXTURE TRANSPARENCY
+        Cache[o] = o.Transparency
     end
 end
 
 local function apply(o)
     if o:IsDescendantOf(Player.PlayerGui)
     or (workspace.Terrain and o:IsDescendantOf(workspace.Terrain))
-    or (Player.Character and o:IsDescendantOf(Player.Character)) then return end
+    or (Player.Character and o:IsDescendantOf(Player.Character)) then 
+        return 
+    end
 
     cache(o)
 
     if o:IsA("BasePart") then
         o.Color = White
         o.Material = Enum.Material.SmoothPlastic
-        o.Transparency = 0
-        o.Reflectance = 0
     elseif o:IsA("PointLight") or o:IsA("SpotLight") or o:IsA("SurfaceLight")
     or o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
     or o:IsA("Fire") or o:IsA("Smoke") then
@@ -2602,83 +2607,111 @@ local function restore(o)
     if o:IsA("BasePart") then
         o.Color, o.Material = d[1], d[2]
     elseif o:IsA("Decal") or o:IsA("Texture") then
-        o.Transparency = 0
+        o.Transparency = d  -- RESTORE DECAL TRANSPARENCY
     else
         o.Enabled = d
     end
 end
 
--- Optimize lighting dengan lebih agresif
+-- IMPROVEMENT: OPTIMIZE LIGHTING BETTER
 local function optimizeLighting(v)
     local Lighting = game:GetService("Lighting")
     
+    -- BASIC OPTIMIZATIONS
     Lighting.GlobalShadows = not v
     Lighting.EnvironmentDiffuseScale = v and 0 or 1
     Lighting.EnvironmentSpecularScale = v and 0 or 1
-    Lighting.Ambient = v and Color3.fromRGB(100, 100, 100) or Color3.fromRGB(0, 0, 0)
-    Lighting.OutdoorAmbient = v and Color3.fromRGB(128, 128, 128) or Color3.fromRGB(0, 0, 0)
     
-    -- Matikan semua efek post-processing
-    for _, e in ipairs(Lighting:GetChildren()) do
-        if e:IsA("PostEffect") then
-            e.Enabled = not v
+    -- IMPROVEMENT 1: REDUCE SHADOW QUALITY
+    if v then
+        Lighting.ShadowSoftness = 0
+        Lighting.ShadowColor = Color3.new(0, 0, 0)
+    end
+    
+    -- IMPROVEMENT 2: DISABLE ALL POST EFFECTS
+    for _, effect in ipairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") then
+            effect.Enabled = not v
         end
     end
     
-    -- Optimasi Terrain
+    -- IMPROVEMENT 3: SIMPLIFY TERRAIN
     local Terrain = workspace.Terrain
     if Terrain then
-        Terrain.WaterReflectance = v and 0 or 0.8
-        Terrain.WaterTransparency = v and 1 or 0.5
+        if v then
+            Terrain.WaterReflectance = 0
+            Terrain.WaterTransparency = 1
+            Terrain.WaterWaveSize = 0
+            Terrain.WaterWaveSpeed = 0
+        end
     end
 end
 
--- Process objects dengan yield untuk hindari freeze
+-- IMPROVEMENT: BETTER PROCESSING
 local function processObjects(v)
-    local objects = workspace:GetDescendants()
-    local batchSize = 100
+    local allObjects = {}
     
-    for i = 1, #objects, batchSize do
-        local batchEnd = math.min(i + batchSize - 1, #objects)
+    -- Collect all objects first
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        table.insert(allObjects, obj)
+    end
+    
+    -- Process in batches to prevent freeze
+    local batchSize = 150
+    for i = 1, #allObjects, batchSize do
+        local batchEnd = math.min(i + batchSize - 1, #allObjects)
         
         for j = i, batchEnd do
-            local obj = objects[j]
-            if v then 
-                apply(obj)
-            else 
-                restore(obj)
+            local obj = allObjects[j]
+            if obj and obj.Parent then
+                if v then 
+                    apply(obj)
+                else 
+                    restore(obj)
+                end
             end
         end
         
-        -- Yield setiap batch untuk hindari freeze
-        if i % 500 == 0 then
-            game:GetService("RunService").Heartbeat:Wait()
+        -- Yield to prevent freezing
+        if i % 300 == 0 then
+            game:GetService("RunService").RenderStepped:Wait()
         end
     end
     
+    -- Clear cache when disabling
     if not v then
-        Cache = {}
+        for obj in pairs(Cache) do
+            -- Remove destroyed objects from cache
+            if not obj.Parent then
+                Cache[obj] = nil
+            end
+        end
         collectgarbage("collect")
     end
 end
 
+-- Connect descendant added event
 SafeConnect("FPSBoostDescendant", workspace.DescendantAdded:Connect(function(o)
     if FPSBoost then 
         apply(o) 
     end
 end))
 
+-- IMPROVEMENT: BETTER TOGGLE WITH FEEDBACK
 graphic:Toggle({
     Title = "FPS Boost",
     Default = false,
     Callback = function(v)
         FPSBoost = v
         
-        -- Optimasi lighting
-        optimizeLighting(v)
         
-        -- Process semua objects
+        end
+        
+        -- Apply optimizations
+        optimizeLighting(v)
         processObjects(v)
+        
+        end
     end
 })
 
