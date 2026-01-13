@@ -1979,7 +1979,7 @@ tpplayer:Button({
 -- Initial refresh
 refreshPlayerDropdown()
 
-events = Tab6:Section({
+local events = Tab6:Section({
     Title = "Event Teleporter",
     Icon = "calendar",
     TextXAlignment = "Left",
@@ -2158,7 +2158,7 @@ S.RunService.RenderStepped:Connect(function()
     end
 end)
 
-Tab6:Dropdown({
+events:Dropdown({
     Title = "Select Events",
     Values = eventNames,
     Multi = true,
@@ -2168,7 +2168,7 @@ Tab6:Dropdown({
     end
 })
 
-Tab6:Toggle({
+events:Toggle({
     Title = "Auto Event",
     Value = false,
     Callback = function(state)
@@ -2556,52 +2556,136 @@ local graphic = Tab7:Section({
     TextSize = 17,
 })
 
--- FPS BOOST
+-- FPS BOOST (Optimized)
 local Cache = {}
-local White = Color3.fromRGB(220,220,220)
+local White = Color3.fromRGB(220, 220, 220)
 local FPSBoost = false
+local ProcessQueue = {}
+local IsProcessing = false
 
+-- Optimized cache function dengan memory limit
 local function cache(o)
     if Cache[o] then return end
+    
+    -- Limit cache size untuk avoid memory leak
+    if #Cache > 5000 then
+        local count = 0
+        for k in pairs(Cache) do
+            Cache[k] = nil
+            count = count + 1
+            if count > 1000 then break end
+        end
+    end
+    
     if o:IsA("BasePart") then
-        Cache[o] = {o.Color, o.Material}
+        Cache[o] = {o.Color, o.Material, o.CastShadow}
     elseif o:IsA("PointLight") or o:IsA("SpotLight") or o:IsA("SurfaceLight")
-    or o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
-    or o:IsA("Fire") or o:IsA("Smoke") then
+        or o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
+        or o:IsA("Fire") or o:IsA("Smoke") then
         Cache[o] = o.Enabled
     end
 end
 
+-- Apply optimization dengan batching
 local function apply(o)
+    if not o or not o.Parent then return end
+    
     if o:IsDescendantOf(Player.PlayerGui)
-    or (workspace.Terrain and o:IsDescendantOf(workspace.Terrain))
-    or (Player.Character and o:IsDescendantOf(Player.Character)) then return end
+        or (workspace.Terrain and o:IsDescendantOf(workspace.Terrain))
+        or (Player.Character and o:IsDescendantOf(Player.Character)) then 
+        return 
+    end
 
     cache(o)
 
     if o:IsA("BasePart") then
         o.Color = White
         o.Material = Enum.Material.SmoothPlastic
+        o.CastShadow = false
+        o.Reflectance = 0
+        
+        -- Disable textures untuk performa
+        for _, child in ipairs(o:GetChildren()) do
+            if child:IsA("Decal") or child:IsA("Texture") or child:IsA("SurfaceAppearance") then
+                child.Transparency = 1
+            end
+        end
+    elseif o:IsA("MeshPart") then
+        o.Color = White
+        o.Material = Enum.Material.SmoothPlastic
+        o.CastShadow = false
+        o.Reflectance = 0
     elseif o:IsA("PointLight") or o:IsA("SpotLight") or o:IsA("SurfaceLight")
-    or o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
-    or o:IsA("Fire") or o:IsA("Smoke") then
+        or o:IsA("ParticleEmitter") or o:IsA("Beam") or o:IsA("Trail")
+        or o:IsA("Fire") or o:IsA("Smoke") then
         o.Enabled = false
     end
 end
 
+-- Restore dengan error handling
 local function restore(o)
+    if not o or not o.Parent then return end
+    
     local d = Cache[o]
     if d == nil then return end
 
-    if o:IsA("BasePart") then
-        o.Color, o.Material = d[1], d[2]
-    else
-        o.Enabled = d
-    end
+    pcall(function()
+        if o:IsA("BasePart") then
+            o.Color = d[1]
+            o.Material = d[2]
+            o.CastShadow = d[3] or false
+            
+            -- Restore textures
+            for _, child in ipairs(o:GetChildren()) do
+                if child:IsA("Decal") or child:IsA("Texture") or child:IsA("SurfaceAppearance") then
+                    child.Transparency = 0
+                end
+            end
+        else
+            o.Enabled = d
+        end
+    end)
+    
+    Cache[o] = nil -- Clear cache setelah restore
 end
 
+-- Batch processing untuk avoid lag spike
+local function processBatch()
+    if IsProcessing then return end
+    IsProcessing = true
+    
+    task.spawn(function()
+        local batchSize = 50 -- Process 50 objects per frame
+        local processed = 0
+        
+        while #ProcessQueue > 0 and processed < batchSize do
+            local o = table.remove(ProcessQueue, 1)
+            if o and o.Parent then
+                if FPSBoost then
+                    apply(o)
+                else
+                    restore(o)
+                end
+            end
+            processed = processed + 1
+        end
+        
+        IsProcessing = false
+        
+        -- Continue processing if queue still has items
+        if #ProcessQueue > 0 then
+            task.wait(0.1)
+            processBatch()
+        end
+    end)
+end
+
+-- Optimized descendant handler
 SafeConnect("FPSBoostDescendant", workspace.DescendantAdded:Connect(function(o)
-    if FPSBoost then task.wait(); apply(o) end
+    if FPSBoost then
+        table.insert(ProcessQueue, o)
+        processBatch()
+    end
 end))
 
 graphic:Toggle({
@@ -2611,19 +2695,41 @@ graphic:Toggle({
         FPSBoost = v
         local Lighting = game:GetService("Lighting")
         
+        -- Lighting optimizations
         Lighting.GlobalShadows = not v
         Lighting.EnvironmentDiffuseScale = v and 0 or 1
         Lighting.EnvironmentSpecularScale = v and 0 or 1
-
-        for _,e in ipairs(Lighting:GetChildren()) do
+        Lighting.Brightness = v and 1 or 2
+        
+        -- Disable/Enable post-processing effects
+        for _, e in ipairs(Lighting:GetChildren()) do
             if e:IsA("BloomEffect") or e:IsA("SunRaysEffect") or e:IsA("BlurEffect")
-            or e:IsA("DepthOfFieldEffect") or e:IsA("ColorCorrectionEffect") then
+                or e:IsA("DepthOfFieldEffect") or e:IsA("ColorCorrectionEffect")
+                or e:IsA("Atmosphere") then
                 e.Enabled = not v
             end
         end
-
-        for _,o in ipairs(workspace:GetDescendants()) do
-            if v then apply(o) else restore(o) end
+        
+        -- Terrain optimization
+        if workspace:FindFirstChild("Terrain") then
+            workspace.Terrain.Decoration = not v
+        end
+        
+        -- Settings optimization
+        settings().Rendering.QualityLevel = v and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic
+        
+        -- Process existing objects dengan batch
+        ProcessQueue = {}
+        for _, o in ipairs(workspace:GetDescendants()) do
+            table.insert(ProcessQueue, o)
+        end
+        processBatch()
+        
+        -- Clear cache saat disable
+        if not v then
+            task.wait(2)
+            Cache = {}
+            collectgarbage("collect") -- Force garbage collection
         end
     end
 })
