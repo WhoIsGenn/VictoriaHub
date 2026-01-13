@@ -2304,7 +2304,7 @@ local function createPingDisplay()
     HeaderText.BackgroundTransparency = 1
     HeaderText.Font = Enum.Font.GothamBold
     HeaderText.TextSize = 11
-    HeaderText.TextXAlignment = Enum.TextXAlignment.Center -- CENTER!
+    HeaderText.TextXAlignment = Enum.TextXAlignment.Center
     HeaderText.TextYAlignment = Enum.TextYAlignment.Center
     HeaderText.TextColor3 = Color3.fromRGB(255, 255, 255)
     HeaderText.Text = "VICTORIA PANEL"
@@ -2344,14 +2344,10 @@ if createPingDisplay() then
         if now - lastPingUpdate < pingUpdateInterval then return end
         lastPingUpdate = now
         
-        local Stats = game:GetService("Stats")
-        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        local ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+        local fps = math.floor(1 / game:GetService("RunService").RenderStepped:Wait())
         
-        -- Fix CPU - pakai HeartbeatTimeMs untuk perhitungan yang lebih akurat
-        local heartbeat = Stats.PerformanceStats.Heartbeat.Heartbeat:GetValue()
-        local cpu = math.floor(math.clamp(heartbeat / 0.0166 * 100, 0, 100)) -- 60 FPS = 16.6ms
-        
-        StatsText.Text = string.format("PING: %d ms | CPU: %d%%", ping, cpu)
+        StatsText.Text = string.format("PING: %d ms | FPS: %d", ping, math.min(fps, 999))
     end))
 end
 
