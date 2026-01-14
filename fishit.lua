@@ -2213,18 +2213,38 @@ for n in pairs(eventData) do
     eventNames[#eventNames+1] = n
 end
 
--- FORCE TP
-local function forceTP(pos)
-    if not ST.lastTP or (ST.lastTP - pos).Magnitude > 5 then
-        ST.lastTP = pos
-        for _ = 1, 2 do
-            ST.hrp.CFrame = CFrame.new(pos.X, pos.Y + 3, pos.Z)
+-- FLOAT (SAFE + ACCURATE)
+local RayParams = RaycastParams.new()
+RayParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+S.RunService.RenderStepped:Connect(function()
+    if not ST.autoFloat then return end
+    if not ST.hrp then return end
+    if not ST.char then return end
+
+    RayParams.FilterDescendantsInstances = { ST.char }
+
+    local origin = ST.hrp.Position
+    local result = workspace:Raycast(
+        origin,
+        Vector3.new(0, -500, 0),
+        RayParams
+    )
+
+    if result and result.Material == Enum.Material.Water then
+        local targetY = result.Position.Y + ST.floatOffset
+
+        if origin.Y < targetY then
+            ST.hrp.CFrame = CFrame.new(
+                origin.X,
+                targetY,
+                origin.Z
+            )
             ST.hrp.AssemblyLinearVelocity = Vector3.zero
-            ST.hrp.Velocity = Vector3.zero
-            task.wait(0.02)
         end
     end
-end
+end)
+
 
 -- MAIN TP LOOP
 local function runEventTP()
