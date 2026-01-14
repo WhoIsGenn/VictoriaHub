@@ -366,6 +366,246 @@ local other = Tab2:Section({
     Opened = true,
 })
 
+-- FLY SYSTEM (PC & Mobile Compatible)
+local flyEnabled = false
+local flying = false
+local flySpeed = 50
+local bodyVelocity, bodyGyro
+
+local function enableFly()
+    local character = Player.Character
+    if not character then return end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not rootPart or humanoid:GetState() == Enum.HumanoidStateType.Dead then
+        return
+    end
+    
+    -- Create BodyVelocity and BodyGyro for flight
+    if not bodyVelocity then
+        bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.MaxForce = Vector3.new(10000, 10000, 10000)
+        bodyVelocity.P = 1000
+        bodyVelocity.Parent = rootPart
+    end
+    
+    if not bodyGyro then
+        bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.MaxTorque = Vector3.new(10000, 10000, 10000)
+        bodyGyro.P = 1000
+        bodyGyro.D = 100
+        bodyGyro.Parent = rootPart
+    end
+    
+    flying = true
+    humanoid.PlatformStand = true
+    
+    -- Flight control loop
+    local flyLoop
+    flyLoop = task.spawn(function()
+        while flying do
+            if not character or not rootPart or humanoid:GetState() == Enum.HumanoidStateType.Dead then
+                break
+            end
+            
+            local forward = 0
+            local backward = 0
+            local left = 0
+            local right = 0
+            local up = 0
+            local down = 0
+            
+            -- Keyboard controls (PC)
+            local UIS = game:GetService("UserInputService")
+            if UIS:IsKeyDown(Enum.KeyCode.W) then forward = 1 end
+            if UIS:IsKeyDown(Enum.KeyCode.S) then backward = 1 end
+            if UIS:IsKeyDown(Enum.KeyCode.A) then left = 1 end
+            if UIS:IsKeyDown(Enum.KeyCode.D) then right = 1 end
+            if UIS:IsKeyDown(Enum.KeyCode.Space) then up = 1 end
+            if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.Q) then down = 1 end
+            
+            -- Touch controls (Mobile - using touch thumbsticks)
+            for _, touch in pairs(UIS:GetConnectedGamepads()) do
+                local gamepad = UIS:GetGamepadState(touch)
+                if gamepad then
+                    for _, input in pairs(gamepad) do
+                        if input.KeyCode == Enum.KeyCode.Thumbstick1 then
+                            local stick = input.Position
+                            forward = math.max(0, stick.Y)
+                            backward = math.max(0, -stick.Y)
+                            left = math.max(0, -stick.X)
+                            right = math.max(0, stick.X)
+                        elseif input.KeyCode == Enum.KeyCode.ButtonR2 then
+                            up = input.Position.Z > 0.1 and 1 or 0
+                        elseif input.KeyCode == Enum.KeyCode.ButtonL2 then
+                            down = input.Position.Z > 0.1 and 1 or 0
+                        end
+                    end
+                end
+            end
+            
+            -- Calculate movement direction
+            local cam = workspace.CurrentCamera
+            local lookVector = cam.CFrame.LookVector
+            local rightVector = cam.CFrame.RightVector
+            
+            local moveDirection = Vector3.new(
+                (right * rightVector.X - left * rightVector.X) + (forward * lookVector.X - backward * lookVector.X),
+                (up - down),
+                (right * rightVector.Z - left * rightVector.Z) + (forward * lookVector.Z - backward * lookVector.Z)
+            )
+            
+            -- Normalize and apply speed
+            if moveDirection.Magnitude > 0 then
+                moveDirection = moveDirection.Unit * flySpeed
+            end
+            
+            -- Update velocity
+            if bodyVelocity and bodyVelocity.Parent then
+                bodyVelocity.Velocity = moveDirection
+            end
+            
+            -- Update gyro to face camera direction
+            if bodyGyro and bodyGyro.Parent then
+                bodyGyro.CFrame = cam.CFrame
+            end
+            
+            task.wait()
+        end
+    end)
+    
+    -- Store fly loop for cleanup
+    Performance.Tasks["FlyLoop"] = flyLoop
+end
+
+local function disableFly()
+    flying = false
+    
+    local character = Player.Character
+    if character then
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        
+        if humanoid then
+            humanoid.PlatformStand = false
+        end
+        
+        if bodyVelocity then
+            bodyVelocity:Destroy()
+            bodyVelocity = nil
+        end
+        
+        if bodyGyro then
+            bodyGyro:Destroy()
+            bodyGyro = nil
+        end
+    end
+    
+    if Performance.Tasks["FlyLoop"] then
+        task.cancel(Performance.Tasks["FlyLoop"])
+        Performance.Tasks["FlyLoop"] = nil
+    end
+end
+
+-- WALK ON WATER
+local walkOnWaterEnabled = false
+local waterParts = {}
+
+local function enableWalkOnWater()
+    walkOnWaterEnabled = true
+    
+    -- Find all water parts in workspace
+    for _, part in pairs(workspace:GetDescendants()) do
+        if part:IsA("BasePart") and (part.Name:lower():find("water") or part.Material == Enum.Material.Water) then
+            table.insert(waterParts, part)
+            part.CanCollide = true
+            part.Transparency = 0.7
+            part.Color = Color3.fromRGB(100, 150, 255)
+        end
+    end
+    
+    -- Monitor for new water parts
+    local waterConnection
+    waterConnection = workspace.DescendantAdded:Connect(function(descendant)
+        if walkOnWaterEnabled and descendant:IsA("BasePart") and 
+           (descendant.Name:lower():find("water") or descendant.Material == Enum.Material.Water) then
+            table.insert(waterParts, descendant)
+            descendant.CanCollide = true
+            descendant.Transparency = 0.7
+            descendant.Color = Color3.fromRGB(100, 150, 255)
+        end
+    end)
+    
+    Performance.Connections["WalkOnWater"] = waterConnection
+end
+
+local function disableWalkOnWater()
+    walkOnWaterEnabled = false
+    
+    -- Restore original water properties
+    for _, part in pairs(waterParts) do
+        if part and part.Parent then
+            pcall(function()
+                part.CanCollide = false
+                part.Transparency = 1
+                part.Color = Color3.fromRGB(0, 162, 255)
+            end)
+        end
+    end
+    
+    waterParts = {}
+    
+    -- Disconnect monitor
+    if Performance.Connections["WalkOnWater"] then
+        Performance.Connections["WalkOnWater"]:Disconnect()
+        Performance.Connections["WalkOnWater"] = nil
+    end
+end
+
+-- Add Fly Toggle
+other:Toggle({
+    Title = "Fly",
+    Desc = "Press W/A/S/D/Space/Q to fly",
+    Default = false,
+    Callback = function(state)
+        flyEnabled = state
+        
+        if state then
+            enableFly()
+        else
+            disableFly()
+        end
+    end
+})
+
+-- Fly Speed Slider
+other:Slider({
+    Title = "Fly Speed",
+    Desc = "Adjust fly movement speed",
+    Step = 5,
+    Value = { Min = 10, Max = 200, Default = 50 },
+    Callback = function(Value)
+        flySpeed = Value
+    end
+})
+
+-- Walk on Water Toggle
+other:Toggle({
+    Title = "Walk on Water",
+    Desc = "Walk on water surfaces",
+    Default = false,
+    Callback = function(state)
+        if state then
+            enableWalkOnWater()
+        else
+            disableWalkOnWater()
+        end
+    end
+})
+
 -- SPEED
 other:Slider({
     Title = "Speed",
@@ -534,6 +774,25 @@ other:Toggle({
         pcall(applyAnimState)
     end
 })
+
+-- Handle character respawn for fly
+SafeConnect("CharacterFlyRespawn", Player.CharacterAdded:Connect(function(character)
+    task.wait(1) -- Wait for character to fully load
+    
+    if flyEnabled then
+        -- Re-enable fly if it was active
+        disableFly() -- Clean up old instances
+        task.wait(0.5)
+        enableFly()
+    end
+    
+    if walkOnWaterEnabled then
+        -- Re-apply walk on water
+        disableWalkOnWater()
+        task.wait(0.5)
+        enableWalkOnWater()
+    end
+end))
 
 _G.AutoFishing = false
 _G.AutoEquipRod = false
