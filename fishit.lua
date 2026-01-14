@@ -366,7 +366,7 @@ local other = Tab2:Section({
     Opened = true,
 })
 
--- FLY SYSTEM (PC & Mobile Compatible)
+-- FLY SYSTEM (PC & Mobile Compatible - FIXED)
 local flyEnabled = false
 local flying = false
 local flySpeed = 50
@@ -420,6 +420,9 @@ local function enableFly()
             
             -- Keyboard controls (PC)
             local UIS = game:GetService("UserInputService")
+            local TS = game:GetService("TouchService")
+            
+            -- PC controls
             if UIS:IsKeyDown(Enum.KeyCode.W) then forward = 1 end
             if UIS:IsKeyDown(Enum.KeyCode.S) then backward = 1 end
             if UIS:IsKeyDown(Enum.KeyCode.A) then left = 1 end
@@ -427,22 +430,55 @@ local function enableFly()
             if UIS:IsKeyDown(Enum.KeyCode.Space) then up = 1 end
             if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.Q) then down = 1 end
             
-            -- Touch controls (Mobile - using touch thumbsticks)
-            for _, touch in pairs(UIS:GetConnectedGamepads()) do
-                local gamepad = UIS:GetGamepadState(touch)
-                if gamepad then
-                    for _, input in pairs(gamepad) do
-                        if input.KeyCode == Enum.KeyCode.Thumbstick1 then
-                            local stick = input.Position
-                            forward = math.max(0, stick.Y)
-                            backward = math.max(0, -stick.Y)
-                            left = math.max(0, -stick.X)
-                            right = math.max(0, stick.X)
-                        elseif input.KeyCode == Enum.KeyCode.ButtonR2 then
-                            up = input.Position.Z > 0.1 and 1 or 0
-                        elseif input.KeyCode == Enum.KeyCode.ButtonL2 then
-                            down = input.Position.Z > 0.1 and 1 or 0
+            -- Mobile controls with VirtualJoystick
+            if TS and #TS:GetActiveTouchDevices() > 0 then
+                -- Check for VirtualJoystick (Roblox default)
+                local gui = Player.PlayerGui:FindFirstChild("TouchGui")
+                if gui then
+                    local touchFrame = gui:FindFirstChild("TouchControlFrame")
+                    if touchFrame then
+                        local joyStick = touchFrame:FindFirstChild("DynamicThumbstickFrame")
+                        if joyStick then
+                            local thumbstick = joyStick:FindFirstChild("ThumbstickPad")
+                            if thumbstick then
+                                local position = thumbstick.Position
+                                local size = thumbstick.AbsoluteSize
+                                local center = thumbstick.AbsolutePosition + size/2
+                                
+                                -- Get touch input
+                                local touchInputs = UIS:GetTouchInputs()
+                                for _, touch in pairs(touchInputs) do
+                                    local touchPos = touch.Position
+                                    if touchPos.X >= center.X - size.X/2 and touchPos.X <= center.X + size.X/2 and
+                                       touchPos.Y >= center.Y - size.Y/2 and touchPos.Y <= center.Y + size.Y/2 then
+                                        local delta = (touchPos - center) / (size.X/2)
+                                        forward = math.max(0, delta.Y)
+                                        backward = math.max(0, -delta.Y)
+                                        left = math.max(0, -delta.X)
+                                        right = math.max(0, delta.X)
+                                        break
+                                    end
+                                end
+                            end
                         end
+                    end
+                end
+                
+                -- Alternative: Use touch zones for up/down
+                local screenSize = workspace.CurrentCamera.ViewportSize
+                local rightZone = Vector2.new(screenSize.X * 0.8, screenSize.Y * 0.5)
+                local leftZone = Vector2.new(screenSize.X * 0.2, screenSize.Y * 0.5)
+                
+                local touchInputs = UIS:GetTouchInputs()
+                for _, touch in pairs(touchInputs) do
+                    local touchPos = touch.Position
+                    
+                    -- Right side touch for up
+                    if touchPos.X > screenSize.X * 0.6 and touchPos.Y < screenSize.Y * 0.4 then
+                        up = 1
+                    -- Left side touch for down
+                    elseif touchPos.X < screenSize.X * 0.4 and touchPos.Y < screenSize.Y * 0.4 then
+                        down = 1
                     end
                 end
             end
@@ -510,36 +546,161 @@ local function disableFly()
     end
 end
 
--- WALK ON WATER
+-- WALK ON WATER (FIXED - Force character to stay above water)
 local walkOnWaterEnabled = false
 local waterParts = {}
+local walkOnWaterConnection
 
 local function enableWalkOnWater()
     walkOnWaterEnabled = true
     
+    -- Clear previous water parts
+    waterParts = {}
+    
     -- Find all water parts in workspace
     for _, part in pairs(workspace:GetDescendants()) do
-        if part:IsA("BasePart") and (part.Name:lower():find("water") or part.Material == Enum.Material.Water) then
-            table.insert(waterParts, part)
-            part.CanCollide = true
-            part.Transparency = 0.7
-            part.Color = Color3.fromRGB(100, 150, 255)
+        if part:IsA("BasePart") then
+            local isWater = false
+            
+            -- Check by name
+            local nameLower = part.Name:lower()
+            if nameLower:find("water") or nameLower:find("sea") or nameLower:find("ocean") or 
+               nameLower:find("river") or nameLower:find("lake") then
+                isWater = true
+            end
+            
+            -- Check by material
+            if part.Material == Enum.Material.Water or part.Material == Enum.Material.SmoothPlastic then
+                local color = part.Color
+                -- Check for blue-ish colors
+                if color.B > color.R + 0.2 and color.B > color.G + 0.2 then
+                    isWater = true
+                end
+            end
+            
+            -- Check by transparency
+            if part.Transparency > 0.7 and part.CanCollide == false then
+                isWater = true
+            end
+            
+            if isWater then
+                table.insert(waterParts, part)
+                local original = {
+                    CanCollide = part.CanCollide,
+                    Transparency = part.Transparency,
+                    Color = part.Color,
+                    Material = part.Material
+                }
+                
+                -- Store original properties
+                part:SetAttribute("OriginalWaterProps", original)
+                
+                -- Make water solid and visible
+                part.CanCollide = true
+                part.Transparency = 0.3
+                part.Color = Color3.fromRGB(100, 150, 255)
+                part.Material = Enum.Material.SmoothPlastic
+                
+                -- Add buoyancy force
+                local buoyancy = Instance.new("BodyForce")
+                buoyancy.Name = "WaterBuoyancy"
+                buoyancy.Force = Vector3.new(0, part:GetMass() * 196.2, 0) -- Upward force
+                buoyancy.Parent = part
+            end
         end
     end
     
     -- Monitor for new water parts
-    local waterConnection
-    waterConnection = workspace.DescendantAdded:Connect(function(descendant)
-        if walkOnWaterEnabled and descendant:IsA("BasePart") and 
-           (descendant.Name:lower():find("water") or descendant.Material == Enum.Material.Water) then
-            table.insert(waterParts, descendant)
-            descendant.CanCollide = true
-            descendant.Transparency = 0.7
-            descendant.Color = Color3.fromRGB(100, 150, 255)
+    if walkOnWaterConnection then
+        walkOnWaterConnection:Disconnect()
+    end
+    
+    walkOnWaterConnection = workspace.DescendantAdded:Connect(function(descendant)
+        if walkOnWaterEnabled and descendant:IsA("BasePart") then
+            local isWater = false
+            
+            local nameLower = descendant.Name:lower()
+            if nameLower:find("water") or nameLower:find("sea") or nameLower:find("ocean") or 
+               nameLower:find("river") or nameLower:find("lake") then
+                isWater = true
+            end
+            
+            if descendant.Material == Enum.Material.Water or 
+               (descendant.Transparency > 0.7 and descendant.CanCollide == false) then
+                isWater = true
+            end
+            
+            if isWater then
+                table.insert(waterParts, descendant)
+                local original = {
+                    CanCollide = descendant.CanCollide,
+                    Transparency = descendant.Transparency,
+                    Color = descendant.Color,
+                    Material = descendant.Material
+                }
+                
+                descendant:SetAttribute("OriginalWaterProps", original)
+                descendant.CanCollide = true
+                descendant.Transparency = 0.3
+                descendant.Color = Color3.fromRGB(100, 150, 255)
+                descendant.Material = Enum.Material.SmoothPlastic
+                
+                local buoyancy = Instance.new("BodyForce")
+                buoyancy.Name = "WaterBuoyancy"
+                buoyancy.Force = Vector3.new(0, descendant:GetMass() * 196.2, 0)
+                buoyancy.Parent = descendant
+            end
         end
     end)
     
-    Performance.Connections["WalkOnWater"] = waterConnection
+    -- Force character to stay above water
+    local forceAboveWater = task.spawn(function()
+        while walkOnWaterEnabled do
+            local character = Player.Character
+            if character then
+                local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+                if humanoidRootPart then
+                    local position = humanoidRootPart.Position
+                    
+                    -- Check if character is near water
+                    for _, waterPart in pairs(waterParts) do
+                        if waterPart and waterPart.Parent then
+                            local waterPosition = waterPart.Position
+                            local waterSize = waterPart.Size
+                            
+                            -- Check if character is within water bounds
+                            if math.abs(position.X - waterPosition.X) < waterSize.X/2 + 5 and
+                               math.abs(position.Z - waterPosition.Z) < waterSize.Z/2 + 5 and
+                               position.Y < waterPosition.Y + waterSize.Y/2 then
+                                
+                                -- Force character to stay on water surface
+                                humanoidRootPart.Velocity = Vector3.new(
+                                    humanoidRootPart.Velocity.X,
+                                    0,  -- Zero out vertical velocity
+                                    humanoidRootPart.Velocity.Z
+                                )
+                                
+                                -- Push character up to water surface
+                                local surfaceY = waterPosition.Y + waterSize.Y/2 + 3
+                                if position.Y < surfaceY then
+                                    humanoidRootPart.CFrame = CFrame.new(
+                                        position.X,
+                                        surfaceY,
+                                        position.Z
+                                    )
+                                end
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+    
+    Performance.Tasks["WalkOnWaterForce"] = forceAboveWater
+    Performance.Connections["WalkOnWater"] = walkOnWaterConnection
 end
 
 local function disableWalkOnWater()
@@ -549,18 +710,43 @@ local function disableWalkOnWater()
     for _, part in pairs(waterParts) do
         if part and part.Parent then
             pcall(function()
-                part.CanCollide = false
-                part.Transparency = 1
-                part.Color = Color3.fromRGB(0, 162, 255)
+                local original = part:GetAttribute("OriginalWaterProps")
+                if original then
+                    part.CanCollide = original.CanCollide
+                    part.Transparency = original.Transparency
+                    part.Color = original.Color
+                    part.Material = original.Material
+                    part:SetAttribute("OriginalWaterProps", nil)
+                else
+                    part.CanCollide = false
+                    part.Transparency = 1
+                    part.Color = Color3.fromRGB(0, 162, 255)
+                end
+                
+                -- Remove buoyancy force
+                local buoyancy = part:FindFirstChild("WaterBuoyancy")
+                if buoyancy then
+                    buoyancy:Destroy()
+                end
             end)
         end
     end
     
     waterParts = {}
     
+    -- Stop force task
+    if Performance.Tasks["WalkOnWaterForce"] then
+        task.cancel(Performance.Tasks["WalkOnWaterForce"])
+        Performance.Tasks["WalkOnWaterForce"] = nil
+    end
+    
     -- Disconnect monitor
+    if walkOnWaterConnection then
+        walkOnWaterConnection:Disconnect()
+        walkOnWaterConnection = nil
+    end
+    
     if Performance.Connections["WalkOnWater"] then
-        Performance.Connections["WalkOnWater"]:Disconnect()
         Performance.Connections["WalkOnWater"] = nil
     end
 end
@@ -568,7 +754,7 @@ end
 -- Add Fly Toggle
 other:Toggle({
     Title = "Fly",
-    Desc = "Press W/A/S/D/Space/Q to fly",
+    Desc = "PC: WASD+Space/Q | Mobile: Joystick+Tap corners",
     Default = false,
     Callback = function(state)
         flyEnabled = state
@@ -775,7 +961,7 @@ other:Toggle({
     end
 })
 
--- Handle character respawn for fly
+-- Handle character respawn for fly and walk on water
 SafeConnect("CharacterFlyRespawn", Player.CharacterAdded:Connect(function(character)
     task.wait(1) -- Wait for character to fully load
     
