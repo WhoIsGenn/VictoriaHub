@@ -1979,7 +1979,7 @@ island:Button({
 })
 
 -- ======================================================
--- PLAYER TELEPORT (FIX TOTAL)
+-- PLAYER TELEPORT (FULL FIX – NO UI BREAK)
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -2035,21 +2035,21 @@ dropdownRef = tpplayer:Dropdown({
 })
 
 -- ======================================================
--- REFRESH FUNCTION (REAL FIX)
+-- REFRESH FUNCTION (SAFE)
 -- ======================================================
 
 local function refreshDropdown()
     local players = getPlayerList()
 
-    dropdownRef:Refresh(players)
+    -- Refresh values only
+    dropdownRef:Refresh(players, true)
 
+    -- Set default manually (NO :Set)
     if #players > 0 then
         selectedPlayerName = players[1]
-        dropdownRef:Set(players[1])
     else
         selectedPlayerName = nil
     end
-
 end
 
 -- ======================================================
@@ -2077,7 +2077,7 @@ tpplayer:Button({
             return
         end
 
-        -- EXACT POSITION (slightly above to avoid collision)
+        -- Teleport EXACT position (above target)
         myHRP.CFrame = CFrame.new(
             targetHRP.Position + Vector3.new(0, 3, 0)
         )
@@ -2085,13 +2085,33 @@ tpplayer:Button({
 })
 
 -- ======================================================
--- MANUAL REFRESH
+-- MANUAL REFRESH BUTTON
 -- ======================================================
 
 tpplayer:Button({
     Title = "Refresh Player List",
-    Callback = refreshDropdown
+    Callback = function()
+        refreshDropdown()
+    end
 })
+
+-- ======================================================
+-- AUTO REFRESH ON JOIN / LEAVE
+-- ======================================================
+
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= Player then
+        task.wait(0.5)
+        refreshDropdown()
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    if plr ~= Player then
+        task.wait(0.5)
+        refreshDropdown()
+    end
+end)
 
 -- ======================================================
 -- INIT
