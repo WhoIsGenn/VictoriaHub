@@ -1516,148 +1516,152 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
 end)
 
 
--- AUTO PLACE TOTEM (With Item Detection)
-local TotemSystem = {
-    -- Remotes
-    RESpawnTotem = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/SpawnTotem"],
-    REEquipItem = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/EquipItem"],
-    
+--=====================================================
+-- AUTO PLACE TOTEM (CLEAN + AUTO RETRY UUID)
+-- Fish It | WindUI | sleitnick_net
+--=====================================================
+
+-- SERVICES
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Player = Players.LocalPlayer
+local Net = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net
+
+-- REMOTES
+local RESpawnTotem = Net["RE/SpawnTotem"]
+local REEquipItem  = Net["RE/EquipItem"]
+
+--=====================================================
+-- CORE SYSTEM
+--=====================================================
+
+local AutoTotem = {
     -- Data
-    ItemIdToName = {},
-    ItemNameToId = {},
-    TotemItems = {},
     TotemNames = {},
-    
-    -- Settings
+    TotemNameToId = {},
+
+    -- State
     SelectedTotem = nil,
-    AutoPlaceEnabled = false,
-    PlaceInterval = 60, -- Re-place every 60 seconds (untuk refresh)
-    LastPlaceTime = 0,
-    MinDistanceFromLastTotem = 50 -- Jarak minimum dari totem terakhir
+    CachedUUID = nil,
+
+    Enabled = false,
+    Interval = 60,
+    LastSpawn = 0,
+
+    RetryCooldown = 3,
+    LastRetry = 0
 }
 
--- Load Items & Detect Totems
+--=====================================================
+-- LOAD TOTEM LIST (DROPDOWN SOURCE)
+--=====================================================
+
 for _, item in pairs(ReplicatedStorage.Items:GetChildren()) do
     local ok, data = pcall(require, item)
     if ok and data.Data then
-        local id = data.Data.Id
         local name = data.Data.Name
-        local itemType = data.Data.Type
-        
-        TotemSystem.ItemIdToName[id] = name
-        TotemSystem.ItemNameToId[name] = id
-        
-        -- Detect Totem items
-        if itemType == "Totem" or string.find(name:lower(), "totem") then
-            TotemSystem.TotemItems[id] = {
-                Name = name,
-                Id = id
-            }
-            table.insert(TotemSystem.TotemNames, name)
+        local id   = data.Data.Id
+        local typ  = data.Data.Type
+
+        if typ == "Totem" or string.find(name:lower(), "totem") then
+            table.insert(AutoTotem.TotemNames, name)
+            AutoTotem.TotemNameToId[name] = id
         end
     end
 end
 
--- Sort totem names
-table.sort(TotemSystem.TotemNames)
+table.sort(AutoTotem.TotemNames)
+print("[AutoTotem] Totems loaded:", #AutoTotem.TotemNames)
 
-print("[AutoTotem] Loaded", #TotemSystem.TotemNames, "totem types")
+--=====================================================
+-- UUID RESOLVER (SATU-SATUNYA TEMPAT INVENTORY)
+--=====================================================
+-- ⚠️ Jika executor kamu beda, edit BAGIAN INI SAJA
 
--- Check if player has totem in inventory
-local function hasTotemInInventory(totemId)
-    if not DataService then return false end
-    
-    local success, inventoryItems = pcall(function()
-        return DataService:GetExpect({ "Inventory", "Items" })
-    end)
-    
-    if not success then return false end
-    
-    for _, item in pairs(inventoryItems) do
-        if item.Id == totemId then
-            return true, item.UUID
+local function resolveTotemUUID(totemId)
+    -- Contoh inventory table umum
+    local inv = rawget(_G, "Inventory")
+        or rawget(_G, "PlayerInventory")
+        or rawget(shared, "Inventory")
+
+    if not inv or not inv.Items then
+        return nil
+    end
+
+    for _, item in pairs(inv.Items) do
+        if item.Id == totemId and item.UUID then
+            return item.UUID
         end
     end
-    
-    return false
+
+    return nil
 end
 
--- Place totem function
-local function placeTotem()
-    if not TotemSystem.SelectedTotem then 
-        print("[AutoTotem] No totem selected")
-        return false 
+--=====================================================
+-- SPAWN TOTEM (AUTO RETRY)
+--=====================================================
+
+local function spawnTotem()
+    if not AutoTotem.SelectedTotem then return end
+
+    local totemId = AutoTotem.TotemNameToId[AutoTotem.SelectedTotem]
+    if not totemId then return end
+
+    -- Resolve UUID if missing
+    if not AutoTotem.CachedUUID then
+        AutoTotem.CachedUUID = resolveTotemUUID(totemId)
+        if not AutoTotem.CachedUUID then
+            warn("[AutoTotem] UUID not found, retrying later")
+            return
+        end
     end
-    
-    local totemId = TotemSystem.ItemNameToId[TotemSystem.SelectedTotem]
-    if not totemId then 
-        print("[AutoTotem] Invalid totem ID")
-        return false 
-    end
-    
-    -- Check inventory
-    local hasTotem, uuid = hasTotemInInventory(totemId)
-    if not hasTotem then
-        WindUI:Notify({
-            Title = "Auto Totem",
-            Content = "No " .. TotemSystem.SelectedTotem .. " in inventory!",
-            Duration = 3
-        })
-        print("[AutoTotem] ✗ No totem in inventory")
-        return false
-    end
-    
-    -- Get player position
-    local character = Player.Character
-    if not character then return false end
-    
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    
-    local playerPos = hrp.Position
-    
-    -- Try to equip & spawn totem
-    local success = pcall(function()
-        -- Step 1: Equip totem
-        TotemSystem.REEquipItem:FireServer(uuid)
-        task.wait(0.2) -- Wait for equip
-        
-        -- Step 2: Spawn totem at player position
-        TotemSystem.RESpawnTotem:FireServer(playerPos)
+
+    -- Try spawn
+    local ok = pcall(function()
+        REEquipItem:FireServer(AutoTotem.CachedUUID)
+        task.wait(0.15)
+        RESpawnTotem:FireServer(AutoTotem.CachedUUID)
     end)
-    
-    if success then
-        TotemSystem.LastPlaceTime = tick()
-        
-        WindUI:Notify({
-            Title = "Auto Totem",
-            Content = "🗿 Placed " .. TotemSystem.SelectedTotem,
-            Duration = 2
-        })
-        
-        print("[AutoTotem] ✓ Placed totem at:", playerPos)
-        return true
+
+    if ok then
+        AutoTotem.LastSpawn = tick()
+        print("[AutoTotem] Spawned:", AutoTotem.SelectedTotem)
     else
-        print("[AutoTotem] ✗ Failed to place totem")
-        return false
+        warn("[AutoTotem] UUID failed, clearing cache")
+        AutoTotem.CachedUUID = nil
+        AutoTotem.LastRetry = tick()
     end
 end
 
--- Auto place loop
-local function autoPlaceLoop()
-    while TotemSystem.AutoPlaceEnabled do
-        local currentTime = tick()
-        
-        -- Check if enough time passed
-        if currentTime - TotemSystem.LastPlaceTime >= TotemSystem.PlaceInterval then
-            placeTotem()
+--=====================================================
+-- LOOP
+--=====================================================
+
+task.spawn(function()
+    while true do
+        if AutoTotem.Enabled then
+            local now = tick()
+
+            -- Normal interval
+            if now - AutoTotem.LastSpawn >= AutoTotem.Interval then
+                spawnTotem()
+            end
+
+            -- Retry if UUID invalid
+            if not AutoTotem.CachedUUID
+                and now - AutoTotem.LastRetry >= AutoTotem.RetryCooldown then
+                spawnTotem()
+            end
         end
-        
-        task.wait(5) -- Check every 5 seconds
+        task.wait(2)
     end
-end
+end)
 
--- ===== WINDUI SECTION =====
+--=====================================================
+-- WINDUI (TAB4)
+--=====================================================
+
 local totemSection = Tab4:Section({
     Title = "Auto Place Totem",
     Icon = "box",
@@ -1665,105 +1669,53 @@ local totemSection = Tab4:Section({
     TextSize = 17
 })
 
--- Totem Dropdown
+-- Dropdown
 totemSection:Dropdown({
     Title = "Select Totem",
-    Desc = "Choose which totem to auto place",
-    Values = TotemSystem.TotemNames,
+    Values = AutoTotem.TotemNames,
     Multi = false,
-    Callback = function(value)
-        TotemSystem.SelectedTotem = value
-        print("[AutoTotem] Selected:", value)
-        
-        WindUI:Notify({
-            Title = "Auto Totem",
-            Content = "Selected: " .. value,
-            Duration = 2
-        })
+    Callback = function(v)
+        AutoTotem.SelectedTotem = v
+        AutoTotem.CachedUUID = nil
+        print("[AutoTotem] Selected:", v)
     end
 })
 
--- Place Interval Slider
-totemSection:Slider({
-    Title = "Re-place Interval",
-    Desc = "Time before replacing totem (seconds)",
-    Min = 30,
-    Max = 3600, -- Max 1 hour
-    Default = 60,
-    Callback = function(value)
-        TotemSystem.PlaceInterval = value
-        print("[AutoTotem] Interval set to:", value, "seconds")
+-- Interval Input (GANTI SLIDER)
+totemSection:Input({
+    Title = "Interval (seconds)",
+    Placeholder = "Example: 60",
+    Callback = function(v)
+        local n = tonumber(v)
+        if n and n >= 10 then
+            AutoTotem.Interval = n
+            print("[AutoTotem] Interval set:", n)
+        end
     end
 })
 
--- Toggle Auto Place
+-- Toggle
 totemSection:Toggle({
     Title = "Auto Place Totem",
     Value = false,
-    Callback = function(state)
-        TotemSystem.AutoPlaceEnabled = state
-        SafeCancel("AutoTotem")
-        
-        if state then
-            if not TotemSystem.SelectedTotem then
-                WindUI:Notify({
-                    Title = "Auto Totem",
-                    Content = "Please select a totem first!",
-                    Duration = 3
-                })
-                return
-            end
-            
-            WindUI:Notify({
-                Title = "Auto Totem",
-                Content = "Auto Place enabled!",
-                Duration = 2
-            })
-            
-            print("[AutoTotem] Started - Totem:", TotemSystem.SelectedTotem)
-            
-            Performance.Tasks["AutoTotem"] = task.spawn(autoPlaceLoop)
-        else
-            WindUI:Notify({
-                Title = "Auto Totem",
-                Content = "Auto Place disabled!",
-                Duration = 2
-            })
-            
-            print("[AutoTotem] Stopped")
-        end
+    Callback = function(v)
+        AutoTotem.Enabled = v
+        print("[AutoTotem]", v and "Enabled" or "Disabled")
     end
 })
 
--- Manual Place Button
+-- Manual Button
 totemSection:Button({
     Title = "Place Now",
-    Desc = "Manually place totem at current position",
-    Callback = function()
-        if not TotemSystem.SelectedTotem then
-            WindUI:Notify({
-                Title = "Auto Totem",
-                Content = "Please select a totem first!",
-                Duration = 3
-            })
-            return
-        end
-        
-        placeTotem()
-    end
+    Callback = spawnTotem
 })
 
--- Info Section
-totemSection:Section({
-    Title = "Info",
-    TextXAlignment = "Left",
-    TextSize = 14
-})
-
+-- Info
 totemSection:Paragraph({
-    Title = "How it works:",
-    Content = "1. Select totem from dropdown\n2. Set re-place interval\n3. Enable auto place\n\nTotem will be placed at your position and automatically replaced based on interval."
+    Title = "Info",
+    Content = "• Uses RE/SpawnTotem only\n• Auto retry if UUID expired\n• Interval based (like big hubs)\n• No world / radius detection"
 })
+
 
 -- ==================== TAB 5: WEBHOOK ====================
 local Tab0 = Window:Tab({
