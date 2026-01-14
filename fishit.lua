@@ -1517,17 +1517,21 @@ end)
 
 
 -- ======================================================
--- AUTO TOTEM (FISH IT - FINAL FIX)
+-- AUTO TOTEM (FIXED DETECTION)
 -- ======================================================
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local Player = Players.LocalPlayer
 local Net = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net
 
 local REEquipItem = Net["RE/EquipItem"]
-local RESpawnTotem = Net["RE/SpawnTotem"]
+local REPlaceTotem = Net["RE/SpawnTotem"]
+
+print("[AutoTotem] EquipItem Remote:", REEquipItem)
+print("[AutoTotem] PlaceTotem Remote:", REPlaceTotem)
 
 -- ======================================================
 -- SYSTEM
@@ -1535,56 +1539,120 @@ local RESpawnTotem = Net["RE/SpawnTotem"]
 
 local AutoTotem = {
     Enabled = false,
-    Selected = nil,
+    Selected = "Luck",
     Interval = 60,
     Last = 0,
-
+    
     Totems = {
-        "Luck",
-        "Mutation",
-        "Shiny"
+        "Luck Totem",
+        "Mutation Totem", 
+        "Shiny Totem"
     }
 }
 
 print("[AutoTotem] Loaded", #AutoTotem.Totems, "types")
 
 -- ======================================================
--- UTILS
+-- TOTEM DETECTION (FIXED)
 -- ======================================================
 
-local function getHRP()
-    local char = Player.Character or Player.CharacterAdded:Wait()
-    return char:WaitForChild("HumanoidRootPart")
-end
-
--- ======================================================
--- TOTEM DETECTION (REAL FIX)
--- ======================================================
-
-local function findTotemTool(keyword)
+local function findTotemTool(selectedType)
+    -- Normalize selected type
+    local searchName = ""
+    if selectedType == "Luck" then
+        searchName = "Luck Totem"
+    elseif selectedType == "Mutation" then
+        searchName = "Mutation Totem"
+    elseif selectedType == "Shiny" then
+        searchName = "Shiny Totem"
+    else
+        searchName = selectedType
+    end
+    
+    print("[AutoTotem] Searching for:", searchName)
+    
+    -- Check Backpack first
+    local backpack = Player:FindFirstChild("Backpack")
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                print("[AutoTotem] Found in backpack:", item.Name)
+                if item.Name == searchName then
+                    return item
+                end
+            end
+        end
+    end
+    
+    -- Check Character
     local char = Player.Character
-    local backpack = Player:WaitForChild("Backpack")
-
-    -- check equipped
-    for _, v in pairs(char:GetChildren()) do
-        if v:IsA("Tool") and string.find(v.Name:lower(), keyword:lower()) then
-            return v
+    if char then
+        for _, item in ipairs(char:GetChildren()) do
+            if item:IsA("Tool") then
+                print("[AutoTotem] Found equipped:", item.Name)
+                if item.Name == searchName then
+                    return item
+                end
+            end
         end
     end
-
-    -- check backpack
-    for _, v in pairs(backpack:GetChildren()) do
-        if v:IsA("Tool") and string.find(v.Name:lower(), keyword:lower()) then
-            return v
+    
+    -- Check ReplicatedStorage Totems folder (for UUID reference)
+    local totemsFolder = ReplicatedStorage:FindFirstChild("Totems")
+    if totemsFolder then
+        for _, totem in ipairs(totemsFolder:GetChildren()) do
+            if totem.Name == searchName then
+                print("[AutoTotem] Found in ReplicatedStorage:", totem.Name)
+                return totem -- Reference model
+            end
         end
     end
+    
+    print("[AutoTotem] Not found:", searchName)
+    return nil
 end
 
-local function getUUID(tool)
-    if not tool then return end
-    return tool:GetAttribute("UUID")
-        or tool:GetAttribute("Id")
-        or tool:GetAttribute("UniqueId")
+local function getItemUUID(tool)
+    if not tool then return nil end
+    
+    print("[AutoTotem] Getting UUID from:", tool.Name)
+    
+    -- Priority 1: Attributes
+    local attrs = {"UUID", "ItemId", "Id", "UniqueId"}
+    for _, attr in ipairs(attrs) do
+        local value = tool:GetAttribute(attr)
+        if value then
+            print("[AutoTotem] Found in attribute", attr, ":", value)
+            return tostring(value)
+        end
+    end
+    
+    -- Priority 2: Configuration
+    local config = tool:FindFirstChild("Configuration")
+    if config then
+        for _, attr in ipairs(attrs) do
+            local valueObj = config:FindFirstChild(attr)
+            if valueObj then
+                print("[AutoTotem] Found in Configuration:", attr, ":", valueObj.Value)
+                return tostring(valueObj.Value)
+            end
+        end
+    end
+    
+    -- Priority 3: Check if it's a model reference (from ReplicatedStorage)
+    if tool:IsA("Model") then
+        local config = tool:FindFirstChild("Configuration")
+        if config then
+            local idObj = config:FindFirstChild("Id")
+            if idObj then
+                print("[AutoTotem] Found model ID:", idObj.Value)
+                return tostring(idObj.Value)
+            end
+        end
+    end
+    
+    print("[AutoTotem] No UUID found")
+    return nil
 end
 
 -- ======================================================
@@ -1594,39 +1662,93 @@ end
 local function placeTotem()
     if not AutoTotem.Selected then
         warn("[AutoTotem] No totem selected")
-        return
+        return false
     end
-
-    local hrp = getHRP()
+    
+    print("[AutoTotem] === PLACING TOTEM ===")
+    print("[AutoTotem] Selected:", AutoTotem.Selected)
+    
+    -- Find the totem tool
     local tool = findTotemTool(AutoTotem.Selected)
-
     if not tool then
-        warn("[AutoTotem] Totem not found:", AutoTotem.Selected)
-        return
+        warn("[AutoTotem] ❌ Totem not found in inventory!")
+        
+        -- Debug: List all tools in backpack
+        local backpack = Player:FindFirstChild("Backpack")
+        if backpack then
+            print("[AutoTotem] === BACKPACK CONTENTS ===")
+            for _, item in ipairs(backpack:GetChildren()) do
+                if item:IsA("Tool") then
+                    print("-", item.Name)
+                end
+            end
+        end
+        
+        return false
     end
-
-    local uuid = getUUID(tool)
-
+    
+    print("[AutoTotem] Found tool:", tool.Name)
+    
+    -- Get UUID
+    local uuid = getItemUUID(tool)
     if not uuid then
-        warn("[AutoTotem] UUID missing, retry...")
-        task.wait(0.2)
-        uuid = getUUID(tool)
+        warn("[AutoTotem] ❌ Could not get UUID!")
+        return false
     end
-
-    if not uuid then
-        warn("[AutoTotem] UUID invalid, abort")
-        return
+    
+    print("[AutoTotem] UUID:", uuid)
+    
+    -- Get position
+    local char = Player.Character
+    if not char then
+        warn("[AutoTotem] ❌ No character")
+        return false
     end
-
-    -- Equip PROPERLY
-    REEquipItem:FireServer(uuid)
-    task.wait(0.2)
-
-    -- Spawn
-    RESpawnTotem:FireServer(hrp.Position)
-    AutoTotem.Last = tick()
-
-    print("[AutoTotem] ✓ Spawned:", AutoTotem.Selected)
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        warn("[AutoTotem] ❌ No HRP")
+        return false
+    end
+    
+    local position = hrp.Position + Vector3.new(0, 0, -3)
+    print("[AutoTotem] Position:", position)
+    
+    -- Equip item
+    print("[AutoTotem] Equipping...")
+    local equipSuccess = pcall(function()
+        REEquipItem:FireServer(uuid)
+    end)
+    
+    if not equipSuccess then
+        warn("[AutoTotem] ❌ Equip failed!")
+    else
+        print("[AutoTotem] ✓ Equip success")
+    end
+    
+    task.wait(0.5) -- Wait for equip animation
+    
+    -- Place totem
+    print("[AutoTotem] Placing totem...")
+    local placeSuccess = pcall(function()
+        REPlaceTotem:FireServer(uuid, position)
+    end)
+    
+    if placeSuccess then
+        print("[AutoTotem] ✓ Place success!")
+        AutoTotem.Last = tick()
+        return true
+    else
+        warn("[AutoTotem] ❌ Place failed!")
+        
+        -- Try alternative method (without position)
+        print("[AutoTotem] Trying alternative...")
+        pcall(function()
+            REPlaceTotem:FireServer(uuid)
+        end)
+        
+        return false
+    end
 end
 
 -- ======================================================
@@ -1634,12 +1756,23 @@ end
 -- ======================================================
 
 local function loop()
+    print("[AutoTotem] Loop started")
+    
     while AutoTotem.Enabled do
-        if tick() - AutoTotem.Last >= AutoTotem.Interval then
+        local timePassed = tick() - AutoTotem.Last
+        print("[AutoTotem] Time since last:", timePassed, "/", AutoTotem.Interval)
+        
+        if timePassed >= AutoTotem.Interval then
+            print("[AutoTotem] Time to place totem!")
             placeTotem()
+        else
+            print("[AutoTotem] Waiting...")
         end
+        
         task.wait(5)
     end
+    
+    print("[AutoTotem] Loop stopped")
 end
 
 -- ======================================================
@@ -1651,12 +1784,19 @@ local sec = Tab4:Section({
     Icon = "box"
 })
 
+-- Dropdown with full names
 sec:Dropdown({
-    Title = "Totem Selected",
-    Values = AutoTotem.Totems,
+    Title = "Totem Type",
+    Values = {"Luck Totem", "Mutation Totem", "Shiny Totem"},
     Callback = function(v)
-        AutoTotem.Selected = v
-        print("[AutoTotem] Selected:", v)
+        if v == "Luck Totem" then
+            AutoTotem.Selected = "Luck"
+        elseif v == "Mutation Totem" then
+            AutoTotem.Selected = "Mutation"
+        elseif v == "Shiny Totem" then
+            AutoTotem.Selected = "Shiny"
+        end
+        print("[AutoTotem] Selected:", AutoTotem.Selected)
     end
 })
 
@@ -1666,15 +1806,16 @@ sec:Input({
     Numeric = true,
     Callback = function(v)
         AutoTotem.Interval = tonumber(v) or 60
+        print("[AutoTotem] Interval set to:", AutoTotem.Interval)
     end
 })
 
 sec:Toggle({
-    Title = "Place Totem",
+    Title = "Enable Auto Place",
     Callback = function(v)
         AutoTotem.Enabled = v
         SafeCancel("AutoTotem")
-
+        
         if v then
             Performance.Tasks["AutoTotem"] = task.spawn(loop)
             print("[AutoTotem] Started")
@@ -1685,8 +1826,11 @@ sec:Toggle({
 })
 
 sec:Button({
-    Title = "Place Now",
-    Callback = placeTotem
+    Title = "Place Now (Manual)",
+    Callback = function()
+        print("[AutoTotem] Manual placement triggered")
+        placeTotem()
+    end
 })
 
 
