@@ -2119,25 +2119,23 @@ end)
 
 refreshDropdown()
 
--- ==================== EVENT TELEPORTER ====================
-local events = Tab6:Section({
+events = Tab6:Section({
     Title = "Event Teleporter",
     Icon = "calendar",
     TextXAlignment = "Left",
     TextSize = 17,
 })
 
--- GANTI NAMA VARIABLE DARI 'S' MENJADI 'Services' untuk menghindari conflict
-local Services = {
-    Players = game:GetService("Players"),
-    Workspace = game:GetService("Workspace"),
-    RunService = game:GetService("RunService"),
-    Terrain = game:GetService("Workspace").Terrain
-}
+-- SERVICES (SATU TABLE)
+local S = setmetatable({}, {
+    __index = function(_, k)
+        return game:GetService(k)
+    end
+})
 
--- GANTI NAMA STATE DARI 'ST' MENJADI 'EventState'
-local EventState = {
-    player = Services.Players.LocalPlayer,
+-- STATE
+local ST = {
+    player = S.Players.LocalPlayer,
     char = nil,
     hrp = nil,
 
@@ -2150,17 +2148,17 @@ local EventState = {
     floatOffset = 6
 }
 
--- INIT CHARACTER (GUNAKAN EventState, bukan ST)
+-- INIT CHARACTER
 local function bindChar(c)
-    EventState.char = c
+    ST.char = c
     task.wait(1)
-    EventState.hrp = c:WaitForChild("HumanoidRootPart")
+    ST.hrp = c:WaitForChild("HumanoidRootPart")
 end
 
-bindChar(EventState.player.Character or EventState.player.CharacterAdded:Wait())
-EventState.player.CharacterAdded:Connect(bindChar)
+bindChar(ST.player.Character or ST.player.CharacterAdded:Wait())
+ST.player.CharacterAdded:Connect(bindChar)
 
--- EVENT DATA (TETAP SAMA)
+-- EVENT DATA (TETAP)
 local eventData = {
     ["Worm Hunt"] = {
         TargetName = "Model",
@@ -2217,12 +2215,12 @@ end
 
 -- FORCE TP
 local function forceTP(pos)
-    if not EventState.lastTP or (EventState.lastTP - pos).Magnitude > 5 then
-        EventState.lastTP = pos
+    if not ST.lastTP or (ST.lastTP - pos).Magnitude > 5 then
+        ST.lastTP = pos
         for _ = 1, 2 do
-            EventState.hrp.CFrame = CFrame.new(pos.X, pos.Y + 3, pos.Z)
-            EventState.hrp.AssemblyLinearVelocity = Vector3.zero
-            EventState.hrp.Velocity = Vector3.zero
+            ST.hrp.CFrame = CFrame.new(pos.X, pos.Y + 3, pos.Z)
+            ST.hrp.AssemblyLinearVelocity = Vector3.zero
+            ST.hrp.Velocity = Vector3.zero
             task.wait(0.02)
         end
     end
@@ -2230,10 +2228,10 @@ end
 
 -- MAIN TP LOOP
 local function runEventTP()
-    while EventState.autoTP do
+    while ST.autoTP do
         local list = {}
 
-        for _, name in ipairs(EventState.selectedEvents) do
+        for _, name in ipairs(ST.selectedEvents) do
             if eventData[name] then
                 list[#list+1] = eventData[name]
             end
@@ -2247,14 +2245,14 @@ local function runEventTP()
             local found
 
             if cfg.TargetName == "Model" then
-                local rings = Services.Workspace:FindFirstChild("!!! MENU RINGS")
+                local rings = S.Workspace:FindFirstChild("!!! MENU RINGS")
                 if rings then
                     for _, p in ipairs(rings:GetChildren()) do
                         if p.Name == "Props" then
                             local m = p:FindFirstChild("Model")
                             if m and m.PrimaryPart then
                                 for _, loc in ipairs(cfg.Locations) do
-                                    if (m.PrimaryPart.Position - loc).Magnitude <= EventState.megRadius then
+                                    if (m.PrimaryPart.Position - loc).Magnitude <= ST.megRadius then
                                         found = m.PrimaryPart.Position
                                         break
                                     end
@@ -2266,10 +2264,10 @@ local function runEventTP()
                 end
             else
                 for _, loc in ipairs(cfg.Locations) do
-                    for _, d in ipairs(Services.Workspace:GetDescendants()) do
+                    for _, d in ipairs(S.Workspace:GetDescendants()) do
                         if d.Name == cfg.TargetName then
                             local pos = d:IsA("BasePart") and d.Position or (d.PrimaryPart and d.PrimaryPart.Position)
-                            if pos and (pos - loc).Magnitude <= EventState.megRadius then
+                            if pos and (pos - loc).Magnitude <= ST.megRadius then
                                 found = pos
                                 break
                             end
@@ -2284,39 +2282,39 @@ local function runEventTP()
             end
         end
 
-        task.wait(EventState.tpCooldown)
+        task.wait(ST.tpCooldown)
     end
 end
 
 -- FLOAT
-Services.RunService.RenderStepped:Connect(function()
-    if EventState.autoFloat and EventState.hrp then
-        local pos = EventState.hrp.Position
-        local targetY = Services.Terrain.WaterLevel + EventState.floatOffset
+S.RunService.RenderStepped:Connect(function()
+    if ST.autoFloat and ST.hrp then
+        local pos = ST.hrp.Position
+        local targetY = S.Workspace.Terrain.WaterLevel + ST.floatOffset
         if pos.Y < targetY then
-            EventState.hrp.CFrame = CFrame.new(pos.X, targetY, pos.Z)
-            EventState.hrp.AssemblyLinearVelocity = Vector3.zero
+            ST.hrp.CFrame = CFrame.new(pos.X, targetY, pos.Z)
+            ST.hrp.AssemblyLinearVelocity = Vector3.zero
         end
     end
 end)
 
-events:Dropdown({
+Tab6:Dropdown({
     Title = "Select Events",
     Values = eventNames,
     Multi = true,
     AllowNone = true,
     Callback = function(v)
-        EventState.selectedEvents = v
+        ST.selectedEvents = v
     end
 })
 
-events:Toggle({
+Tab6:Toggle({
     Title = "Auto Event",
     Value = false,
     Callback = function(state)
-        EventState.autoTP = state
-        EventState.autoFloat = state
-        EventState.lastTP = nil
+        ST.autoTP = state
+        ST.autoFloat = state
+        ST.lastTP = nil
         if state then
             task.defer(runEventTP)
         end
@@ -3066,251 +3064,6 @@ graphic:Toggle({
                 _G.GuiControl:SetHUDVisibility(true)
                 _G.ProximityPromptService.Enabled = true
             end
-        end
-    end
-})
-
--- ==================== SERVER SECTION ====================
-local server = Tab7:Section({ 
-    Title = "Server",
-    Icon = "server",
-    TextXAlignment = "Left",
-    TextSize = 17,
-})
-
-server:Button({
-    Title = "Rejoin",
-    Desc = "rejoin to the same server",
-    Callback = function()
-        game:GetService("TeleportService"):Teleport(game.PlaceId, Player)
-    end
-})
-
-server:Button({
-    Title = "Server Hop",
-    Desc = "Switch To Another Server",
-    Callback = function()
-        game:GetService("TeleportService"):Teleport(game.PlaceId, Player)
-    end
-})
-
-
--- ==================== OTHER SCRIPTS ====================
-local script = Tab7:Section({ 
-    Title = "Other Scripts",
-    Icon = "scroll",
-    TextXAlignment = "Left",
-    TextSize = 17,
-})
-
-script:Button({
-    Title = "Infinite Yield",
-    Desc = "Other Scripts",
-    Callback = function()
-        loadstring(game:HttpGet('https://raw.githubusercontent.com/DarkNetworks/Infinite-Yield/main/latest.lua'))()
-    end
-})
-
--- ====================
--- CONFIG TAB
--- ====================
-local Tab8 = Window:Tab({
-    Title = "Config",
-    Icon = "folder-open",
-})
-
-local config = Tab8:Section({ 
-    Title = "Auto Config",
-    Icon = "save",
-    TextXAlignment = "Left",
-    TextSize = 17,
-})
-
--- ====================
--- SERVICES
--- ====================
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local Player = Players.LocalPlayer
-
--- ====================
--- FOLDER SETUP
--- ====================
-local ROOT_FOLDER = "VICTORIA_HUB"
-local CONFIG_FOLDER = ROOT_FOLDER .. "/Configs"
-local CONFIG_NAME = "default.json"
-
-if not isfolder(ROOT_FOLDER) then makefolder(ROOT_FOLDER) end
-if not isfolder(CONFIG_FOLDER) then makefolder(CONFIG_FOLDER) end
-
-local CONFIG_PATH = CONFIG_FOLDER .. "/" .. CONFIG_NAME
-
--- ====================
--- GLOBAL STATE (SAFE)
--- ====================
-_G.CustomJumpPower = _G.CustomJumpPower or 50
-_G.InfiniteJump = _G.InfiniteJump or false
-_G.InstantCatch = _G.InstantCatch or false
-_G.AntiAFK = _G.AntiAFK or false
-
-AutoSell = AutoSell or false
-AutoReconnect = AutoReconnect or false
-
--- ====================
--- CHARACTER UTILS
--- ====================
-local function getHumanoid()
-    local char = Player.Character
-    if not char then return nil end
-    return char:FindFirstChildOfClass("Humanoid")
-end
-
--- ====================
--- GET CONFIG DATA
--- ====================
-local function GetConfig()
-    local humanoid = getHumanoid()
-
-    return {
-        WalkSpeed = humanoid and humanoid.WalkSpeed or 16,
-        JumpPower = _G.CustomJumpPower,
-        InfiniteJump = _G.InfiniteJump,
-        AutoSell = AutoSell,
-        InstantCatch = _G.InstantCatch,
-        AntiAFK = _G.AntiAFK,
-        AutoReconnect = AutoReconnect,
-    }
-end
-
--- ====================
--- APPLY CONFIG
--- ====================
-local function ApplyConfig(data)
-    if not data then return end
-
-    local humanoid = getHumanoid()
-
-    if humanoid then
-        if data.WalkSpeed then
-            humanoid.WalkSpeed = data.WalkSpeed
-        end
-
-        if data.JumpPower then
-            humanoid.UseJumpPower = true
-            humanoid.JumpPower = data.JumpPower
-            _G.CustomJumpPower = data.JumpPower
-        end
-    end
-
-    if data.InfiniteJump ~= nil then _G.InfiniteJump = data.InfiniteJump end
-    if data.AutoSell ~= nil then AutoSell = data.AutoSell end
-    if data.InstantCatch ~= nil then _G.InstantCatch = data.InstantCatch end
-    if data.AntiAFK ~= nil then _G.AntiAFK = data.AntiAFK end
-    if data.AutoReconnect ~= nil then AutoReconnect = data.AutoReconnect end
-end
-
--- ====================
--- SAVE CONFIG
--- ====================
-local function SaveConfig()
-    local data = GetConfig()
-    writefile(CONFIG_PATH, HttpService:JSONEncode(data))
-end
-
--- ====================
--- LOAD CONFIG
--- ====================
-local function LoadConfig()
-    if not isfile(CONFIG_PATH) then return false end
-    local raw = readfile(CONFIG_PATH)
-    local decoded = HttpService:JSONDecode(raw)
-    ApplyConfig(decoded)
-    return true
-end
-
--- ====================
--- AUTO LOAD ON EXECUTE
--- ====================
-task.spawn(function()
-    task.wait(0.5)
-    if LoadConfig() then
-        WindUI:Notify({
-            Title = "Config Loaded",
-            Content = "Last settings restored automatically",
-            Duration = 3,
-            Icon = "check"
-        })
-    end
-end)
-
--- ====================
--- AUTO SAVE ON CHARACTER RESPAWN
--- ====================
-Player.CharacterAdded:Connect(function()
-    task.wait(1)
-    LoadConfig()
-end)
-
--- ====================
--- AUTO SAVE LOOP (EVERY 5s)
--- ====================
-task.spawn(function()
-    while task.wait(5) do
-        pcall(SaveConfig)
-    end
-end)
-
--- ====================
--- UI BUTTONS
--- ====================
-config:Button({
-    Title = "Save Config",
-    Desc = "Save current settings",
-    Callback = function()
-        SaveConfig()
-        WindUI:Notify({
-            Title = "Config Saved",
-            Content = "Settings saved successfully",
-            Duration = 2,
-            Icon = "check"
-        })
-    end
-})
-
-config:Button({
-    Title = "Load Config",
-    Desc = "Load saved settings",
-    Callback = function()
-        if LoadConfig() then
-            WindUI:Notify({
-                Title = "Config Loaded",
-                Content = "Settings loaded successfully",
-                Duration = 2,
-                Icon = "check"
-            })
-        else
-            WindUI:Notify({
-                Title = "Error",
-                Content = "Config not found",
-                Duration = 2,
-                Icon = "x"
-            })
-        end
-    end
-})
-
-config:Button({
-    Title = "Delete Config",
-    Desc = "Remove saved config",
-    Callback = function()
-        if isfile(CONFIG_PATH) then
-            delfile(CONFIG_PATH)
-            WindUI:Notify({
-                Title = "Config Deleted",
-                Content = "Saved config removed",
-                Duration = 2,
-                Icon = "trash"
-            })
         end
     end
 })
