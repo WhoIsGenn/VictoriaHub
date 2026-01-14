@@ -1658,7 +1658,7 @@ local function autoPlaceLoop()
 end
 
 -- ===== WINDUI SECTION =====
-local totemSection = Tab5:Section({
+local totemSection = Tab4:Section({
     Title = "Auto Place Totem",
     Icon = "box",
     TextXAlignment = "Left",
