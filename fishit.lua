@@ -148,9 +148,6 @@ task.spawn(function()
     end
 end)
 
-print("✅ Anti-AFK aktif (auto)")
-
-
 -- TITLE ANIMATION
 task.spawn(function()
     task.wait(2)
@@ -820,11 +817,9 @@ Remotes.RF_RequestFishingMinigameStarted = netFolder:WaitForChild("RF/RequestFis
 Remotes.RF_ChargeFishingRod = netFolder:WaitForChild("RF/ChargeFishingRod")
 Remotes.RF_CancelFishing = netFolder:WaitForChild("RF/CancelFishingInputs")
 Remotes.RE_FishingCompleted = netFolder:WaitForChild("RE/FishingCompleted")
-Remotes.RF_AutoFish = netFolder:WaitForChild("RF/UpdateAutoFishingState")
 Remotes.RE_EquipTool = netFolder:WaitForChild("RE/EquipToolFromHotbar")
 
 local toggleState = {
-    autoFishing = false,
     blatantRunning = false,
 }
 
@@ -835,7 +830,7 @@ local FishingController = require(
 
 local oldCharge = FishingController.RequestChargeFishingRod
 FishingController.RequestChargeFishingRod = function(...)
-    if toggleState.blatantRunning or toggleState.autoFishing then
+    if toggleState.blatantRunning then
         return
     end
     return oldCharge(...)
@@ -970,10 +965,8 @@ blantantV2Section:Toggle({
         toggleState.blatantRunning = value
         
         if value then
-            Remotes.RF_AutoFish:InvokeServer(true)
             startSuperInstantFishing()
         else
-            Remotes.RF_AutoFish:InvokeServer(false)
             stopSuperInstantFishing()
         end
     end
@@ -1326,8 +1319,6 @@ end
 -- Sort variant names alphabetically
 table.sort(GlobalFav.VariantNames)
 
-print("[AutoFav] Loaded", #GlobalFav.FishNames, "fish and", #GlobalFav.VariantNames, "variants")
-
 -- ===== WINDUI SECTION =====
 local favSection = Tab4:Section({
     Title = "Auto Favorite",
@@ -1349,16 +1340,14 @@ favSection:Toggle({
                 Content = "Auto Favorite enabled!",
                 Duration = 3
             })
-            print("[AutoFav] Started")
-            print("[AutoFav] Selected Fish:", #GlobalFav.SelectedFishIds)
-            print("[AutoFav] Selected Variants:", #GlobalFav.SelectedVariants)
+            
         else
             WindUI:Notify({
                 Title = "Auto Favorite",
                 Content = "Auto Favorite disabled!",
                 Duration = 3
             })
-            print("[AutoFav] Stopped")
+            
         end
     end
 })
@@ -1384,7 +1373,7 @@ favSection:Dropdown({
         local count = 0
         for _ in pairs(GlobalFav.SelectedFishIds) do count = count + 1 end
         
-        print("[AutoFav] Fish selected:", count)
+        
         
         WindUI:Notify({
             Title = "Auto Favorite",
@@ -1416,7 +1405,7 @@ favSection:Dropdown({
         local count = 0
         for _ in pairs(GlobalFav.SelectedVariants) do count = count + 1 end
         
-        print("[AutoFav] Variants selected:", count)
+        
         
         WindUI:Notify({
             Title = "Auto Favorite",
@@ -1433,7 +1422,7 @@ favSection:Button({
     Callback = function()
         GlobalFav.SelectedFishIds = {}
         GlobalFav.SelectedVariants = {}
-        print("[AutoFav] Selection cleared!")
+        
         
         WindUI:Notify({
             Title = "Auto Favorite",
@@ -1452,7 +1441,7 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
     local variantId = data.InventoryItem and data.InventoryItem.Metadata and data.InventoryItem.Metadata.VariantId
 
     if not uuid then 
-        print("[AutoFav] ✗ No UUID found")
+        
         return 
     end
 
@@ -1506,351 +1495,12 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
                 Duration = 2
             })
             
-            print("[AutoFav] ✓ Favorited:", msg)
-        else
-            print("[AutoFav] ✗ Failed to favorite:", fishName)
+            
         end
     else
-        print("[AutoFav] ○ Skipped:", fishName, "(No match)")
+        
     end
 end)
-
-
--- ======================================================
--- AUTO TOTEM (FIXED INVENTORY DETECTION)
--- ======================================================
-
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-
-local Player = Players.LocalPlayer
-local Net = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net
-
-local REEquipItem = Net["RE/EquipItem"]
-local REPlaceTotem = Net["RE/PlaceCavernTotemItem"]
-
--- ======================================================
--- SYSTEM
--- ======================================================
-
-local AutoTotem = {
-    Enabled = false,
-    Selected = "Luck Totem", -- Simpan nama lengkap
-    Interval = 60,
-    Last = 0,
-    
-    Totems = {
-        "Luck Totem",
-        "Mutation Totem", 
-        "Shiny Totem"
-    }
-}
-
--- ======================================================
--- INVENTORY DETECTION (FIXED)
--- ======================================================
-
-local function findTotemInInventory(totemName)
-    print("[AutoTotem] 🔍 Searching inventory for:", totemName)
-    
-    -- 1. Cek Backpack (Inventory)
-    local backpack = Player:WaitForChild("Backpack")
-    for _, item in ipairs(backpack:GetChildren()) do
-        if item:IsA("Tool") and item.Name == totemName then
-            print("[AutoTotem] ✅ Found in backpack:", item.Name)
-            return item
-        end
-    end
-    
-    -- 2. Cek jika sedang di-equip
-    local char = Player.Character
-    if char then
-        for _, item in ipairs(char:GetChildren()) do
-            if item:IsA("Tool") and item.Name == totemName then
-                print("[AutoTotem] ✅ Found equipped:", item.Name)
-                return item
-            end
-        end
-    end
-    
-    -- 3. Cari dengan nama yang mirip (case insensitive)
-    local lowerTotemName = totemName:lower()
-    for _, item in ipairs(backpack:GetChildren()) do
-        if item:IsA("Tool") and item.Name:lower():find(lowerTotemName) then
-            print("[AutoTotem] ✅ Found similar in backpack:", item.Name)
-            return item
-        end
-    end
-    
-    -- 4. Debug: Tampilkan semua item di backpack
-    print("[AutoTotem] 📦 Backpack contents:")
-    for _, item in ipairs(backpack:GetChildren()) do
-        if item:IsA("Tool") then
-            print("  -", item.Name)
-            -- Print semua attributes
-            for attr, value in pairs(item:GetAttributes()) do
-                print("    ", attr, "=", value)
-            end
-        end
-    end
-    
-    print("[AutoTotem] ❌ Not found in inventory")
-    return nil
-end
-
--- Cari tahu struktur UUID dari game
-local function findItemId(tool)
-    if not tool then return nil end
-    
-    print("[AutoTotem] 🆔 Extracting ID from:", tool.Name)
-    
-    -- Coba berbagai kemungkinan attribute ID
-    local possibleIds = {
-        "ItemId",
-        "UUID", 
-        "Id",
-        "UniqueId",
-        "ToolId",
-        "ItemID"
-    }
-    
-    for _, attrName in ipairs(possibleIds) do
-        local value = tool:GetAttribute(attrName)
-        if value then
-            print("[AutoTotem] ✅ Found", attrName, ":", value)
-            return tostring(value)
-        end
-    end
-    
-    -- Cek di Configuration child
-    local config = tool:FindFirstChild("Configuration")
-    if config then
-        for _, attrName in ipairs(possibleIds) do
-            local valueObj = config:FindFirstChild(attrName)
-            if valueObj and valueObj.Value then
-                print("[AutoTotem] ✅ Found in Configuration:", attrName, ":", valueObj.Value)
-                return tostring(valueObj.Value)
-            end
-        end
-    end
-    
-    -- Coba cari di Modules (untuk beberapa game)
-    local handle = tool:FindFirstChild("Handle")
-    if handle then
-        local script = handle:FindFirstChildOfClass("Script")
-        if script then
-            local source = script.Source
-            local idMatch = source:match('Id%s*=%s*(%d+)')
-            if idMatch then
-                print("[AutoTotem] ✅ Found in script source:", idMatch)
-                return idMatch
-            end
-        end
-    end
-    
-    print("[AutoTotem] ❌ No ID found")
-    return nil
-end
-
--- ======================================================
--- PLACE TOTEM
--- ======================================================
-
-local function placeTotem()
-    print("\n[AutoTotem] 🚀 STARTING PLACEMENT ===========")
-    
-    if not AutoTotem.Selected then
-        warn("[AutoTotem] ❌ No totem selected")
-        return false
-    end
-    
-    print("[AutoTotem] Selected totem:", AutoTotem.Selected)
-    
-    -- Pastikan kita punya totem di inventory
-    local tool = findTotemInInventory(AutoTotem.Selected)
-    if not tool then
-        warn("[AutoTotem] ❌ You don't have this totem in your inventory!")
-        warn("[AutoTotem] ❌ Make sure you have:", AutoTotem.Selected)
-        return false
-    end
-    
-    -- Dapatkan ID item
-    local itemId = findItemId(tool)
-    if not itemId then
-        warn("[AutoTotem] ❌ Could not get item ID!")
-        return false
-    end
-    
-    print("[AutoTotem] Item ID to use:", itemId)
-    
-    -- Dapatkan posisi
-    local char = Player.Character
-    if not char then
-        warn("[AutoTotem] ❌ No character")
-        return false
-    end
-    
-    local hrp = char:WaitForChild("HumanoidRootPart")
-    if not hrp then
-        warn("[AutoTotem] ❌ No HRP")
-        return false
-    end
-    
-    -- Hitung posisi di depan player
-    local forwardVector = hrp.CFrame.LookVector
-    local position = hrp.Position + (forwardVector * 5) + Vector3.new(0, 0, 0)
-    
-    print("[AutoTotem] Position:", position)
-    
-    -- 1. Equip item terlebih dahulu
-    print("[AutoTotem] 🔧 Equipping item...")
-    local success1, err1 = pcall(function()
-        REEquipItem:FireServer(itemId)
-    end)
-    
-    if not success1 then
-        warn("[AutoTotem] ❌ Equip failed:", err1)
-        -- Coba continue anyway
-    else
-        print("[AutoTotem] ✅ Equip success")
-    end
-    
-    task.wait(0.8) -- Tunggu lebih lama untuk animasi
-    
-    -- 2. Place totem
-    print("[AutoTotem] 📍 Placing totem at position...")
-    local success2, err2 = pcall(function()
-        REPlaceTotem:FireServer(itemId, position)
-    end)
-    
-    if success2 then
-        print("[AutoTotem] ✅ SUCCESS! Totem placed!")
-        AutoTotem.Last = tick()
-        return true
-    else
-        warn("[AutoTotem] ❌ Place with position failed:", err2)
-        
-        -- Coba tanpa position parameter
-        print("[AutoTotem] 🔄 Trying without position...")
-        local success3, err3 = pcall(function()
-            REPlaceTotem:FireServer(itemId)
-        end)
-        
-        if success3 then
-            print("[AutoTotem] ✅ SUCCESS! Totem placed (no position)")
-            AutoTotem.Last = tick()
-            return true
-        else
-            warn("[AutoTotem] ❌ All placement attempts failed:", err3)
-            return false
-        end
-    end
-end
-
--- ======================================================
--- UI (TAB 4) - SIMPLE VERSION
--- ======================================================
-
-local sec = Tab4:Section({
-    Title = "Auto Totem",
-    Icon = "box"
-})
-
--- Pilihan totem
-sec:Dropdown({
-    Title = "Select Totem",
-    Values = AutoTotem.Totems,
-    Default = "Luck Totem",
-    Callback = function(v)
-        AutoTotem.Selected = v
-        print("[AutoTotem] Totem set to:", v)
-    end
-})
-
--- Interval
-sec:Input({
-    Title = "Place Every (seconds)",
-    Default = "60",
-    Numeric = true,
-    Callback = function(v)
-        AutoTotem.Interval = tonumber(v) or 60
-        print("[AutoTotem] Interval:", AutoTotem.Interval, "seconds")
-    end
-})
-
--- Toggle Auto
-sec:Toggle({
-    Title = "Enable Auto Place",
-    Default = false,
-    Callback = function(v)
-        AutoTotem.Enabled = v
-        
-        if v then
-            print("[AutoTotem] 🔄 Starting auto placement...")
-            task.spawn(function()
-                while AutoTotem.Enabled do
-                    if tick() - AutoTotem.Last >= AutoTotem.Interval then
-                        placeTotem()
-                    end
-                    task.wait(2) -- Check every 2 seconds
-                end
-                print("[AutoTotem] ⏹️ Auto placement stopped")
-            end)
-        else
-            print("[AutoTotem] ⏹️ Auto placement disabled")
-        end
-    end
-})
-
--- Manual Place Button
-sec:Button({
-    Title = "📌 Place Now (Test)",
-    Callback = function()
-        print("[AutoTotem] === MANUAL TEST ===")
-        placeTotem()
-    end
-})
-
--- Debug Inventory Button
-sec:Button({
-    Title = "🔍 Debug Inventory",
-    Callback = function()
-        print("\n[AutoTotem] === INVENTORY DEBUG ===")
-        local backpack = Player:WaitForChild("Backpack")
-        local count = 0
-        
-        for _, item in ipairs(backpack:GetChildren()) do
-            if item:IsA("Tool") then
-                count = count + 1
-                print("Item", count, ":", item.Name)
-                
-                -- Show all attributes
-                for attr, value in pairs(item:GetAttributes()) do
-                    print("  •", attr, "=", value)
-                end
-                
-                -- Check for Configuration
-                local config = item:FindFirstChild("Configuration")
-                if config then
-                    print("  • Configuration found:")
-                    for _, child in ipairs(config:GetChildren()) do
-                        if child:IsA("ValueBase") then
-                            print("    -", child.Name, "=", child.Value)
-                        end
-                    end
-                end
-            end
-        end
-        
-        if count == 0 then
-            print("No tools found in backpack!")
-        end
-    end
-})
-
-
-
 
 -- ==================== TAB 5: WEBHOOK ====================
 local Tab0 = Window:Tab({
@@ -2986,118 +2636,36 @@ local graphic = Tab7:Section({
     TextSize = 17,
 })
 
--- FPS BOOST (Maximum Optimization)
--- FPS BOOST (Toggle with Restore)
+-- FPS BOOST (Simple Version)
 local FPSBoost = false
-local Cache = {
-    Parts = {},
-    Decals = {},
-    Particles = {},
-    Lights = {},
-    Lighting = {},
-    Terrain = {},
-    Settings = {}
-}
+local CurrentConnections = {}
+local OriginalValues = {}
 
--- Cache original values
-local function cacheOriginal()
-    -- Cache Lighting
-    local Lighting = game:GetService("Lighting")
-    Cache.Lighting = {
-        GlobalShadows = Lighting.GlobalShadows,
-        FogEnd = Lighting.FogEnd,
-        Brightness = Lighting.Brightness,
-        EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale,
-        EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale,
-        ClockTime = Lighting.ClockTime,
-        Ambient = Lighting.Ambient,
-        OutdoorAmbient = Lighting.OutdoorAmbient,
-        PostEffects = {}
-    }
-    
-    for _, effect in pairs(Lighting:GetChildren()) do
-        if effect:IsA("PostEffect") then
-            Cache.Lighting.PostEffects[effect] = effect.Enabled
-        end
+-- Function to save original value
+local function saveOriginal(obj, property)
+    if not OriginalValues[obj] then
+        OriginalValues[obj] = {}
     end
-    
-    -- Cache Terrain
-    local Terrain = workspace:FindFirstChildOfClass("Terrain")
-    if Terrain then
-        Cache.Terrain = {
-            WaterWaveSize = Terrain.WaterWaveSize,
-            WaterWaveSpeed = Terrain.WaterWaveSpeed,
-            WaterReflectance = Terrain.WaterReflectance,
-            WaterTransparency = Terrain.WaterTransparency,
-            Decoration = Terrain.Decoration
-        }
+    if OriginalValues[obj][property] == nil then
+        OriginalValues[obj][property] = obj[property]
     end
-    
-    -- Cache Settings
-    Cache.Settings = {
-        QualityLevel = settings().Rendering.QualityLevel,
-        MeshPartDetailLevel = settings().Rendering.MeshPartDetailLevel,
-        SavedQualityLevel = game:GetService("UserSettings").GameSettings.SavedQualityLevel
-    }
 end
 
 -- Apply FPS Boost
 local function applyBoost()
-    -- Cache first time
-    if not Cache.Lighting.GlobalShadows then
-        cacheOriginal()
-    end
-    
-    -- Process all descendants
-    for _, v in pairs(game:GetDescendants()) do
-        pcall(function()
-            if v:IsA("BasePart") then
-                if not Cache.Parts[v] then
-                    Cache.Parts[v] = {
-                        Material = v.Material,
-                        Reflectance = v.Reflectance,
-                        CastShadow = v.CastShadow,
-                        Transparency = v.Transparency
-                    }
-                end
-                v.Material = Enum.Material.SmoothPlastic
-                v.Reflectance = 0
-                v.CastShadow = false
-                v.Transparency = v.Transparency > 0.5 and 1 or v.Transparency
-                
-            elseif v:IsA("Decal") or v:IsA("Texture") then
-                if not Cache.Decals[v] then
-                    Cache.Decals[v] = v.Transparency
-                end
-                v.Transparency = 1
-                
-            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") 
-                or v:IsA("Fire") or v:IsA("Explosion") then
-                if not Cache.Particles[v] then
-                    Cache.Particles[v] = v.Enabled
-                end
-                v.Enabled = false
-                
-            elseif v:IsA("Beam") or v:IsA("SpotLight") or v:IsA("PointLight") 
-                or v:IsA("SurfaceLight") then
-                if not Cache.Lights[v] then
-                    Cache.Lights[v] = v.Enabled
-                end
-                v.Enabled = false
-                
-            elseif v:IsA("ShirtGraphic") or v:IsA("Shirt") or v:IsA("Pants") then
-                v:Destroy()
-            end
-        end)
-    end
-
-    -- Lighting
+    -- Lighting settings
     local Lighting = game:GetService("Lighting")
-    for _, effect in pairs(Lighting:GetChildren()) do
-        if effect:IsA("PostEffect") then
-            effect.Enabled = false
-        end
-    end
+    
+    -- Save and apply lighting settings
+    saveOriginal(Lighting, "GlobalShadows")
+    saveOriginal(Lighting, "FogEnd")
+    saveOriginal(Lighting, "Brightness")
+    saveOriginal(Lighting, "EnvironmentDiffuseScale")
+    saveOriginal(Lighting, "EnvironmentSpecularScale")
+    saveOriginal(Lighting, "ClockTime")
+    saveOriginal(Lighting, "Ambient")
+    saveOriginal(Lighting, "OutdoorAmbient")
+    
     Lighting.GlobalShadows = false
     Lighting.FogEnd = 9e9
     Lighting.Brightness = 1
@@ -3106,14 +2674,29 @@ local function applyBoost()
     Lighting.ClockTime = 12
     Lighting.Ambient = Color3.new(1, 1, 1)
     Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
-
-    -- Terrain
+    
+    -- Disable all post effects
+    for _, effect in pairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") then
+            saveOriginal(effect, "Enabled")
+            effect.Enabled = false
+        end
+    end
+    
+    -- Terrain settings
     local Terrain = workspace:FindFirstChildOfClass("Terrain")
     if Terrain then
+        saveOriginal(Terrain, "WaterWaveSize")
+        saveOriginal(Terrain, "WaterWaveSpeed")
+        saveOriginal(Terrain, "WaterReflectance")
+        saveOriginal(Terrain, "WaterTransparency")
+        
         Terrain.WaterWaveSize = 0
         Terrain.WaterWaveSpeed = 0
         Terrain.WaterReflectance = 0
         Terrain.WaterTransparency = 1
+        
+        -- Try to disable terrain decoration
         pcall(function()
             if sethiddenproperty then
                 sethiddenproperty(Terrain, "Decoration", false)
@@ -3122,25 +2705,62 @@ local function applyBoost()
             end
         end)
     end
-
-    -- Rendering Settings
+    
+    -- Rendering settings
+    saveOriginal(settings().Rendering, "QualityLevel")
+    saveOriginal(settings().Rendering, "MeshPartDetailLevel")
+    
     settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
     settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
-    pcall(function()
-        settings().Rendering.TextureQuality = Enum.TextureQuality.Low
+    
+    -- Monitor and optimize new objects
+    local function optimizeObject(obj)
+        pcall(function()
+            if obj:IsA("BasePart") then
+                saveOriginal(obj, "Material")
+                saveOriginal(obj, "Reflectance")
+                saveOriginal(obj, "CastShadow")
+                
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.Reflectance = 0
+                obj.CastShadow = false
+                
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                saveOriginal(obj, "Transparency")
+                obj.Transparency = 1
+                
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or 
+                   obj:IsA("Smoke") or obj:IsA("Fire") then
+                saveOriginal(obj, "Enabled")
+                obj.Enabled = false
+                
+            elseif obj:IsA("Beam") or obj:IsA("SpotLight") or 
+                   obj:IsA("PointLight") or obj:IsA("SurfaceLight") then
+                saveOriginal(obj, "Enabled")
+                obj.Enabled = false
+                
+            elseif obj:IsA("Sound") then
+                saveOriginal(obj, "Volume")
+                if obj.Volume > 0.5 then
+                    obj.Volume = 0.1
+                end
+            end
+        end)
+    end
+    
+    -- Optimize all existing objects
+    for _, obj in pairs(game:GetDescendants()) do
+        optimizeObject(obj)
+    end
+    
+    -- Monitor for new objects
+    local connection = game.DescendantAdded:Connect(function(obj)
+        if FPSBoost then
+            optimizeObject(obj)
+        end
     end)
     
-    game:GetService("UserSettings").GameSettings.SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
-
-    -- Sound Volume
-    for _, s in pairs(workspace:GetDescendants()) do
-        if s:IsA("Sound") and s.Playing and s.Volume > 0.5 then
-            s.Volume = 0.1
-        end
-    end
-
-    -- Garbage Collection
-    collectgarbage("collect")
+    table.insert(CurrentConnections, connection)
     
     -- FPS Cap
     pcall(function()
@@ -3151,95 +2771,41 @@ local function applyBoost()
 end
 
 -- Restore original settings
-local function restoreOriginal()
-    -- Restore Parts
-    for part, data in pairs(Cache.Parts) do
-        if part and part.Parent then
-            pcall(function()
-                part.Material = data.Material
-                part.Reflectance = data.Reflectance
-                part.CastShadow = data.CastShadow
-                part.Transparency = data.Transparency
-            end)
+local function restoreBoost()
+    -- Disconnect all monitoring connections
+    for _, connection in ipairs(CurrentConnections) do
+        pcall(function() connection:Disconnect() end)
+    end
+    CurrentConnections = {}
+    
+    -- Restore all saved values
+    for obj, properties in pairs(OriginalValues) do
+        if obj and (obj.Parent or obj == game:GetService("Lighting") or obj == settings().Rendering) then
+            for property, value in pairs(properties) do
+                pcall(function()
+                    obj[property] = value
+                end)
+            end
         end
     end
     
-    -- Restore Decals
-    for decal, transparency in pairs(Cache.Decals) do
-        if decal and decal.Parent then
-            pcall(function()
-                decal.Transparency = transparency
-            end)
-        end
-    end
+    -- Clear the saved values
+    OriginalValues = {}
     
-    -- Restore Particles
-    for particle, enabled in pairs(Cache.Particles) do
-        if particle and particle.Parent then
-            pcall(function()
-                particle.Enabled = enabled
-            end)
-        end
-    end
-    
-    -- Restore Lights
-    for light, enabled in pairs(Cache.Lights) do
-        if light and light.Parent then
-            pcall(function()
-                light.Enabled = enabled
-            end)
-        end
-    end
-    
-    -- Restore Lighting
-    local Lighting = game:GetService("Lighting")
-    Lighting.GlobalShadows = Cache.Lighting.GlobalShadows
-    Lighting.FogEnd = Cache.Lighting.FogEnd
-    Lighting.Brightness = Cache.Lighting.Brightness
-    Lighting.EnvironmentDiffuseScale = Cache.Lighting.EnvironmentDiffuseScale
-    Lighting.EnvironmentSpecularScale = Cache.Lighting.EnvironmentSpecularScale
-    Lighting.ClockTime = Cache.Lighting.ClockTime
-    Lighting.Ambient = Cache.Lighting.Ambient
-    Lighting.OutdoorAmbient = Cache.Lighting.OutdoorAmbient
-    
-    for effect, enabled in pairs(Cache.Lighting.PostEffects) do
-        if effect and effect.Parent then
-            pcall(function()
-                effect.Enabled = enabled
-            end)
-        end
-    end
-    
-    -- Restore Terrain
+    -- Restore Terrain Decoration if needed
     local Terrain = workspace:FindFirstChildOfClass("Terrain")
-    if Terrain and Cache.Terrain.WaterWaveSize then
-        Terrain.WaterWaveSize = Cache.Terrain.WaterWaveSize
-        Terrain.WaterWaveSpeed = Cache.Terrain.WaterWaveSpeed
-        Terrain.WaterReflectance = Cache.Terrain.WaterReflectance
-        Terrain.WaterTransparency = Cache.Terrain.WaterTransparency
+    if Terrain then
         pcall(function()
             if sethiddenproperty then
-                sethiddenproperty(Terrain, "Decoration", Cache.Terrain.Decoration)
+                sethiddenproperty(Terrain, "Decoration", true)
             else
-                Terrain.Decoration = Cache.Terrain.Decoration
+                Terrain.Decoration = true
             end
         end)
     end
-    
-    -- Restore Settings
-    settings().Rendering.QualityLevel = Cache.Settings.QualityLevel
-    settings().Rendering.MeshPartDetailLevel = Cache.Settings.MeshPartDetailLevel
-    game:GetService("UserSettings").GameSettings.SavedQualityLevel = Cache.Settings.SavedQualityLevel
-    
-    -- Clear cache
-    Cache.Parts = {}
-    Cache.Decals = {}
-    Cache.Particles = {}
-    Cache.Lights = {}
-    
-    collectgarbage("collect")
 end
 
+-- UI Toggle
 graphic:Toggle({
     Title = "FPS Boost",
     Default = false,
@@ -3249,7 +2815,7 @@ graphic:Toggle({
         if v then
             applyBoost()
         else
-            restoreOriginal()
+            restoreBoost()
         end
     end
 })
@@ -3579,13 +3145,12 @@ local function cleanup()
     if Frame then Frame:Destroy() end
     if G then G:Destroy() end
     
-    print("Victoria Hub: Cleanup completed")
+    
 end
 
 --- game:BindToClose(cleanup)
 
 -- ==================== FINAL INIT ====================
 getgenv().LexsHubWindow = Window
-print("✅ Victoria Hub Loaded Successfully! (v0.0.9.2 - All Original Features + Optimized)")
 
 return Window
