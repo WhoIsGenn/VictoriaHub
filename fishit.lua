@@ -1907,31 +1907,75 @@ weather:Toggle({
     end
 })
 
+--// =========================
+--// TELEPORT TAB
+--// =========================
 local Tab6 = Window:Tab({
     Title = "Teleport",
     Icon = "map-pin",
 })
 
+--// =========================
+--// SERVICES & PLAYER
+--// =========================
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 
--- Function untuk mendapatkan HRP
-local function getHRP()
-    if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-        return Player.Character.HumanoidRootPart
-    end
-    return nil
+--// =========================
+--// CHARACTER UTILS
+--// =========================
+local function getCharacter()
+    return Player.Character or Player.CharacterAdded:Wait()
 end
 
--- ISLAND TELEPORT
-local island = Tab6:Section({ 
+local function getHRP()
+    local char = getCharacter()
+    return char:WaitForChild("HumanoidRootPart")
+end
+
+local function getHumanoid()
+    local char = getCharacter()
+    return char:FindFirstChildOfClass("Humanoid")
+end
+
+--// =========================
+--// SAFE TELEPORT (FINAL FIX)
+--// =========================
+local function safeTeleport(cf)
+    local hrp = getHRP()
+    local hum = getHumanoid()
+    if not hrp or not hum then return end
+
+    -- Stop physics
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+
+    -- Disable auto rotate
+    hum.AutoRotate = false
+
+    -- Teleport
+    hrp.CFrame = cf
+
+    -- Allow physics settle
+    task.wait()
+
+    -- Enable rotation again
+    hum.AutoRotate = true
+end
+
+--// =========================
+--// ISLAND TELEPORT SECTION
+--// =========================
+local island = Tab6:Section({
     Title = "Island",
     Icon = "tree-palm",
     TextXAlignment = "Left",
     TextSize = 17,
 })
 
--- Pakai CFrame untuk teleport
+--// =========================
+--// ISLAND LOCATIONS
+--// =========================
 local IslandLocations = {
     ["Ancient Jungle"] = CFrame.new(1518, 1, -186),
     ["Coral Refs"] = CFrame.new(-3204.128, 4.744, 2278.412),
@@ -1940,7 +1984,7 @@ local IslandLocations = {
     ["Enchant Room 2"] = CFrame.new(1480, 126, -585),
     ["Esoteric Island"] = CFrame.new(1990, 5, 1398),
     ["Fisherman Island"] = CFrame.new(-63.768, 3.262, 2852.105),
-    ["Kohana Volcano"] = CFrame.new(-545.302429, 17.1266193, 118.870537),
+    ["Kohana Volcano"] = CFrame.new(-545.302, 17.126, 118.870),
     ["Konoha"] = CFrame.new(-609.842, 19.250, 424.131),
     ["Sacred Temple"] = CFrame.new(1454.296, -22.125, -634.009),
     ["Sysyphus Statue"] = CFrame.new(-3734.805, -135.074, -885.983),
@@ -1953,111 +1997,179 @@ local IslandLocations = {
     ["Treesaure Pirate"] = CFrame.new(3341.121, -301.021, 3093.529),
 }
 
+--// =========================
+--// ISLAND DROPDOWN
+--// =========================
 local islandNames = {}
-for name in pairs(IslandLocations) do table.insert(islandNames, name) end
+for name in pairs(IslandLocations) do
+    table.insert(islandNames, name)
+end
 table.sort(islandNames)
 
 local SelectedIsland = islandNames[1]
+
 island:Dropdown({
     Title = "Select Island",
     SearchBarEnabled = true,
     Values = islandNames,
     Value = SelectedIsland,
-    Callback = function(Value) SelectedIsland = Value end
+    Callback = function(value)
+        SelectedIsland = value
+    end
 })
 
+--// =========================
+--// TELEPORT BUTTON
+--// =========================
 island:Button({
     Title = "Teleport to Island",
     Callback = function()
-        if SelectedIsland and IslandLocations[SelectedIsland] then
-            local hrp = getHRP()
-            if hrp then
-                hrp.CFrame = IslandLocations[SelectedIsland]
-            end
+        local cf = IslandLocations[SelectedIsland]
+        if cf then
+            safeTeleport(cf)
         end
     end
 })
 
--- PLAYER TELEPORT
+-- ======================================================
+-- PLAYER TELEPORT (FIX TOTAL)
+-- ======================================================
+
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+
+-- ======================================================
+-- SECTION
+-- ======================================================
+
 local tpplayer = Tab6:Section({
-    Title = "Player",
+    Title = "Player Teleport",
     Icon = "user-search",
     TextXAlignment = "Left",
     TextSize = 17,
 })
 
--- Function untuk mendapatkan player list
-local function getPlayerList()
-    local playerNames = {}
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= Player then
-            table.insert(playerNames, player.Name)
-        end
-    end
-    return playerNames
+-- ======================================================
+-- STATE
+-- ======================================================
+
+local selectedPlayerName = nil
+local dropdownRef = nil
+
+-- ======================================================
+-- UTILS
+-- ======================================================
+
+local function getHRP(char)
+    return char and char:FindFirstChild("HumanoidRootPart")
 end
 
--- Variables untuk player teleport
-local playerList = getPlayerList()
-local selectedPlayer = playerList[1] or ""
+local function getPlayerList()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= Player then
+            table.insert(list, plr.Name)
+        end
+    end
+    table.sort(list)
+    return list
+end
 
--- Buat dropdown
-local dropdownRef = tpplayer:Dropdown({
+-- ======================================================
+-- DROPDOWN INIT
+-- ======================================================
+
+dropdownRef = tpplayer:Dropdown({
     Title = "Teleport Target",
-    Values = playerList,
-    Value = selectedPlayer,
+    Values = {},
     Callback = function(value)
-        selectedPlayer = value
+        selectedPlayerName = value
+        print("[TP] Selected:", value)
     end
 })
 
--- Function untuk refresh player list
-local function refreshPlayerDropdown()
-    playerList = getPlayerList()
-    selectedPlayer = playerList[1] or ""
-    dropdownRef:Refresh(playerList, true)
-    selectedPlayer = playerList[1] or ""
+-- ======================================================
+-- REFRESH FUNCTION (REAL FIX)
+-- ======================================================
+
+local function refreshDropdown()
+    local players = getPlayerList()
+
+    dropdownRef:Refresh(players)
+
+    if #players > 0 then
+        selectedPlayerName = players[1]
+        dropdownRef:Set(players[1])
+    else
+        selectedPlayerName = nil
+    end
+
+    print("[TP] Player list refreshed:", #players)
 end
 
--- Auto-refresh ketika player join/leave
-Players.PlayerAdded:Connect(function(player)
-    if player ~= Player then
-        refreshPlayerDropdown()
-    end
+-- ======================================================
+-- AUTO REFRESH
+-- ======================================================
+
+Players.PlayerAdded:Connect(function()
+    task.wait(0.2)
+    refreshDropdown()
 end)
 
-Players.PlayerRemoving:Connect(function(player)
-    if player ~= Player then
-        refreshPlayerDropdown()
-    end
+Players.PlayerRemoving:Connect(function()
+    task.wait(0.2)
+    refreshDropdown()
 end)
 
--- Teleport to player function
+-- ======================================================
+-- TELEPORT BUTTON
+-- ======================================================
+
 tpplayer:Button({
     Title = "Teleport to Player",
     Callback = function()
-        local target = Players:FindFirstChild(selectedPlayer)
-        if target and target.Character then
-            local targetHRP = target.Character:FindFirstChild("HumanoidRootPart")
-            local myHRP = getHRP()
-            
-            if targetHRP and myHRP then
-                myHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, -3)
-            end
+        if not selectedPlayerName then
+            warn("[TP] No player selected")
+            return
         end
+
+        local target = Players:FindFirstChild(selectedPlayerName)
+        if not target or not target.Character then
+            warn("[TP] Target not available")
+            return
+        end
+
+        local targetHRP = getHRP(target.Character)
+        local myHRP = getHRP(Player.Character)
+
+        if not targetHRP or not myHRP then
+            warn("[TP] HRP missing")
+            return
+        end
+
+        -- EXACT POSITION (slightly above to avoid collision)
+        myHRP.CFrame = CFrame.new(
+            targetHRP.Position + Vector3.new(0, 3, 0)
+        )
+
+        print("[TP] Teleported to:", selectedPlayerName)
     end
 })
 
--- Refresh button
+-- ======================================================
+-- MANUAL REFRESH
+-- ======================================================
+
 tpplayer:Button({
     Title = "Refresh Player List",
-    Callback = function()
-        refreshPlayerDropdown()
-    end
+    Callback = refreshDropdown
 })
 
--- Initial refresh
-refreshPlayerDropdown()
+-- ======================================================
+-- INIT
+-- ======================================================
+
+refreshDropdown()
 
 events = Tab6:Section({
     Title = "Event Teleporter",
