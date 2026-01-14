@@ -2126,19 +2126,15 @@ events = Tab6:Section({
     TextSize = 17,
 })
 
--- SERVICES (SATU TABLE)
-local S = setmetatable({}, {
-    __index = function(_, k)
-        return game:GetService(k)
-    end
-})
+-- JANGAN PAKE S = setmetatable, PAKE INI:
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
--- STATE
+-- STATE (TANPA S.)
 local ST = {
-    player = S.Players.LocalPlayer,
+    player = Players.LocalPlayer,
     char = nil,
     hrp = nil,
-
     megRadius = 150,
     autoTP = false,
     autoFloat = false,
@@ -2158,51 +2154,44 @@ end
 bindChar(ST.player.Character or ST.player.CharacterAdded:Wait())
 ST.player.CharacterAdded:Connect(bindChar)
 
--- EVENT DATA (TETAP)
+-- EVENT DATA (PAKAI CFrame, BUKAN Vector3)
 local eventData = {
     ["Worm Hunt"] = {
         TargetName = "Model",
         Locations = {
-            Vector3.new(2190.85, -1.4, 97.575),
-            Vector3.new(-2450.679, -1.4, 139.731),
-            Vector3.new(-267.479, -1.4, 5188.531),
-            Vector3.new(-327, -1.4, 2422)
+            CFrame.new(2190.85, -1.4, 97.575),
+            CFrame.new(-2450.679, -1.4, 139.731),
+            CFrame.new(-267.479, -1.4, 5188.531),
+            CFrame.new(-327, -1.4, 2422)
         },
-        PlatformY = 106,
         Priority = 1
     },
-
     ["Megalodon Hunt"] = {
         TargetName = "Megalodon Hunt",
         Locations = {
-            Vector3.new(-1076.3, -1.4, 1676.2),
-            Vector3.new(-1191.8, -1.4, 3597.3),
-            Vector3.new(412.7, -1.4, 4134.4)
+            CFrame.new(-1076.3, -1.4, 1676.2),
+            CFrame.new(-1191.8, -1.4, 3597.3),
+            CFrame.new(412.7, -1.4, 4134.4)
         },
-        PlatformY = 106,
         Priority = 2
     },
-
     ["Ghost Shark Hunt"] = {
         TargetName = "Ghost Shark Hunt",
         Locations = {
-            Vector3.new(489.559, -1.35, 25.406),
-            Vector3.new(-1358.216, -1.35, 4100.556),
-            Vector3.new(627.859, -1.35, 3798.081)
+            CFrame.new(489.559, -1.35, 25.406),
+            CFrame.new(-1358.216, -1.35, 4100.556),
+            CFrame.new(627.859, -1.35, 3798.081)
         },
-        PlatformY = 106,
         Priority = 3
     },
-
     ["Shark Hunt"] = {
         TargetName = "Shark Hunt",
         Locations = {
-            Vector3.new(1.65, -1.35, 2095.725),
-            Vector3.new(1369.95, -1.35, 930.125),
-            Vector3.new(-1585.5, -1.35, 1242.875),
-            Vector3.new(-1896.8, -1.35, 2634.375)
+            CFrame.new(1.65, -1.35, 2095.725),
+            CFrame.new(1369.95, -1.35, 930.125),
+            CFrame.new(-1585.5, -1.35, 1242.875),
+            CFrame.new(-1896.8, -1.35, 2634.375)
         },
-        PlatformY = 106,
         Priority = 4
     }
 }
@@ -2210,50 +2199,53 @@ local eventData = {
 -- EVENT NAMES
 local eventNames = {}
 for n in pairs(eventData) do
-    eventNames[#eventNames+1] = n
+    table.insert(eventNames, n)
 end
+table.sort(eventNames)
 
 -- FORCE TP
 local function forceTP(pos)
     if not ST.lastTP or (ST.lastTP - pos).Magnitude > 5 then
         ST.lastTP = pos
         for _ = 1, 2 do
-            ST.hrp.CFrame = CFrame.new(pos.X, pos.Y + 3, pos.Z)
-            ST.hrp.AssemblyLinearVelocity = Vector3.zero
-            ST.hrp.Velocity = Vector3.zero
+            if ST.hrp then
+                ST.hrp.CFrame = CFrame.new(pos.X, pos.Y + 3, pos.Z)
+                ST.hrp.AssemblyLinearVelocity = Vector3.zero
+                ST.hrp.Velocity = Vector3.zero
+            end
             task.wait(0.02)
         end
     end
 end
 
--- MAIN TP LOOP
+-- MAIN TP LOOP (FIX: GANTI S.Workspace JADI Workspace)
 local function runEventTP()
     while ST.autoTP do
         local list = {}
 
         for _, name in ipairs(ST.selectedEvents) do
             if eventData[name] then
-                list[#list+1] = eventData[name]
+                table.insert(list, eventData[name])
             end
         end
 
         table.sort(list, function(a, b)
-            return a.Priority < b.Priority
+            return (a.Priority or 999) < (b.Priority or 999)
         end)
 
         for _, cfg in ipairs(list) do
             local found
 
             if cfg.TargetName == "Model" then
-                local rings = S.Workspace:FindFirstChild("!!! MENU RINGS")
+                local rings = Workspace:FindFirstChild("!!! MENU RINGS")  -- GANTI S.Workspace → Workspace
                 if rings then
                     for _, p in ipairs(rings:GetChildren()) do
                         if p.Name == "Props" then
                             local m = p:FindFirstChild("Model")
                             if m and m.PrimaryPart then
                                 for _, loc in ipairs(cfg.Locations) do
-                                    if (m.PrimaryPart.Position - loc).Magnitude <= ST.megRadius then
-                                        found = m.PrimaryPart.Position
+                                    if (m.PrimaryPart.Position - loc.Position).Magnitude <= ST.megRadius then
+                                        found = loc.Position
                                         break
                                     end
                                 end
@@ -2264,11 +2256,17 @@ local function runEventTP()
                 end
             else
                 for _, loc in ipairs(cfg.Locations) do
-                    for _, d in ipairs(S.Workspace:GetDescendants()) do
+                    for _, d in ipairs(Workspace:GetDescendants()) do  -- GANTI S.Workspace → Workspace
                         if d.Name == cfg.TargetName then
-                            local pos = d:IsA("BasePart") and d.Position or (d.PrimaryPart and d.PrimaryPart.Position)
-                            if pos and (pos - loc).Magnitude <= ST.megRadius then
-                                found = pos
+                            local pos = nil
+                            if d:IsA("BasePart") then
+                                pos = d.Position
+                            elseif d.PrimaryPart then
+                                pos = d.PrimaryPart.Position
+                            end
+                            
+                            if pos and (pos - loc.Position).Magnitude <= ST.megRadius then
+                                found = loc.Position
                                 break
                             end
                         end
@@ -2279,6 +2277,7 @@ local function runEventTP()
 
             if found then
                 forceTP(found)
+                break
             end
         end
 
@@ -2286,19 +2285,13 @@ local function runEventTP()
     end
 end
 
--- FLOAT
-S.RunService.RenderStepped:Connect(function()
-    if ST.autoFloat and ST.hrp then
-        local pos = ST.hrp.Position
-        local targetY = S.Workspace.Terrain.WaterLevel + ST.floatOffset
-        if pos.Y < targetY then
-            ST.hrp.CFrame = CFrame.new(pos.X, targetY, pos.Z)
-            ST.hrp.AssemblyLinearVelocity = Vector3.zero
-        end
-    end
-end)
+-- FLOAT (PAKAI FUNCTION LU)
+if typeof(floatingPlat) == "function" then
+    floatingPlat(ST.autoFloat)
+end
 
-Tab6:Dropdown({
+-- DROPDOWN & TOGGLE
+events:Dropdown({
     Title = "Select Events",
     Values = eventNames,
     Multi = true,
@@ -2308,13 +2301,19 @@ Tab6:Dropdown({
     end
 })
 
-Tab6:Toggle({
+events:Toggle({
     Title = "Auto Event",
     Value = false,
     Callback = function(state)
         ST.autoTP = state
         ST.autoFloat = state
         ST.lastTP = nil
+        
+        -- Update float platform
+        if typeof(floatingPlat) == "function" then
+            floatingPlat(state)
+        end
+        
         if state then
             task.defer(runEventTP)
         end
