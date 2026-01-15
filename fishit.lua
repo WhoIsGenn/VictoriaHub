@@ -1504,8 +1504,7 @@ end)
 
 
 --========================================
---========================================
--- AUTO PLACE TOTEM (FIXED - From Potions)
+-- AUTO PLACE TOTEM (FIXED - UI Loading)
 --========================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -1521,6 +1520,16 @@ local delayMinutes = 60
 local loopThread
 
 --========================
+-- WINDUI SECTION (BIKIN DULU!)
+--========================
+local PlaceTotem = Tab4:Section({
+    Title = "Auto Place Totem",
+    Icon = "box",
+    TextXAlignment = "Left",
+    TextSize = 17
+})
+
+--========================
 -- TOTEM DETECTION (FROM POTIONS FOLDER)
 --========================
 local TotemData = {
@@ -1528,9 +1537,12 @@ local TotemData = {
     TotemModules = {}
 }
 
-task.spawn(function()
-    local potionsFolder = RS:WaitForChild("Potions", 30)
-    if not potionsFolder then return warn("[AutoTotem] Potions folder not found") end
+local function loadTotemData()
+    local potionsFolder = RS:FindFirstChild("Potions")
+    if not potionsFolder then 
+        warn("[AutoTotem] Potions folder not found")
+        return false
+    end
     
     for _, potion in pairs(potionsFolder:GetChildren()) do
         -- Check if it's a totem
@@ -1542,7 +1554,11 @@ task.spawn(function()
     
     table.sort(TotemData.TotemNames)
     print("[AutoTotem] Loaded totems:", table.concat(TotemData.TotemNames, ", "))
-end)
+    return true
+end
+
+-- Load totem data synchronously
+local dataLoaded = loadTotemData()
 
 --========================
 -- REMOTES
@@ -1671,7 +1687,7 @@ local function placeTotem()
     if success then
         WindUI:Notify({
             Title = "Auto Totem",
-            Content = "Placed " .. selectedTotem,
+            Content = "🗿 Placed " .. selectedTotem,
             Duration = 2
         })
         
@@ -1708,107 +1724,109 @@ local function startLoop()
 end
 
 --========================
--- WINDUI
+-- UI ELEMENTS (LANGSUNG TANPA WAIT)
 --========================
 
-local PlaceTotem = Tab4:Section({
-    Title = "Auto Place Totem",
-    Icon = "box",
-    TextXAlignment = "Left",
-    TextSize = 17
-})
-
--- Wait for totem data to load
-task.wait(2)
-
-PlaceTotem:Dropdown({
-    Title = "Select Totem",
-    Desc = "Choose totem to auto place",
-    Values = TotemData.TotemNames,
-    AllowNone = true,
-    Callback = function(v)
-        selectedTotem = v
-        print("[AutoTotem] Selected:", v)
-        
-        WindUI:Notify({
-            Title = "Auto Totem",
-            Content = "Selected: " .. v,
-            Duration = 2
-        })
-    end
-})
-
-PlaceTotem:Input({
-    Title = "Delay (Minutes)",
-    Placeholder = "Default: 60 (1 hour)",
-    Value = tostring(delayMinutes),
-    Callback = function(text)
-        local n = tonumber(text)
-        if n and n > 0 then
-            delayMinutes = math.floor(n)
+if not dataLoaded or #TotemData.TotemNames == 0 then
+    PlaceTotem:Paragraph({
+        Title = "Error",
+        Content = "Failed to load totem data. Please rejoin or check RS.Potions folder."
+    })
+else
+    PlaceTotem:Dropdown({
+        Title = "Select Totem",
+        Desc = "Choose totem to auto place",
+        Values = TotemData.TotemNames,
+        AllowNone = true,
+        Callback = function(v)
+            selectedTotem = v
+            print("[AutoTotem] Selected:", v)
+            
             WindUI:Notify({
                 Title = "Auto Totem",
-                Content = "Delay set to " .. delayMinutes .. " minutes",
+                Content = "Selected: " .. v,
                 Duration = 2
             })
-            print("[AutoTotem] Delay set to:", delayMinutes, "minutes")
         end
-    end
-})
+    })
 
-PlaceTotem:Toggle({
-    Title = "Auto Place Totem",
-    Value = false,
-    Callback = function(v)
-        autoPlace = v
-        
-        if v then
+    PlaceTotem:Input({
+        Title = "Delay (Minutes)",
+        Placeholder = "Default: 60 (1 hour)",
+        Value = tostring(delayMinutes),
+        Callback = function(text)
+            local n = tonumber(text)
+            if n and n > 0 then
+                delayMinutes = math.floor(n)
+                WindUI:Notify({
+                    Title = "Auto Totem",
+                    Content = "Delay set to " .. delayMinutes .. " minutes",
+                    Duration = 2
+                })
+                print("[AutoTotem] Delay set to:", delayMinutes, "minutes")
+            end
+        end
+    })
+
+    PlaceTotem:Toggle({
+        Title = "Auto Place Totem",
+        Value = false,
+        Callback = function(v)
+            autoPlace = v
+            
+            if v then
+                if not selectedTotem then
+                    WindUI:Notify({
+                        Title = "Auto Totem",
+                        Content = "Please select a totem first!",
+                        Duration = 3
+                    })
+                    autoPlace = false
+                    return
+                end
+                
+                WindUI:Notify({
+                    Title = "Auto Totem",
+                    Content = "Auto Place enabled!",
+                    Duration = 2
+                })
+                
+                print("[AutoTotem] Started - Totem:", selectedTotem, "- Delay:", delayMinutes, "min")
+                startLoop()
+            else
+                WindUI:Notify({
+                    Title = "Auto Totem",
+                    Content = "Auto Place disabled!",
+                    Duration = 2
+                })
+                
+                print("[AutoTotem] Stopped")
+            end
+        end
+    })
+
+    PlaceTotem:Button({
+        Title = "Place Now",
+        Desc = "Manually place totem at current position",
+        Callback = function()
             if not selectedTotem then
                 WindUI:Notify({
                     Title = "Auto Totem",
                     Content = "Please select a totem first!",
                     Duration = 3
                 })
-                autoPlace = false
                 return
             end
             
-            WindUI:Notify({
-                Title = "Auto Totem",
-                Content = "Auto Place enabled!",
-                Duration = 2
-            })
-            
-            print("[AutoTotem] Started - Totem:", selectedTotem, "- Delay:", delayMinutes, "min")
-            startLoop()
-        else
-            WindUI:Notify({
-                Title = "Auto Totem",
-                Content = "Auto Place disabled!",
-                Duration = 2
-            })
-            
-            print("[AutoTotem] Stopped")
+            placeTotem()
         end
-    end
-})
+    })
 
-PlaceTotem:Button({
-    Title = "Place Now",
-    Desc = "Manually place totem at current position",
-    Callback = function()
-        if not selectedTotem then
-            WindUI:Notify({
-                Title = "Auto Totem",
-                Content = "Please select a totem first!",
-                Duration = 3
-            })
-            return
-        end
-        
-        placeTotem()
-    end
-})
+    PlaceTotem:Paragraph({
+        Title = "How it works:",
+        Content = "1. Select totem type\n2. Set delay (minutes)\n3. Toggle auto place\n\nTotem will be placed immediately and re-placed based on delay."
+    })
+end
 
 -- ==================== TAB 5: WEBHOOK ====================
 local Tab0 = Window:Tab({
