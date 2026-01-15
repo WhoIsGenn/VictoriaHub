@@ -1504,35 +1504,48 @@ end)
 
 
 --========================================
--- AUTO PLACE TOTEM (FIXED WINDUI)
+-- AUTO PLACE TOTEM (ANTI FREEZE FIX)
 --========================================
 
---// SERVICES
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local RS = game:GetService("ReplicatedStorage")
 
---// REMOTE
-local NetFolder = ReplicatedStorage
-    :WaitForChild("sleitinick_net@0.2.0")
-    :WaitForChild("net")
-
-local SpawnTotemRemote = NetFolder:WaitForChild("RE/SpawnTotem")
-
---// DATA
-local PotionsFolder = ReplicatedStorage:WaitForChild("Potions")
-
---// STATE (AMAN)
-local autoPlaceEnabled = false
-local selectedTotemName = nil
+--========================
+-- STATE
+--========================
+local autoPlace = false
+local selectedTotem = nil
 local delayMinutes = 60
-local autoThread = nil
+local loopThread
 
---========================================
--- DETECT TOTEMS
---========================================
+--========================
+-- PLACEHOLDER (NANTI DIISI)
+--========================
+local SpawnTotemRemote = nil
+local PotionsFolder = nil
+
+--========================
+-- ASYNC LOAD (TIDAK FREEZE UI)
+--========================
+task.spawn(function()
+    local netRoot = RS:WaitForChild("sleitinick_net@0.2.0", 30)
+    if not netRoot then return warn("netRoot not found") end
+
+    local net = netRoot:WaitForChild("net", 30)
+    if not net then return warn("net not found") end
+
+    SpawnTotemRemote = net:WaitForChild("RE/SpawnTotem", 30)
+end)
+
+task.spawn(function()
+    PotionsFolder = RS:WaitForChild("Potions", 30)
+end)
+
+--========================
+-- HELPER
+--========================
 local function getTotemList()
     local list = {}
+    if not PotionsFolder then return list end
     for _,v in ipairs(PotionsFolder:GetChildren()) do
         if v.Name:find("Totem") then
             table.insert(list, v.Name)
@@ -1541,36 +1554,31 @@ local function getTotemList()
     return list
 end
 
-local function getTotem()
-    if not selectedTotemName then return end
-    return PotionsFolder:FindFirstChild(selectedTotemName)
-end
-
---========================================
--- AUTO PLACE LOOP
---========================================
-local function startAutoPlace()
-    if autoThread then return end
-
-    autoThread = task.spawn(function()
-        while autoPlaceEnabled do
-            local totem = getTotem()
-            if totem then
-                pcall(function()
-                    SpawnTotemRemote:FireServer(totem)
-                end)
+--========================
+-- LOOP
+--========================
+local function startLoop()
+    if loopThread then return end
+    loopThread = task.spawn(function()
+        while autoPlace do
+            if SpawnTotemRemote and PotionsFolder and selectedTotem then
+                local item = PotionsFolder:FindFirstChild(selectedTotem)
+                if item then
+                    pcall(function()
+                        SpawnTotemRemote:FireServer(item)
+                    end)
+                end
             end
             task.wait(delayMinutes * 60)
         end
-        autoThread = nil
+        loopThread = nil
     end)
 end
 
---========================================
--- WINDUI (FIXED)
---========================================
+--========================
+-- WINDUI (UI DULU!)
+--========================
 
--- ⚠️ PAKAI ":" BUKAN "."
 local PlaceTotem = Tab4:Section({
     Title = "Auto Place Totem",
     Icon = "box",
@@ -1583,29 +1591,29 @@ PlaceTotem:Dropdown({
     Values = getTotemList(),
     AllowNone = true,
     Callback = function(v)
-        selectedTotemName = v
+        selectedTotem = v
     end
 })
 
 PlaceTotem:Input({
-    Title = "Place Delay (Minutes)",
-    Placeholder = "60 = 1 hour",
-    Default = tostring(delayMinutes),
+    Title = "Delay (Minutes)",
+    Placeholder = "contoh: 60 = 1 jam",
+    Value = tostring(delayMinutes),
     Callback = function(text)
-        local num = tonumber(text)
-        if num and num > 0 then
-            delayMinutes = num
+        local n = tonumber(text)
+        if n and n > 0 then
+            delayMinutes = math.floor(n)
         end
     end
 })
 
 PlaceTotem:Toggle({
     Title = "Auto Place Totem",
-    Value = false,
-    Callback = function(state)
-        autoPlaceEnabled = state
-        if state then
-            startAutoPlace()
+    Default = false,
+    Callback = function(v)
+        autoPlace = v
+        if v then
+            startLoop()
         end
     end
 })
