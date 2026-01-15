@@ -1504,8 +1504,7 @@ end)
 
 
 --========================================
--- AUTO PLACE TOTEM (FULL SCRIPT)
--- WindUI + Auto Detect + Delay (Minutes)
+-- AUTO PLACE TOTEM (FIXED WINDUI)
 --========================================
 
 --// SERVICES
@@ -1513,7 +1512,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
---// REMOTE (sesuai Dex Explorer)
+--// REMOTE
 local NetFolder = ReplicatedStorage
     :WaitForChild("sleitinick_net@0.2.0")
     :WaitForChild("net")
@@ -1523,27 +1522,27 @@ local SpawnTotemRemote = NetFolder:WaitForChild("RE/SpawnTotem")
 --// DATA
 local PotionsFolder = ReplicatedStorage:WaitForChild("Potions")
 
---// LOCAL STATE (ISOLATED, AMAN)
+--// STATE (AMAN)
 local autoPlaceEnabled = false
 local selectedTotemName = nil
-local delayMinutes = 60 -- default 60 menit
-local autoPlaceThread = nil
+local delayMinutes = 60
+local autoThread = nil
 
 --========================================
--- DETECT AVAILABLE TOTEMS
+-- DETECT TOTEMS
 --========================================
 local function getTotemList()
     local list = {}
-    for _, item in ipairs(PotionsFolder:GetChildren()) do
-        if item.Name:find("Totem") then
-            table.insert(list, item.Name)
+    for _,v in ipairs(PotionsFolder:GetChildren()) do
+        if v.Name:find("Totem") then
+            table.insert(list, v.Name)
         end
     end
     return list
 end
 
-local function getSelectedTotemInstance()
-    if not selectedTotemName then return nil end
+local function getTotem()
+    if not selectedTotemName then return end
     return PotionsFolder:FindFirstChild(selectedTotemName)
 end
 
@@ -1551,51 +1550,46 @@ end
 -- AUTO PLACE LOOP
 --========================================
 local function startAutoPlace()
-    if autoPlaceThread then return end
+    if autoThread then return end
 
-    autoPlaceThread = task.spawn(function()
+    autoThread = task.spawn(function()
         while autoPlaceEnabled do
-            local totemInstance = getSelectedTotemInstance()
-            if totemInstance then
+            local totem = getTotem()
+            if totem then
                 pcall(function()
-                    -- Sama persis seperti klik manual inventory
-                    SpawnTotemRemote:FireServer(totemInstance)
+                    SpawnTotemRemote:FireServer(totem)
                 end)
             end
-
-            -- convert menit → detik
             task.wait(delayMinutes * 60)
         end
-        autoPlaceThread = nil
+        autoThread = nil
     end)
 end
 
 --========================================
--- WINDUI
+-- WINDUI (FIXED)
 --========================================
 
--- SECTION
-local PlaceTotem = Tab4.Section({
+-- ⚠️ PAKAI ":" BUKAN "."
+local PlaceTotem = Tab4:Section({
     Title = "Auto Place Totem",
     Icon = "box",
     TextXAlignment = "Left",
     TextSize = 17
 })
 
--- DROPDOWN TOTEM
 PlaceTotem:Dropdown({
     Title = "Select Totem",
     Values = getTotemList(),
     AllowNone = true,
-    Callback = function(value)
-        selectedTotemName = value
+    Callback = function(v)
+        selectedTotemName = v
     end
 })
 
--- INPUT DELAY (MINUTES)
 PlaceTotem:Input({
     Title = "Place Delay (Minutes)",
-    Placeholder = "Example: 60 = 1 hour",
+    Placeholder = "60 = 1 hour",
     Default = tostring(delayMinutes),
     Callback = function(text)
         local num = tonumber(text)
@@ -1605,7 +1599,6 @@ PlaceTotem:Input({
     end
 })
 
--- TOGGLE AUTO PLACE
 PlaceTotem:Toggle({
     Title = "Auto Place Totem",
     Value = false,
