@@ -1502,6 +1502,122 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
     end
 end)
 
+
+--========================================
+-- AUTO PLACE TOTEM (FULL SCRIPT)
+-- WindUI + Auto Detect + Delay (Minutes)
+--========================================
+
+--// SERVICES
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+--// REMOTE (sesuai Dex Explorer)
+local NetFolder = ReplicatedStorage
+    :WaitForChild("sleitinick_net@0.2.0")
+    :WaitForChild("net")
+
+local SpawnTotemRemote = NetFolder:WaitForChild("RE/SpawnTotem")
+
+--// DATA
+local PotionsFolder = ReplicatedStorage:WaitForChild("Potions")
+
+--// LOCAL STATE (ISOLATED, AMAN)
+local autoPlaceEnabled = false
+local selectedTotemName = nil
+local delayMinutes = 60 -- default 60 menit
+local autoPlaceThread = nil
+
+--========================================
+-- DETECT AVAILABLE TOTEMS
+--========================================
+local function getTotemList()
+    local list = {}
+    for _, item in ipairs(PotionsFolder:GetChildren()) do
+        if item.Name:find("Totem") then
+            table.insert(list, item.Name)
+        end
+    end
+    return list
+end
+
+local function getSelectedTotemInstance()
+    if not selectedTotemName then return nil end
+    return PotionsFolder:FindFirstChild(selectedTotemName)
+end
+
+--========================================
+-- AUTO PLACE LOOP
+--========================================
+local function startAutoPlace()
+    if autoPlaceThread then return end
+
+    autoPlaceThread = task.spawn(function()
+        while autoPlaceEnabled do
+            local totemInstance = getSelectedTotemInstance()
+            if totemInstance then
+                pcall(function()
+                    -- Sama persis seperti klik manual inventory
+                    SpawnTotemRemote:FireServer(totemInstance)
+                end)
+            end
+
+            -- convert menit → detik
+            task.wait(delayMinutes * 60)
+        end
+        autoPlaceThread = nil
+    end)
+end
+
+--========================================
+-- WINDUI
+--========================================
+
+-- SECTION
+local PlaceTotem = Tab4.Section({
+    Title = "Auto Place Totem",
+    Icon = "box",
+    TextXAlignment = "Left",
+    TextSize = 17
+})
+
+-- DROPDOWN TOTEM
+PlaceTotem:Dropdown({
+    Title = "Select Totem",
+    Values = getTotemList(),
+    AllowNone = true,
+    Callback = function(value)
+        selectedTotemName = value
+    end
+})
+
+-- INPUT DELAY (MINUTES)
+PlaceTotem:Input({
+    Title = "Place Delay (Minutes)",
+    Placeholder = "Example: 60 = 1 hour",
+    Default = tostring(delayMinutes),
+    Callback = function(text)
+        local num = tonumber(text)
+        if num and num > 0 then
+            delayMinutes = num
+        end
+    end
+})
+
+-- TOGGLE AUTO PLACE
+PlaceTotem:Toggle({
+    Title = "Auto Place Totem",
+    Value = false,
+    Callback = function(state)
+        autoPlaceEnabled = state
+        if state then
+            startAutoPlace()
+        end
+    end
+})
+
+
 -- ==================== TAB 5: WEBHOOK ====================
 local Tab0 = Window:Tab({
     Title = "Webhook",
@@ -2213,38 +2329,18 @@ for n in pairs(eventData) do
     eventNames[#eventNames+1] = n
 end
 
--- FLOAT (SAFE + ACCURATE)
-local RayParams = RaycastParams.new()
-RayParams.FilterType = Enum.RaycastFilterType.Blacklist
-
-S.RunService.RenderStepped:Connect(function()
-    if not ST.autoFloat then return end
-    if not ST.hrp then return end
-    if not ST.char then return end
-
-    RayParams.FilterDescendantsInstances = { ST.char }
-
-    local origin = ST.hrp.Position
-    local result = workspace:Raycast(
-        origin,
-        Vector3.new(0, -500, 0),
-        RayParams
-    )
-
-    if result and result.Material == Enum.Material.Water then
-        local targetY = result.Position.Y + ST.floatOffset
-
-        if origin.Y < targetY then
-            ST.hrp.CFrame = CFrame.new(
-                origin.X,
-                targetY,
-                origin.Z
-            )
+-- FORCE TP
+local function forceTP(pos)
+    if not ST.lastTP or (ST.lastTP - pos).Magnitude > 5 then
+        ST.lastTP = pos
+        for _ = 1, 2 do
+            ST.hrp.CFrame = CFrame.new(pos.X, pos.Y + 3, pos.Z)
             ST.hrp.AssemblyLinearVelocity = Vector3.zero
+            ST.hrp.Velocity = Vector3.zero
+            task.wait(0.02)
         end
     end
-end)
-
+end
 
 -- MAIN TP LOOP
 local function runEventTP()
