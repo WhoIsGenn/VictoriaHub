@@ -1504,7 +1504,7 @@ end)
 
 
 --========================================
--- AUTO PLACE TOTEM (FIXED - UI Loading)
+-- AUTO PLACE TOTEM (SCAN BOTH FOLDERS)
 --========================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -1520,7 +1520,7 @@ local delayMinutes = 60
 local loopThread
 
 --========================
--- WINDUI SECTION (BIKIN DULU!)
+-- WINDUI SECTION
 --========================
 local PlaceTotem = Tab4:Section({
     Title = "Auto Place Totem",
@@ -1530,34 +1530,59 @@ local PlaceTotem = Tab4:Section({
 })
 
 --========================
--- TOTEM DETECTION (FROM POTIONS FOLDER)
+-- TOTEM DETECTION (SCAN BOTH FOLDERS)
 --========================
 local TotemData = {
     TotemNames = {},
-    TotemModules = {}
+    TotemModules = {},
+    TotemIds = {}
 }
 
 local function loadTotemData()
+    local foundTotems = {}
+    
+    -- Scan RS.Potions
     local potionsFolder = RS:FindFirstChild("Potions")
-    if not potionsFolder then 
-        warn("[AutoTotem] Potions folder not found")
-        return false
+    if potionsFolder then
+        print("[AutoTotem] Scanning Potions folder...")
+        for _, potion in pairs(potionsFolder:GetChildren()) do
+            if potion.Name:find("Totem") then
+                foundTotems[potion.Name] = potion
+                print("[AutoTotem] Found in Potions:", potion.Name)
+            end
+        end
     end
     
-    for _, potion in pairs(potionsFolder:GetChildren()) do
-        -- Check if it's a totem
-        if potion.Name:find("Totem") then
-            table.insert(TotemData.TotemNames, potion.Name)
-            TotemData.TotemModules[potion.Name] = potion
+    -- Scan RS.Totems
+    local totemsFolder = RS:FindFirstChild("Totems")
+    if totemsFolder then
+        print("[AutoTotem] Scanning Totems folder...")
+        for _, totem in pairs(totemsFolder:GetChildren()) do
+            if totem.Name:find("Totem") then
+                foundTotems[totem.Name] = totem
+                print("[AutoTotem] Found in Totems:", totem.Name)
+            end
+        end
+    end
+    
+    -- Process found totems
+    for name, module in pairs(foundTotems) do
+        table.insert(TotemData.TotemNames, name)
+        TotemData.TotemModules[name] = module
+        
+        -- Try to get ID from module
+        local ok, data = pcall(require, module)
+        if ok and data.Data then
+            TotemData.TotemIds[name] = data.Data.Id
+            print("[AutoTotem] Totem:", name, "| ID:", data.Data.Id)
         end
     end
     
     table.sort(TotemData.TotemNames)
-    print("[AutoTotem] Loaded totems:", table.concat(TotemData.TotemNames, ", "))
-    return true
+    print("[AutoTotem] Total loaded:", #TotemData.TotemNames, "totems")
+    return #TotemData.TotemNames > 0
 end
 
--- Load totem data synchronously
 local dataLoaded = loadTotemData()
 
 --========================
@@ -1589,34 +1614,68 @@ end)
 -- HELPER FUNCTIONS
 --========================
 
--- Get totem ID from Potions module
+-- Get totem ID
 local function getTotemId(totemName)
+    -- Check if already cached
+    if TotemData.TotemIds[totemName] then
+        return TotemData.TotemIds[totemName]
+    end
+    
+    -- Try to get from module
     local module = TotemData.TotemModules[totemName]
     if not module then return nil end
     
     local ok, data = pcall(require, module)
     if ok and data.Data then
+        TotemData.TotemIds[totemName] = data.Data.Id
         return data.Data.Id
     end
     
     return nil
 end
 
--- Check if player has totem in inventory
+-- Check if player has totem in inventory (WITH DEBUG)
 local function hasTotemInInventory(totemId)
-    if not DataService then return false end
+    print("[AutoTotem] Checking inventory for totem ID:", totemId)
+    
+    if not DataService then 
+        print("[AutoTotem] ✗ DataService not found")
+        return false 
+    end
     
     local success, inventoryItems = pcall(function()
         return DataService:GetExpect({ "Inventory", "Items" })
     end)
     
-    if not success then return false end
+    if not success then 
+        print("[AutoTotem] ✗ Failed to get inventory items")
+        return false 
+    end
     
+    if not inventoryItems then
+        print("[AutoTotem] ✗ Inventory items is nil")
+        return false
+    end
+    
+    local itemCount = 0
     for _, item in pairs(inventoryItems) do
-        if item.Id == totemId then
+        itemCount = itemCount + 1
+        
+        -- Debug: Print first 3 items
+        if itemCount <= 3 then
+            print("[AutoTotem] Sample item - ID:", item.Id, "Type:", type(item.Id))
+        end
+        
+        -- Compare IDs (try both string and direct comparison)
+        if item.Id == totemId or tostring(item.Id) == tostring(totemId) then
+            print("[AutoTotem] ✓ FOUND TOTEM! UUID:", item.UUID)
             return true, item.UUID
         end
     end
+    
+    print("[AutoTotem] ✗ Totem not found")
+    print("[AutoTotem] Total items checked:", itemCount)
+    print("[AutoTotem] Looking for ID:", totemId, "Type:", type(totemId))
     
     return false
 end
@@ -1638,12 +1697,14 @@ local function placeTotem()
         return false
     end
     
-    -- Get totem ID from module
+    -- Get totem ID
     local totemId = getTotemId(selectedTotem)
     if not totemId then 
-        print("[AutoTotem] Failed to get totem ID")
+        print("[AutoTotem] ✗ Failed to get totem ID for:", selectedTotem)
         return false 
     end
+    
+    print("[AutoTotem] Totem ID:", totemId)
     
     -- Check inventory
     local hasTotem, uuid = hasTotemInInventory(totemId)
@@ -1653,7 +1714,6 @@ local function placeTotem()
             Content = "No " .. selectedTotem .. " in inventory!",
             Duration = 3
         })
-        print("[AutoTotem] ✗ No totem in inventory")
         return false
     end
     
@@ -1674,12 +1734,10 @@ local function placeTotem()
     
     -- Try to equip & spawn totem
     local success = pcall(function()
-        -- Step 1: Equip totem
         print("[AutoTotem] Equipping totem UUID:", uuid)
         EquipItemRemote:FireServer(uuid)
-        task.wait(0.5) -- Wait for equip
+        task.wait(0.5)
         
-        -- Step 2: Spawn totem at player position
         print("[AutoTotem] Spawning totem at:", playerPos)
         SpawnTotemRemote:FireServer(playerPos)
     end)
@@ -1691,7 +1749,7 @@ local function placeTotem()
             Duration = 2
         })
         
-        print("[AutoTotem] ✓ Placed totem at:", playerPos)
+        print("[AutoTotem] ✓ Placed totem successfully")
         return true
     else
         WindUI:Notify({
@@ -1710,7 +1768,6 @@ end
 local function startLoop()
     if loopThread then return end
     loopThread = task.spawn(function()
-        -- Place immediately when enabled
         placeTotem()
         
         while autoPlace do
@@ -1724,13 +1781,13 @@ local function startLoop()
 end
 
 --========================
--- UI ELEMENTS (LANGSUNG TANPA WAIT)
+-- UI ELEMENTS
 --========================
 
-if not dataLoaded or #TotemData.TotemNames == 0 then
+if not dataLoaded then
     PlaceTotem:Paragraph({
         Title = "Error",
-        Content = "Failed to load totem data. Please rejoin or check RS.Potions folder."
+        Content = "No totems found in RS.Potions or RS.Totems"
     })
 else
     PlaceTotem:Dropdown({
@@ -1740,7 +1797,8 @@ else
         AllowNone = true,
         Callback = function(v)
             selectedTotem = v
-            print("[AutoTotem] Selected:", v)
+            local id = getTotemId(v)
+            print("[AutoTotem] Selected:", v, "| ID:", id)
             
             WindUI:Notify({
                 Title = "Auto Totem",
@@ -1763,7 +1821,6 @@ else
                     Content = "Delay set to " .. delayMinutes .. " minutes",
                     Duration = 2
                 })
-                print("[AutoTotem] Delay set to:", delayMinutes, "minutes")
             end
         end
     })
@@ -1791,7 +1848,6 @@ else
                     Duration = 2
                 })
                 
-                print("[AutoTotem] Started - Totem:", selectedTotem, "- Delay:", delayMinutes, "min")
                 startLoop()
             else
                 WindUI:Notify({
@@ -1799,15 +1855,13 @@ else
                     Content = "Auto Place disabled!",
                     Duration = 2
                 })
-                
-                print("[AutoTotem] Stopped")
             end
         end
     })
 
     PlaceTotem:Button({
         Title = "Place Now",
-        Desc = "Manually place totem at current position",
+        Desc = "Test place totem",
         Callback = function()
             if not selectedTotem then
                 WindUI:Notify({
@@ -1820,11 +1874,6 @@ else
             
             placeTotem()
         end
-    })
-
-    PlaceTotem:Paragraph({
-        Title = "How it works:",
-        Content = "1. Select totem type\n2. Set delay (minutes)\n3. Toggle auto place\n\nTotem will be placed immediately and re-placed based on delay."
     })
 end
 
