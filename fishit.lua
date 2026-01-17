@@ -1593,7 +1593,7 @@ if fishDropdownInstance then
 end
 
 --========================================
--- AUTO PLACE TOTEM (SCAN BOTH FOLDERS)
+-- AUTO PLACE TOTEM (FIXED - SCAN GC)
 --========================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -1619,54 +1619,42 @@ local PlaceTotem = Tab4:Section({
 })
 
 --========================
--- TOTEM DETECTION (SCAN BOTH FOLDERS)
+-- TOTEM DETECTION
 --========================
 local TotemData = {
     TotemNames = {},
-    TotemModules = {},
-    TotemIds = {}
+    TotemIds = {} -- Store multiple IDs per totem
 }
 
 local function loadTotemData()
     local foundTotems = {}
     
-    -- Scan RS.Potions
-    local potionsFolder = RS:FindFirstChild("Potions")
-    if potionsFolder then
-        print("[AutoTotem] Scanning Potions folder...")
-        for _, potion in pairs(potionsFolder:GetChildren()) do
-            if potion.Name:find("Totem") then
-                foundTotems[potion.Name] = potion
-                print("[AutoTotem] Found in Potions:", potion.Name)
+    local function scanFolder(folder, folderName)
+        if not folder then return end
+        
+        print("[AutoTotem] Scanning", folderName, "folder...")
+        for _, module in pairs(folder:GetChildren()) do
+            if module.Name:find("Totem") then
+                local ok, data = pcall(require, module)
+                if ok and data.Data and data.Data.Id then
+                    if not foundTotems[module.Name] then
+                        foundTotems[module.Name] = {}
+                    end
+                    table.insert(foundTotems[module.Name], data.Data.Id)
+                    print(string.format("[AutoTotem] %s -> ID: %s", module.Name, data.Data.Id))
+                end
             end
         end
     end
     
-    -- Scan RS.Totems
-    local totemsFolder = RS:FindFirstChild("Totems")
-    if totemsFolder then
-        print("[AutoTotem] Scanning Totems folder...")
-        for _, totem in pairs(totemsFolder:GetChildren()) do
-            if totem.Name:find("Totem") then
-                foundTotems[totem.Name] = totem
-                print("[AutoTotem] Found in Totems:", totem.Name)
-            end
-        end
-    end
+    scanFolder(RS:FindFirstChild("Potions"), "Potions")
+    scanFolder(RS:FindFirstChild("Totems"), "Totems")
     
     -- Process found totems
-    for name, module in pairs(foundTotems) do
+    for name, ids in pairs(foundTotems) do
         table.insert(TotemData.TotemNames, name)
-        TotemData.TotemModules[name] = module
-        
-        -- Try to get ID from module
-        local ok, data = pcall(require, module)
-        if ok and data.Data then
-            TotemData.TotemIds[name] = data.Data.Id
-            print("[AutoTotem] Totem:", name, "| ID:", data.Data.Id, "| Type:", type(data.Data.Id))
-        else
-            print("[AutoTotem] WARNING: Failed to get ID for", name)
-        end
+        TotemData.TotemIds[name] = ids
+        print(string.format("[AutoTotem] %s has %d ID variants", name, #ids))
     end
     
     table.sort(TotemData.TotemNames)
@@ -1705,110 +1693,33 @@ end)
 -- HELPER FUNCTIONS
 --========================
 
--- Get totem ID
-local function getTotemId(totemName)
-    if TotemData.TotemIds[totemName] then
-        return TotemData.TotemIds[totemName]
-    end
+-- Find totem in GC by checking all possible IDs
+local function findTotemInGC(totemName)
+    local possibleIds = TotemData.TotemIds[totemName]
+    if not possibleIds then return nil end
     
-    local module = TotemData.TotemModules[totemName]
-    if not module then return nil end
+    print("[AutoTotem] Searching for", totemName, "with IDs:", table.concat(possibleIds, ", "))
     
-    local ok, data = pcall(require, module)
-    if ok and data.Data then
-        TotemData.TotemIds[totemName] = data.Data.Id
-        return data.Data.Id
-    end
-    
-    return nil
-end
-
--- NEW: Get item name from GameData
-local function getItemNameFromId(itemId)
-    if not GameData then return nil end
-    
-    local success, itemData = pcall(function()
-        return GameData:Get(itemId)
-    end)
-    
-    if success and itemData then
-        return itemData.Name or itemData.DisplayName
-    end
-    
-    return nil
-end
-
--- FIXED: Check inventory using GameData lookup
-local function hasTotemInInventory(totemId, totemName)
-    print("[AutoTotem] ========== INVENTORY CHECK ==========")
-    print("[AutoTotem] Looking for:", totemName, "| Type ID:", totemId)
-    
-    if not DataService then 
-        print("[AutoTotem] ✗ DataService not found")
-        return false 
-    end
-    
-    local success, inventoryItems = pcall(function()
-        return DataService:GetExpect({ "Inventory", "Items" })
-    end)
-    
-    if not success then 
-        print("[AutoTotem] ✗ Failed to get inventory items")
-        return false 
-    end
-    
-    if not inventoryItems then
-        print("[AutoTotem] ✗ Inventory items is nil")
-        return false
-    end
-    
-    print("[AutoTotem] Scanning inventory...")
-    
-    local itemCount = 0
-    local foundTotems = {}
-    
-    for _, item in pairs(inventoryItems) do
-        itemCount = itemCount + 1
-        
-        -- Get item name from GameData using instance ID
-        local itemName = getItemNameFromId(item.Id)
-        
-        if itemName then
-            -- Check if item name matches totem name
-            if itemName == totemName or itemName:find(totemName) then
-                print("[AutoTotem] ✓ FOUND TOTEM!")
-                print("[AutoTotem]   Name:", itemName)
-                print("[AutoTotem]   Instance ID:", item.Id)
-                print("[AutoTotem]   UUID:", item.UUID)
-                return true, item.UUID
-            end
+    -- Search in garbage collector
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" then
+            local hasUUID = rawget(v, "UUID")
+            local hasId = rawget(v, "Id")
             
-            -- Collect totem items for debugging
-            if itemName:find("Totem") then
-                table.insert(foundTotems, {
-                    name = itemName,
-                    id = item.Id,
-                    uuid = item.UUID
-                })
+            if hasUUID and hasId then
+                -- Check if this item matches any of our totem IDs
+                for _, totemId in ipairs(possibleIds) do
+                    if v.Id == totemId then
+                        print(string.format("[AutoTotem] ✓ Found %s! ID: %s, UUID: %s", totemName, v.Id, v.UUID))
+                        return v.UUID
+                    end
+                end
             end
         end
     end
     
-    print("[AutoTotem] ========== SUMMARY ==========")
-    print("[AutoTotem] Total items scanned:", itemCount)
-    
-    if #foundTotems > 0 then
-        print("[AutoTotem] Totems found in inventory:")
-        for i, totem in ipairs(foundTotems) do
-            print(string.format("  [%d] %s (ID: %s)", i, totem.name, totem.id))
-        end
-    else
-        print("[AutoTotem] No totems found in inventory")
-    end
-    
-    print("[AutoTotem] ✗ Target totem not found:", totemName)
-    
-    return false
+    print("[AutoTotem] ✗ Totem not found in inventory")
+    return nil
 end
 
 -- Place totem function
@@ -1828,12 +1739,9 @@ local function placeTotem()
         return false
     end
     
-    local totemId = getTotemId(selectedTotem)
-    print("[AutoTotem] Totem Type ID:", totemId)
-    
-    -- Check inventory (pass both ID and name)
-    local hasTotem, uuid = hasTotemInInventory(totemId, selectedTotem)
-    if not hasTotem then
+    -- Find totem in GC
+    local uuid = findTotemInGC(selectedTotem)
+    if not uuid then
         WindUI:Notify({
             Title = "Auto Totem",
             Content = "No " .. selectedTotem .. " in inventory!",
@@ -1922,8 +1830,7 @@ else
         AllowNone = true,
         Callback = function(v)
             selectedTotem = v
-            local id = getTotemId(v)
-            print("[AutoTotem] Selected:", v, "| ID:", id)
+            print("[AutoTotem] Selected:", v)
             
             WindUI:Notify({
                 Title = "Auto Totem",
@@ -1998,62 +1905,6 @@ else
             end
             
             placeTotem()
-        end
-    })
-    
-    -- DEBUG BUTTON - Check GameData
-    PlaceTotem:Button({
-        Title = "Debug Inventory",
-        Desc = "Show item names via GameData",
-        Callback = function()
-            if not DataService then 
-                print("[AutoTotem] DataService not found")
-                return
-            end
-            
-            if not GameData then
-                print("[AutoTotem] GameData not found - cannot get item names")
-                return
-            end
-            
-            local success, inventoryItems = pcall(function()
-                return DataService:GetExpect({ "Inventory", "Items" })
-            end)
-            
-            if success and inventoryItems then
-                print("[AutoTotem] ========== GAMEDATA LOOKUP DEBUG ==========")
-                local count = 0
-                local totemCount = 0
-                
-                for _, item in pairs(inventoryItems) do
-                    count = count + 1
-                    
-                    local itemName = getItemNameFromId(item.Id)
-                    
-                    if itemName then
-                        -- Print first 10 items
-                        if count <= 10 then
-                            print(string.format("[%d] Name: %s | ID: %s | UUID: %s", 
-                                count, itemName, item.Id, item.UUID))
-                        end
-                        
-                        -- Look for totems
-                        if itemName:find("Totem") then
-                            totemCount = totemCount + 1
-                            print(string.format("[AutoTotem] ✓ TOTEM FOUND: %s (ID: %s, UUID: %s)", 
-                                itemName, item.Id, item.UUID))
-                        end
-                    else
-                        if count <= 10 then
-                            print(string.format("[%d] Name: UNKNOWN | ID: %s", count, item.Id))
-                        end
-                    end
-                end
-                
-                print("[AutoTotem] Total items:", count)
-                print("[AutoTotem] Total totems found:", totemCount)
-                print("[AutoTotem] =============================================")
-            end
         end
     })
 end
