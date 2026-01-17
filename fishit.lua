@@ -2342,7 +2342,7 @@ island:Button({
 })
 
 -- ======================================================
--- PLAYER TELEPORT (WITH REFRESH SYSTEM)
+-- PLAYER TELEPORT (FULL FIX – NO UI BREAK)
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -2377,7 +2377,6 @@ end
 local function getPlayerList()
     local list = {}
     for _, plr in ipairs(Players:GetPlayers()) do
-        -- Exclude yourself from the list
         if plr ~= Player then
             table.insert(list, plr.Name)
         end
@@ -2387,46 +2386,33 @@ local function getPlayerList()
 end
 
 -- ======================================================
--- DROPDOWN INIT (EMPTY AT START)
+-- DROPDOWN INIT
 -- ======================================================
 
 dropdownRef = tpplayer:Dropdown({
     Title = "Teleport Target",
-    Desc = "Click 'Refresh Player List' first!",
-    Values = {}, -- Empty at start
+    Values = {},
     Callback = function(value)
         selectedPlayerName = value
     end
 })
 
 -- ======================================================
--- REFRESH FUNCTION
+-- REFRESH FUNCTION (SAFE)
 -- ======================================================
 
 local function refreshDropdown()
     local players = getPlayerList()
-    
-    -- Update dropdown values
-    if dropdownRef then
-        dropdownRef:SetValues(players)
+
+    -- Refresh values only
+    dropdownRef:Refresh(players, true)
+
+    -- Set default manually (NO :Set)
+    if #players > 0 then
+        selectedPlayerName = players[1]
+    else
+        selectedPlayerName = nil
     end
-    
-    -- Update description
-    if dropdownRef.SetDesc then
-        if #players > 0 then
-            dropdownRef:SetDesc("Select player to teleport to (" .. #players .. " available)")
-            selectedPlayerName = players[1]
-        else
-            dropdownRef:SetDesc("No other players online")
-            selectedPlayerName = nil
-        end
-    end
-    
-    WindUI:Notify({
-        Title = "Player Teleport",
-        Content = "Refreshed player list (" .. #players .. " players)",
-        Duration = 2
-    })
 end
 
 -- ======================================================
@@ -2435,24 +2421,15 @@ end
 
 tpplayer:Button({
     Title = "Teleport to Player",
-    Desc = "Teleport to selected player",
     Callback = function()
         if not selectedPlayerName then
-            WindUI:Notify({
-                Title = "Player Teleport",
-                Content = "No player selected!",
-                Duration = 2
-            })
+            warn("[TP] No player selected")
             return
         end
 
         local target = Players:FindFirstChild(selectedPlayerName)
         if not target or not target.Character then
-            WindUI:Notify({
-                Title = "Player Teleport",
-                Content = "Player not found or has no character!",
-                Duration = 2
-            })
+            warn("[TP] Target not available")
             return
         end
 
@@ -2460,77 +2437,50 @@ tpplayer:Button({
         local myHRP = getHRP(Player.Character)
 
         if not targetHRP or not myHRP then
-            WindUI:Notify({
-                Title = "Player Teleport",
-                Content = "Cannot find HumanoidRootPart!",
-                Duration = 2
-            })
             return
         end
 
-        -- Teleport 3 studs above target
-        myHRP.CFrame = CFrame.new(targetHRP.Position + Vector3.new(0, 3, 0))
-        
-        WindUI:Notify({
-            Title = "Player Teleport",
-            Content = "Teleported to " .. selectedPlayerName,
-            Duration = 2
-        })
+        -- Teleport EXACT position (above target)
+        myHRP.CFrame = CFrame.new(
+            targetHRP.Position + Vector3.new(0, 3, 0)
+        )
     end
 })
 
 -- ======================================================
--- REFRESH BUTTON
+-- MANUAL REFRESH BUTTON
 -- ======================================================
 
 tpplayer:Button({
     Title = "Refresh Player List",
-    Desc = "Load current online players",
-    Callback = refreshDropdown
-})
-
--- ======================================================
--- AUTO-REFRESH SYSTEM (DISABLED BY DEFAULT)
--- ======================================================
-
-local autoRefreshEnabled = false
-local autoRefreshToggle = nil
-
-autoRefreshToggle = tpplayer:Toggle({
-    Title = "Auto-Refresh",
-    Desc = "Automatically refresh when players join/leave",
-    Value = false,
-    Callback = function(state)
-        autoRefreshEnabled = state
+    Callback = function()
+        refreshDropdown()
     end
 })
 
--- Auto-refresh connections (only active when enabled)
-local function setupAutoRefresh()
-    local function handlePlayerChange()
-        if autoRefreshEnabled then
-            task.wait(0.5) -- Small delay for stability
-            refreshDropdown()
-        end
+-- ======================================================
+-- AUTO REFRESH ON JOIN / LEAVE
+-- ======================================================
+
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= Player then
+        task.wait(0.5)
+        refreshDropdown()
     end
-    
-    Players.PlayerAdded:Connect(handlePlayerChange)
-    Players.PlayerRemoving:Connect(handlePlayerChange)
-end
+end)
 
--- Setup auto-refresh system
-setupAutoRefresh()
+Players.PlayerRemoving:Connect(function(plr)
+    if plr ~= Player then
+        task.wait(0.5)
+        refreshDropdown()
+    end
+end)
 
 -- ======================================================
--- INITIAL NOTIFICATION
+-- INIT
 -- ======================================================
 
-task.wait(1)
-WindUI:Notify({
-    Title = "Player Teleport",
-    Content = "Click 'Refresh Player List' to load players!",
-    Duration = 4
-})
+refreshDropdown()
 
 events = Tab6:Section({
     Title = "Event Teleporter",
