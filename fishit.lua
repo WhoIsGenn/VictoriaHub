@@ -559,7 +559,7 @@ local function safeCall(k, f)
     lastCall[k] = os.clock()
     if not ok then
         local msg = tostring(result):lower()
-        task.wait(msg:find("429") or msg:find("too many requests") and _G.CallBackoff or 0.2)
+        task.wait((msg:find("429") or msg:find("too many requests")) and _G.CallBackoff or 0.2)
     end
     return ok, result
 end
@@ -570,10 +570,7 @@ end
 local RS = game:GetService("ReplicatedStorage")
 local UIS = game:GetService("UserInputService")
 local VIM = game:GetService("VirtualInputManager")
-local GuiService = game:GetService("GuiService")
 local cam = workspace.CurrentCamera
-
-local IS_MOBILE = UIS.TouchEnabled and not UIS.KeyboardEnabled
 
 -- =========================
 -- NET
@@ -581,7 +578,7 @@ local IS_MOBILE = UIS.TouchEnabled and not UIS.KeyboardEnabled
 local net = RS.Packages._Index["sleitnick_net@0.2.0"].net
 
 -- =========================
--- REMOTE FUNCTIONS
+-- REMOTES
 -- =========================
 local function rod()
     safeCall("rod", function()
@@ -623,7 +620,7 @@ local function lempar()
 end
 
 -- =========================
--- INSTANT MODE (UNCHANGED)
+-- INSTANT MODE (ASLI, TIDAK DIUBAH)
 -- =========================
 local function instant_cycle()
     charge()
@@ -633,29 +630,20 @@ local function instant_cycle()
 end
 
 -- =========================
--- LEGIT AUTO SHAKE (FIX MOBILE)
+-- LEGIT AUTO SHAKE (MOUSE ONLY, SAFE PC)
 -- =========================
-local CLICK_X_RATIO = 0.96
-local CLICK_Y_RATIO = 0.92
-
-local touchId = 0
+-- posisi agak ke kanan bawah tapi masih aman
+local CLICK_X_RATIO = 0.85
+local CLICK_Y_RATIO = 0.80
 
 local function autoShake()
     local vp = cam.ViewportSize
-    local inset = GuiService:GetGuiInset()
-
     local x = vp.X * CLICK_X_RATIO
-    local y = (vp.Y * CLICK_Y_RATIO) + inset.Y
+    local y = vp.Y * CLICK_Y_RATIO
 
-    if IS_MOBILE then
-        touchId += 1
-        VIM:SendTouchEvent(touchId, x, y, true, game)
-        task.wait(0.025)
-        VIM:SendTouchEvent(touchId, x, y, false, game)
-    else
-        VIM:SendMouseButtonEvent(x, y, 0, true, game, 0)
-        VIM:SendMouseButtonEvent(x, y, 0, false, game, 0)
-    end
+    -- mouse click virtual (tidak lock mouse)
+    VIM:SendMouseButtonEvent(x, y, 0, true, game, 0)
+    VIM:SendMouseButtonEvent(x, y, 0, false, game, 0)
 end
 
 -- =========================
@@ -692,17 +680,18 @@ fishing:Dropdown({
     Value = "Instant",
     Callback = function(v)
         mode = v
+
+        -- matikan semua thread saat ganti mode
         if _G.AutoFishing then
             _G.AutoFishing = false
             autooff()
-            if fishThread then task.cancel(fishThread) end
-            if shakeThread then task.cancel(shakeThread) end
+            if fishThread then task.cancel(fishThread) fishThread = nil end
+            if shakeThread then task.cancel(shakeThread) shakeThread = nil end
         end
     end
 })
 
-local delaySlider
-delaySlider = fishing:Slider({
+fishing:Slider({
     Title = "Instant Fishing Delay",
     Step = 0.01,
     Value = {Min = 0.05, Max = 5, Default = _G.InstantDelay},
@@ -721,6 +710,7 @@ fishing:Toggle({
         if v then
             if mode == "Instant" then
                 _G.Instant = true
+
                 fishThread = task.spawn(function()
                     while _G.AutoFishing and mode == "Instant" do
                         instant_cycle()
@@ -728,7 +718,7 @@ fishing:Toggle({
                     end
                 end)
 
-            else
+            else -- LEGIT
                 _G.Instant = false
 
                 fishThread = task.spawn(function()
@@ -738,21 +728,23 @@ fishing:Toggle({
                     end
                 end)
 
+                -- AUTO SHAKE CUMA JALAN DI LEGIT
                 shakeThread = task.spawn(function()
                     while _G.AutoFishing and mode == "Legit" do
                         autoShake()
-                        task.wait(0.07) -- SPAM SHAKE
+                        task.wait(0.07) -- speed shake
                     end
                 end)
             end
         else
             autooff()
             _G.Instant = false
-            if fishThread then task.cancel(fishThread) end
-            if shakeThread then task.cancel(shakeThread) end
+            if fishThread then task.cancel(fishThread) fishThread = nil end
+            if shakeThread then task.cancel(shakeThread) shakeThread = nil end
         end
     end
 })
+
 
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
