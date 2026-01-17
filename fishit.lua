@@ -1725,10 +1725,10 @@ local function getTotemId(totemName)
     return nil
 end
 
--- FIXED: Check inventory by ID only (simple comparison)
+-- FIXED: Check inventory using Metadata
 local function hasTotemInInventory(totemId)
     print("[AutoTotem] ========== INVENTORY CHECK ==========")
-    print("[AutoTotem] Looking for ID:", totemId, "| Type:", type(totemId))
+    print("[AutoTotem] Looking for Item Type ID:", totemId)
     
     if not DataService then 
         print("[AutoTotem] ✗ DataService not found")
@@ -1756,10 +1756,16 @@ local function hasTotemInInventory(totemId)
     for _, item in pairs(inventoryItems) do
         itemCount = itemCount + 1
         
-        -- Simple ID comparison
-        if item.Id == totemId then
-            print("[AutoTotem] ✓ FOUND TOTEM! UUID:", item.UUID, "| ID:", item.Id)
-            return true, item.UUID
+        -- Check if Metadata exists and has Id field
+        if item.Metadata and type(item.Metadata) == "table" then
+            -- Check Metadata.Id (item type ID)
+            if item.Metadata.Id == totemId then
+                print("[AutoTotem] ✓ FOUND TOTEM!")
+                print("[AutoTotem]   Instance ID:", item.Id)
+                print("[AutoTotem]   Type ID:", item.Metadata.Id)
+                print("[AutoTotem]   UUID:", item.UUID)
+                return true, item.UUID
+            end
         end
     end
     
@@ -1799,7 +1805,7 @@ local function placeTotem()
         return false
     end
     
-    print("[AutoTotem] Totem ID:", totemId)
+    print("[AutoTotem] Totem Type ID:", totemId)
     
     -- Check inventory
     local hasTotem, uuid = hasTotemInInventory(totemId)
@@ -1971,10 +1977,10 @@ else
         end
     })
     
-    -- ENHANCED DEBUG BUTTON
+    -- ENHANCED DEBUG BUTTON - Check Metadata
     PlaceTotem:Button({
         Title = "Debug Inventory",
-        Desc = "Show first 10 items structure",
+        Desc = "Show items with Metadata.Id",
         Callback = function()
             if not DataService then 
                 print("[AutoTotem] DataService not found")
@@ -1986,33 +1992,41 @@ else
             end)
             
             if success and inventoryItems then
-                print("[AutoTotem] ========== INVENTORY STRUCTURE DEBUG ==========")
+                print("[AutoTotem] ========== METADATA DEBUG ==========")
                 local count = 0
+                local totemCount = 0
+                
                 for _, item in pairs(inventoryItems) do
                     count = count + 1
-                    if count <= 10 then
-                        print(string.format("[%d] ID: %s (type: %s) | UUID: %s", 
-                            count,
-                            tostring(item.Id), 
-                            type(item.Id),
-                            tostring(item.UUID)))
-                        
-                        -- Print all fields
-                        for key, value in pairs(item) do
-                            print(string.format("  -> %s: %s", tostring(key), tostring(value)))
-                        end
-                    end
                     
-                    -- Look for items with ID = 2 (Mutation Totem)
-                    if item.Id == 2 then
-                        print("[AutoTotem] ✓✓✓ FOUND ITEM WITH ID = 2 ✓✓✓")
-                        print("Full item structure:")
-                        for key, value in pairs(item) do
-                            print(string.format("  %s: %s", tostring(key), tostring(value)))
+                    if item.Metadata and type(item.Metadata) == "table" then
+                        -- Print first 10 items with metadata
+                        if count <= 10 then
+                            print(string.format("[%d] Instance ID: %s | Metadata.Id: %s", 
+                                count,
+                                tostring(item.Id),
+                                tostring(item.Metadata.Id)))
+                            
+                            -- Print all Metadata fields
+                            print("  Metadata contents:")
+                            for key, value in pairs(item.Metadata) do
+                                print(string.format("    %s: %s", tostring(key), tostring(value)))
+                            end
+                        end
+                        
+                        -- Look for Mutation Totem (ID = 2)
+                        if item.Metadata.Id == 2 then
+                            totemCount = totemCount + 1
+                            print("[AutoTotem] ✓ FOUND MUTATION TOTEM!")
+                            print("  Instance ID:", item.Id)
+                            print("  UUID:", item.UUID)
+                            print("  Metadata.Id:", item.Metadata.Id)
                         end
                     end
                 end
+                
                 print("[AutoTotem] Total items:", count)
+                print("[AutoTotem] Mutation Totems found:", totemCount)
                 print("[AutoTotem] =============================================")
             end
         end
