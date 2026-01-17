@@ -1663,7 +1663,9 @@ local function loadTotemData()
         local ok, data = pcall(require, module)
         if ok and data.Data then
             TotemData.TotemIds[name] = data.Data.Id
-            print("[AutoTotem] Totem:", name, "| ID:", data.Data.Id)
+            print("[AutoTotem] Totem:", name, "| ID:", data.Data.Id, "| Type:", type(data.Data.Id))
+        else
+            print("[AutoTotem] WARNING: Failed to get ID for", name)
         end
     end
     
@@ -1723,9 +1725,11 @@ local function getTotemId(totemName)
     return nil
 end
 
--- Check if player has totem in inventory (WITH DEBUG)
-local function hasTotemInInventory(totemId)
-    print("[AutoTotem] Checking inventory for totem ID:", totemId)
+-- ENHANCED: Check inventory with better matching
+local function hasTotemInInventory(totemId, totemName)
+    print("[AutoTotem] ========== INVENTORY CHECK ==========")
+    print("[AutoTotem] Looking for:", totemName)
+    print("[AutoTotem] Expected ID:", totemId, "| Type:", type(totemId))
     
     if not DataService then 
         print("[AutoTotem] ✗ DataService not found")
@@ -1746,26 +1750,56 @@ local function hasTotemInInventory(totemId)
         return false
     end
     
+    print("[AutoTotem] Scanning inventory...")
+    
     local itemCount = 0
+    local totemItems = {}
+    
     for _, item in pairs(inventoryItems) do
         itemCount = itemCount + 1
         
-        -- Debug: Print first 3 items
-        if itemCount <= 3 then
-            print("[AutoTotem] Sample item - ID:", item.Id, "Type:", type(item.Id))
+        -- Collect all items that have "Totem" in their name or ID
+        local itemIdStr = tostring(item.Id)
+        if itemIdStr:find("Totem") or (item.Name and item.Name:find("Totem")) then
+            table.insert(totemItems, {
+                Id = item.Id,
+                UUID = item.UUID,
+                Name = item.Name or "Unknown"
+            })
+            print(string.format("[AutoTotem] Found totem item - ID: %s | UUID: %s | Name: %s", 
+                tostring(item.Id), tostring(item.UUID), tostring(item.Name)))
         end
         
-        -- Compare IDs (try both string and direct comparison)
-        if item.Id == totemId or tostring(item.Id) == tostring(totemId) then
-            print("[AutoTotem] ✓ FOUND TOTEM! UUID:", item.UUID)
+        -- Try multiple comparison methods
+        if item.Id == totemId or 
+           tostring(item.Id) == tostring(totemId) or
+           item.Id == totemName or
+           tostring(item.Id) == totemName then
+            print("[AutoTotem] ✓ FOUND MATCH! UUID:", item.UUID)
             return true, item.UUID
         end
     end
     
-    print("[AutoTotem] ✗ Totem not found")
-    print("[AutoTotem] Total items checked:", itemCount)
-    print("[AutoTotem] Looking for ID:", totemId, "Type:", type(totemId))
+    print("[AutoTotem] ========== SUMMARY ==========")
+    print("[AutoTotem] Total items scanned:", itemCount)
+    print("[AutoTotem] Total totem items found:", #totemItems)
     
+    if #totemItems > 0 then
+        print("[AutoTotem] Available totems in inventory:")
+        for i, totem in ipairs(totemItems) do
+            print(string.format("  [%d] %s (ID: %s)", i, totem.Name, totem.Id))
+        end
+        
+        -- Try to find by name matching
+        for _, totem in ipairs(totemItems) do
+            if totem.Name == totemName or totem.Id == totemName then
+                print("[AutoTotem] ✓ FOUND BY NAME MATCH! UUID:", totem.UUID)
+                return true, totem.UUID
+            end
+        end
+    end
+    
+    print("[AutoTotem] ✗ No matching totem found")
     return false
 end
 
@@ -1790,13 +1824,13 @@ local function placeTotem()
     local totemId = getTotemId(selectedTotem)
     if not totemId then 
         print("[AutoTotem] ✗ Failed to get totem ID for:", selectedTotem)
-        return false 
+        -- Try using totem name as ID
+        totemId = selectedTotem
+        print("[AutoTotem] Trying with totem name as ID:", totemId)
     end
     
-    print("[AutoTotem] Totem ID:", totemId)
-    
-    -- Check inventory
-    local hasTotem, uuid = hasTotemInInventory(totemId)
+    -- Check inventory (pass both ID and name)
+    local hasTotem, uuid = hasTotemInInventory(totemId, selectedTotem)
     if not hasTotem then
         WindUI:Notify({
             Title = "Auto Totem",
@@ -1834,7 +1868,7 @@ local function placeTotem()
     if success then
         WindUI:Notify({
             Title = "Auto Totem",
-            Content = "🗿 Placed " .. selectedTotem,
+            Content = "Placed " .. selectedTotem,
             Duration = 2
         })
         
@@ -1962,6 +1996,36 @@ else
             end
             
             placeTotem()
+        end
+    })
+    
+    -- DEBUG BUTTON
+    PlaceTotem:Button({
+        Title = "Debug Inventory",
+        Desc = "Show all totems in inventory",
+        Callback = function()
+            if not DataService then 
+                print("[AutoTotem] DataService not found")
+                return
+            end
+            
+            local success, inventoryItems = pcall(function()
+                return DataService:GetExpect({ "Inventory", "Items" })
+            end)
+            
+            if success and inventoryItems then
+                print("[AutoTotem] ========== ALL TOTEMS IN INVENTORY ==========")
+                for _, item in pairs(inventoryItems) do
+                    local itemIdStr = tostring(item.Id)
+                    if itemIdStr:find("Totem") or (item.Name and item.Name:find("Totem")) then
+                        print(string.format("Name: %s | ID: %s | UUID: %s", 
+                            tostring(item.Name or "N/A"), 
+                            tostring(item.Id), 
+                            tostring(item.UUID)))
+                    end
+                end
+                print("[AutoTotem] =============================================")
+            end
         end
     })
 end
@@ -2950,9 +3014,9 @@ if createPingDisplay() then
         
         local Stats = game:GetService("Stats")
         local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-        local cpu = math.floor(Stats.PerformanceStats.CPU:GetValue() * 1000) -- Convert to ms
+        local cpu = string.format("%.2f", Stats.PerformanceStats.CPU:GetValue())
         
-        StatsText.Text = string.format("PING: %d ms | CPU: %d ms", ping, cpu)
+        StatsText.Text = string.format("PING: %d ms | CPU: %s%%", ping, cpu)
     end))
 end
 
