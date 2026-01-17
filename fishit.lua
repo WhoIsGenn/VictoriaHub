@@ -1593,7 +1593,7 @@ if fishDropdownInstance then
 end
 
 --========================================
--- AUTO PLACE TOTEM (FIXED - SIMPLE VERSION)
+-- AUTO PLACE TOTEM (WITH UUID DEBUG)
 --========================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -1720,7 +1720,7 @@ local function findTotemInGC(totemName)
     return nil
 end
 
--- Place totem function (SIMPLE VERSION - NO POSITION)
+-- Place totem function (REFRESHED GC VERSION)
 local function placeTotem()
     if not selectedTotem then 
         print("[AutoTotem] No totem selected")
@@ -1737,8 +1737,10 @@ local function placeTotem()
         return false
     end
     
-    -- Find totem UUID in GC
+    -- REFRESH GC every time to get latest UUID
+    print("[AutoTotem] Refreshing GC to find latest UUID...")
     local uuid = findTotemInGC(selectedTotem)
+    
     if not uuid then
         WindUI:Notify({
             Title = "Auto Totem",
@@ -1748,9 +1750,11 @@ local function placeTotem()
         return false
     end
     
-    -- Simply fire the remote with UUID
-    local success = pcall(function()
+    -- Fire remote with UUID
+    local success, err = pcall(function()
         print("[AutoTotem] Spawning totem UUID:", uuid)
+        print("[AutoTotem] UUID type:", type(uuid))
+        print("[AutoTotem] UUID length:", #tostring(uuid))
         SpawnTotemRemote:FireServer(uuid)
     end)
     
@@ -1765,10 +1769,10 @@ local function placeTotem()
     else
         WindUI:Notify({
             Title = "Auto Totem",
-            Content = "Failed to place totem!",
+            Content = "Failed: " .. tostring(err),
             Duration = 3
         })
-        print("[AutoTotem] ✗ Failed to place totem")
+        print("[AutoTotem] ✗ Failed to place totem:", err)
         return false
     end
 end
@@ -1883,6 +1887,61 @@ else
             end
             
             placeTotem()
+        end
+    })
+    
+    -- DEBUG: Compare UUIDs
+    PlaceTotem:Button({
+        Title = "Compare UUIDs",
+        Desc = "Check GC UUID vs Real UUID",
+        Callback = function()
+            print("\n========== UUID COMPARISON ==========")
+            
+            if not selectedTotem then
+                print("Please select a totem first!")
+                return
+            end
+            
+            -- Get UUID from GC
+            local gcUUID = findTotemInGC(selectedTotem)
+            print("\n[GC UUID]:", gcUUID)
+            print("\nNow MANUALLY spawn", selectedTotem, "and compare the UUID from spy!")
+            print("If UUIDs are different, that's the problem!")
+            print("=========================================\n")
+        end
+    })
+    
+    -- DEBUG: Remote Spy
+    PlaceTotem:Button({
+        Title = "Start Remote Spy",
+        Desc = "Spy what UUID is sent when manual spawn",
+        Callback = function()
+            print("\n========== REMOTE SPY ACTIVATED ==========")
+            
+            if not SpawnTotemRemote then
+                print("SpawnTotemRemote not found!")
+                return
+            end
+            
+            local oldNamecall
+            oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+                local method = getnamecallmethod()
+                local args = {...}
+                
+                if self == SpawnTotemRemote and method == "FireServer" then
+                    print("\n[SPAWN TOTEM REMOTE FIRED]")
+                    print("  Arguments:")
+                    for i, arg in ipairs(args) do
+                        print(string.format("    [%d] %s (type: %s)", i, tostring(arg), type(arg)))
+                    end
+                    print("")
+                end
+                
+                return oldNamecall(self, ...)
+            end)
+            
+            print("✓ Spy active! Now manually spawn a totem and watch output!")
+            print("==========================================\n")
         end
     })
 end
