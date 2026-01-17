@@ -1593,7 +1593,7 @@ if fishDropdownInstance then
 end
 
 --========================================
--- AUTO PLACE TOTEM (FIXED - SCAN GC)
+-- AUTO PLACE TOTEM (FIXED - SIMPLE VERSION)
 --========================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -1668,7 +1668,6 @@ local dataLoaded = loadTotemData()
 -- REMOTES
 --========================
 local SpawnTotemRemote = nil
-local EquipItemRemote = nil
 
 task.spawn(function()
     local netPath = RS:WaitForChild("Packages", 30)
@@ -1684,9 +1683,8 @@ task.spawn(function()
     if not net then return warn("[AutoTotem] net not found") end
     
     SpawnTotemRemote = net:FindFirstChild("RE/SpawnTotem")
-    EquipItemRemote = net:FindFirstChild("RE/EquipItem")
     
-    print("[AutoTotem] Remotes loaded:", SpawnTotemRemote ~= nil, EquipItemRemote ~= nil)
+    print("[AutoTotem] SpawnTotemRemote loaded:", SpawnTotemRemote ~= nil)
 end)
 
 --========================
@@ -1722,24 +1720,24 @@ local function findTotemInGC(totemName)
     return nil
 end
 
--- Place totem function
+-- Place totem function (SIMPLE VERSION - NO POSITION)
 local function placeTotem()
     if not selectedTotem then 
         print("[AutoTotem] No totem selected")
         return false 
     end
     
-    if not SpawnTotemRemote or not EquipItemRemote then
-        print("[AutoTotem] Remotes not loaded yet")
+    if not SpawnTotemRemote then
+        print("[AutoTotem] SpawnTotemRemote not loaded yet")
         WindUI:Notify({
             Title = "Auto Totem",
-            Content = "Remotes not ready, wait a moment...",
+            Content = "Remote not ready, wait a moment...",
             Duration = 3
         })
         return false
     end
     
-    -- Find totem in GC
+    -- Find totem UUID in GC
     local uuid = findTotemInGC(selectedTotem)
     if not uuid then
         WindUI:Notify({
@@ -1750,29 +1748,10 @@ local function placeTotem()
         return false
     end
     
-    -- Get player position
-    local character = Player.Character
-    if not character then 
-        print("[AutoTotem] No character")
-        return false 
-    end
-    
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then 
-        print("[AutoTotem] No HumanoidRootPart")
-        return false 
-    end
-    
-    local playerPos = hrp.Position
-    
-    -- Try to equip & spawn totem
+    -- Simply fire the remote with UUID
     local success = pcall(function()
-        print("[AutoTotem] Equipping totem UUID:", uuid)
-        EquipItemRemote:FireServer(uuid)
-        task.wait(0.5)
-        
-        print("[AutoTotem] Spawning totem at:", playerPos)
-        SpawnTotemRemote:FireServer(playerPos)
+        print("[AutoTotem] Spawning totem UUID:", uuid)
+        SpawnTotemRemote:FireServer(uuid)
     end)
     
     if success then
@@ -1781,7 +1760,6 @@ local function placeTotem()
             Content = "Placed " .. selectedTotem,
             Duration = 2
         })
-        
         print("[AutoTotem] ✓ Placed totem successfully")
         return true
     else
