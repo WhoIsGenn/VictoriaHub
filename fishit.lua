@@ -1286,19 +1286,24 @@ local GlobalFav = {
     VariantNames = {},
     SelectedFishIds = {},
     SelectedVariants = {},
-    AutoFavoriteEnabled = false,
-    
-    -- Tambahkan reference untuk dropdown
-    FishDropdown = nil,
-    VariantDropdown = nil
+    AutoFavoriteEnabled = false
 }
 
-local function loadFishData()
-    -- Reset data
+-- Reference untuk dropdown objects
+local fishDropdownInstance = nil
+local variantDropdownInstance = nil
+
+-- Function untuk refresh dropdown (versi alternatif)
+local function refreshDropdowns()
+    -- Clear data lama
     GlobalFav.FishIdToName = {}
     GlobalFav.FishNameToId = {}
     GlobalFav.FishNames = {}
+    GlobalFav.Variants = {}
+    GlobalFav.VariantIdToName = {}
+    GlobalFav.VariantNames = {}
     
+    -- Load fish data
     for _, item in pairs(ReplicatedStorage.Items:GetChildren()) do
         local ok, data = pcall(require, item)
         if ok and data.Data and data.Data.Type == "Fish" then
@@ -1313,15 +1318,7 @@ local function loadFishData()
     -- Sort fish names alphabetically
     table.sort(GlobalFav.FishNames)
     
-    return #GlobalFav.FishNames
-end
-
-local function loadVariantData()
-    -- Reset data
-    GlobalFav.Variants = {}
-    GlobalFav.VariantIdToName = {}
-    GlobalFav.VariantNames = {}
-    
+    -- Load variant data
     for _, variantModule in pairs(ReplicatedStorage.Variants:GetChildren()) do
         local ok, variantData = pcall(require, variantModule)
         if ok and variantData.Data and variantData.Data.Name then
@@ -1336,7 +1333,46 @@ local function loadVariantData()
     -- Sort variant names alphabetically
     table.sort(GlobalFav.VariantNames)
     
-    return #GlobalFav.VariantNames
+    -- Update UI (cara manual)
+    local fishCount = #GlobalFav.FishNames
+    local variantCount = #GlobalFav.VariantNames
+    
+    -- Coba beberapa cara untuk update dropdown
+    if fishDropdownInstance then
+        -- Coba method yang berbeda
+        if fishDropdownInstance.Refresh then
+            fishDropdownInstance:Refresh(GlobalFav.FishNames)
+        elseif fishDropdownInstance.Update then
+            fishDropdownInstance:Update({Values = GlobalFav.FishNames})
+        elseif fishDropdownInstance.Set then
+            fishDropdownInstance:Set({Values = GlobalFav.FishNames})
+        end
+        
+        -- Update desc juga
+        if fishDropdownInstance.SetDesc then
+            fishDropdownInstance:SetDesc(string.format("Choose which fish to auto favorite (%d loaded)", fishCount))
+        end
+    end
+    
+    if variantDropdownInstance then
+        if variantDropdownInstance.Refresh then
+            variantDropdownInstance:Refresh(GlobalFav.VariantNames)
+        elseif variantDropdownInstance.Update then
+            variantDropdownInstance:Update({Values = GlobalFav.VariantNames})
+        elseif variantDropdownInstance.Set then
+            variantDropdownInstance:Set({Values = GlobalFav.VariantNames})
+        end
+        
+        if variantDropdownInstance.SetDesc then
+            variantDropdownInstance:SetDesc(string.format("Choose which variants to auto favorite (%d loaded)", variantCount))
+        end
+    end
+    
+    WindUI:Notify({
+        Title = "Auto Favorite",
+        Content = string.format("Loaded %d fish and %d variants!", fishCount, variantCount),
+        Duration = 3
+    })
 end
 
 -- ===== WINDUI SECTION =====
@@ -1371,9 +1407,9 @@ favSection:Toggle({
 })
 
 -- Fish Dropdown (kosong di awal)
-GlobalFav.FishDropdown = favSection:Dropdown({
+fishDropdownInstance = favSection:Dropdown({
     Title = "Select Fish",
-    Desc = "Choose which fish to auto favorite - Click Refresh first!",
+    Desc = "Choose which fish to auto favorite (Click Refresh first!)",
     Values = {}, -- Kosong di awal
     Multi = true,
     AllowNone = true,
@@ -1400,9 +1436,9 @@ GlobalFav.FishDropdown = favSection:Dropdown({
 })
 
 -- Variant Dropdown (kosong di awal)
-GlobalFav.VariantDropdown = favSection:Dropdown({
+variantDropdownInstance = favSection:Dropdown({
     Title = "Select Variants",
-    Desc = "Choose which variants to auto favorite - Click Refresh first!",
+    Desc = "Choose which variants to auto favorite (Click Refresh first!)",
     Values = {}, -- Kosong di awal
     Multi = true,
     AllowNone = true,
@@ -1429,29 +1465,23 @@ GlobalFav.VariantDropdown = favSection:Dropdown({
     end
 })
 
--- Refresh Button
+-- Refresh Button (Alternatif: recreate dropdowns)
 favSection:Button({
     Title = "Refresh Fish List",
     Desc = "Load all available fish and variants",
     Callback = function()
-        -- Load fish data
-        local fishCount = loadFishData()
-        local variantCount = loadVariantData()
+        -- Coba semua method yang mungkin
+        local success, errorMsg = pcall(function()
+            refreshDropdowns()
+        end)
         
-        -- Update dropdown values
-        if GlobalFav.FishDropdown then
-            GlobalFav.FishDropdown:SetValues(GlobalFav.FishNames)
+        if not success then
+            WindUI:Notify({
+                Title = "Error",
+                Content = "Failed to refresh: " .. tostring(errorMsg),
+                Duration = 5
+            })
         end
-        
-        if GlobalFav.VariantDropdown then
-            GlobalFav.VariantDropdown:SetValues(GlobalFav.VariantNames)
-        end
-        
-        WindUI:Notify({
-            Title = "Auto Favorite",
-            Content = string.format("Loaded %d fish and %d variants!", fishCount, variantCount),
-            Duration = 3
-        })
     end
 })
 
@@ -1463,13 +1493,13 @@ favSection:Button({
         GlobalFav.SelectedFishIds = {}
         GlobalFav.SelectedVariants = {}
         
-        -- Clear dropdown selection juga
-        if GlobalFav.FishDropdown then
-            GlobalFav.FishDropdown:SetSelection({})
+        -- Clear dropdown selection
+        if fishDropdownInstance and fishDropdownInstance.Clear then
+            fishDropdownInstance:Clear()
         end
         
-        if GlobalFav.VariantDropdown then
-            GlobalFav.VariantDropdown:SetSelection({})
+        if variantDropdownInstance and variantDropdownInstance.Clear then
+            variantDropdownInstance:Clear()
         end
         
         WindUI:Notify({
@@ -1511,11 +1541,6 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
 
     local shouldFavorite = false
 
-    -- Logic:
-    -- 1. If fish selected AND no variant filter = favorite
-    -- 2. If no fish filter AND variant selected = favorite
-    -- 3. If BOTH fish AND variant selected = favorite only if BOTH match
-    
     if isFishSelected and not hasVariantSelection then
         shouldFavorite = true
     elseif not hasFishSelection and isVariantSelected then
@@ -1552,6 +1577,20 @@ WindUI:Notify({
     Duration = 5
 })
 
+-- Coba debug: print ke console untuk melihat objek dropdown
+task.wait(1)
+print("Fish Dropdown Object:", fishDropdownInstance)
+print("Variant Dropdown Object:", variantDropdownInstance)
+
+-- Coba method yang tersedia
+if fishDropdownInstance then
+    print("Fish Dropdown Methods:")
+    for k, v in pairs(fishDropdownInstance) do
+        if type(v) == "function" then
+            print("  " .. k)
+        end
+    end
+end
 
 --========================================
 -- AUTO PLACE TOTEM (SCAN BOTH FOLDERS)
