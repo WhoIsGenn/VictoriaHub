@@ -1273,7 +1273,7 @@ SafeConnect("AutoSellHeartbeat", game:GetService("RunService").Heartbeat:Connect
     end
 end))
 
--- AUTO FAVORITE (Rewritten with correct WindUI)
+-- AUTO FAVORITE (Optimized)
 local GlobalFav = {
     REObtainedNewFishNotification = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ObtainedNewFishNotification"],
     REFavoriteItem = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/FavoriteItem"],
@@ -1293,9 +1293,8 @@ local GlobalFav = {
 local fishDropdownInstance = nil
 local variantDropdownInstance = nil
 
--- Function untuk refresh dropdown (versi alternatif)
+-- Function untuk refresh dropdown
 local function refreshDropdowns()
-    -- Clear data lama
     GlobalFav.FishIdToName = {}
     GlobalFav.FishNameToId = {}
     GlobalFav.FishNames = {}
@@ -1315,7 +1314,6 @@ local function refreshDropdowns()
         end
     end
     
-    -- Sort fish names alphabetically
     table.sort(GlobalFav.FishNames)
     
     -- Load variant data
@@ -1330,47 +1328,20 @@ local function refreshDropdowns()
         end
     end
     
-    -- Sort variant names alphabetically
     table.sort(GlobalFav.VariantNames)
     
-    -- Update UI (cara manual)
-    local fishCount = #GlobalFav.FishNames
-    local variantCount = #GlobalFav.VariantNames
-    
-    -- Coba beberapa cara untuk update dropdown
+    -- Update dropdowns
     if fishDropdownInstance then
-        -- Coba method yang berbeda
-        if fishDropdownInstance.Refresh then
-            fishDropdownInstance:Refresh(GlobalFav.FishNames)
-        elseif fishDropdownInstance.Update then
-            fishDropdownInstance:Update({Values = GlobalFav.FishNames})
-        elseif fishDropdownInstance.Set then
-            fishDropdownInstance:Set({Values = GlobalFav.FishNames})
-        end
-        
-        -- Update desc juga
-        if fishDropdownInstance.SetDesc then
-            fishDropdownInstance:SetDesc(string.format("Choose which fish to auto favorite (%d loaded)", fishCount))
-        end
+        fishDropdownInstance:SetValues(GlobalFav.FishNames)
     end
     
     if variantDropdownInstance then
-        if variantDropdownInstance.Refresh then
-            variantDropdownInstance:Refresh(GlobalFav.VariantNames)
-        elseif variantDropdownInstance.Update then
-            variantDropdownInstance:Update({Values = GlobalFav.VariantNames})
-        elseif variantDropdownInstance.Set then
-            variantDropdownInstance:Set({Values = GlobalFav.VariantNames})
-        end
-        
-        if variantDropdownInstance.SetDesc then
-            variantDropdownInstance:SetDesc(string.format("Choose which variants to auto favorite (%d loaded)", variantCount))
-        end
+        variantDropdownInstance:SetValues(GlobalFav.VariantNames)
     end
     
     WindUI:Notify({
         Title = "Auto Favorite",
-        Content = string.format("Loaded %d fish and %d variants!", fishCount, variantCount),
+        Content = string.format("Loaded %d fish and %d variants!", #GlobalFav.FishNames, #GlobalFav.VariantNames),
         Duration = 3
     })
 end
@@ -1389,63 +1360,38 @@ favSection:Toggle({
     Value = false,
     Callback = function(state)
         GlobalFav.AutoFavoriteEnabled = state
-        
-        if state then
-            WindUI:Notify({
-                Title = "Auto Favorite",
-                Content = "Auto Favorite enabled!",
-                Duration = 3
-            })
-        else
-            WindUI:Notify({
-                Title = "Auto Favorite",
-                Content = "Auto Favorite disabled!",
-                Duration = 3
-            })
-        end
     end
 })
 
--- Fish Dropdown (kosong di awal)
+-- Fish Dropdown
 fishDropdownInstance = favSection:Dropdown({
     Title = "Select Fish",
     Desc = "Choose which fish to auto favorite (Click Refresh first!)",
-    Values = {}, -- Kosong di awal
+    Values = {},
     Multi = true,
     AllowNone = true,
     SearchBarEnabled = true,
     Callback = function(selectedNames)
         GlobalFav.SelectedFishIds = {}
-
         for _, name in ipairs(selectedNames) do
             local id = GlobalFav.FishNameToId[name]
             if id then
                 GlobalFav.SelectedFishIds[id] = true
             end
         end
-
-        local count = 0
-        for _ in pairs(GlobalFav.SelectedFishIds) do count = count + 1 end
-        
-        WindUI:Notify({
-            Title = "Auto Favorite",
-            Content = count .. " fish selected for favoriting",
-            Duration = 2
-        })
     end
 })
 
--- Variant Dropdown (kosong di awal)
+-- Variant Dropdown
 variantDropdownInstance = favSection:Dropdown({
     Title = "Select Variants",
     Desc = "Choose which variants to auto favorite (Click Refresh first!)",
-    Values = {}, -- Kosong di awal
+    Values = {},
     Multi = true,
     AllowNone = true,
     SearchBarEnabled = true,
     Callback = function(selectedVariants)
         GlobalFav.SelectedVariants = {}
-        
         for _, vName in ipairs(selectedVariants) do
             for vId, name in pairs(GlobalFav.Variants) do
                 if name == vName then
@@ -1453,36 +1399,14 @@ variantDropdownInstance = favSection:Dropdown({
                 end
             end
         end
-        
-        local count = 0
-        for _ in pairs(GlobalFav.SelectedVariants) do count = count + 1 end
-        
-        WindUI:Notify({
-            Title = "Auto Favorite",
-            Content = count .. " variants selected for favoriting",
-            Duration = 2
-        })
     end
 })
 
--- Refresh Button (Alternatif: recreate dropdowns)
+-- Refresh Button
 favSection:Button({
     Title = "Refresh Fish List",
     Desc = "Load all available fish and variants",
-    Callback = function()
-        -- Coba semua method yang mungkin
-        local success, errorMsg = pcall(function()
-            refreshDropdowns()
-        end)
-        
-        if not success then
-            WindUI:Notify({
-                Title = "Error",
-                Content = "Failed to refresh: " .. tostring(errorMsg),
-                Duration = 5
-            })
-        end
-    end
+    Callback = refreshDropdowns
 })
 
 -- Reset Button
@@ -1493,20 +1417,13 @@ favSection:Button({
         GlobalFav.SelectedFishIds = {}
         GlobalFav.SelectedVariants = {}
         
-        -- Clear dropdown selection
-        if fishDropdownInstance and fishDropdownInstance.Clear then
-            fishDropdownInstance:Clear()
+        if fishDropdownInstance then
+            fishDropdownInstance:SetSelection({})
         end
         
-        if variantDropdownInstance and variantDropdownInstance.Clear then
-            variantDropdownInstance:Clear()
+        if variantDropdownInstance then
+            variantDropdownInstance:SetSelection({})
         end
-        
-        WindUI:Notify({
-            Title = "Auto Favorite",
-            Content = "All selections cleared!",
-            Duration = 2
-        })
     end
 })
 
@@ -1515,24 +1432,20 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
     if not GlobalFav.AutoFavoriteEnabled then return end
 
     local uuid = data.InventoryItem and data.InventoryItem.UUID
-    local fishName = GlobalFav.FishIdToName[itemId] or "Unknown"
+    local fishName = GlobalFav.FishIdToName[itemId]
     local variantId = data.InventoryItem and data.InventoryItem.Metadata and data.InventoryItem.Metadata.VariantId
 
-    if not uuid then 
-        return 
-    end
+    if not uuid or not fishName then return end
 
     local isFishSelected = GlobalFav.SelectedFishIds[itemId]
     local isVariantSelected = variantId and GlobalFav.SelectedVariants[variantId]
     
-    -- Check if any fish selected
     local hasFishSelection = false
     for _ in pairs(GlobalFav.SelectedFishIds) do 
         hasFishSelection = true 
         break 
     end
     
-    -- Check if any variant selected
     local hasVariantSelection = false
     for _ in pairs(GlobalFav.SelectedVariants) do 
         hasVariantSelection = true 
@@ -1540,7 +1453,7 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
     end
 
     local shouldFavorite = false
-
+    
     if isFishSelected and not hasVariantSelection then
         shouldFavorite = true
     elseif not hasFishSelection and isVariantSelected then
@@ -1571,26 +1484,12 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
 end)
 
 -- Notify user saat pertama kali load
+task.wait(1)
 WindUI:Notify({
     Title = "Auto Favorite",
     Content = "Click 'Refresh Fish List' to load fish data!",
-    Duration = 5
+    Duration = 4
 })
-
--- Coba debug: print ke console untuk melihat objek dropdown
-task.wait(1)
-print("Fish Dropdown Object:", fishDropdownInstance)
-print("Variant Dropdown Object:", variantDropdownInstance)
-
--- Coba method yang tersedia
-if fishDropdownInstance then
-    print("Fish Dropdown Methods:")
-    for k, v in pairs(fishDropdownInstance) do
-        if type(v) == "function" then
-            print("  " .. k)
-        end
-    end
-end
 
 --========================================
 -- AUTO PLACE TOTEM (SCAN BOTH FOLDERS)
@@ -2443,7 +2342,7 @@ island:Button({
 })
 
 -- ======================================================
--- PLAYER TELEPORT (FULL FIX – NO UI BREAK)
+-- PLAYER TELEPORT (WITH REFRESH SYSTEM)
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -2478,6 +2377,7 @@ end
 local function getPlayerList()
     local list = {}
     for _, plr in ipairs(Players:GetPlayers()) do
+        -- Exclude yourself from the list
         if plr ~= Player then
             table.insert(list, plr.Name)
         end
@@ -2487,33 +2387,46 @@ local function getPlayerList()
 end
 
 -- ======================================================
--- DROPDOWN INIT
+-- DROPDOWN INIT (EMPTY AT START)
 -- ======================================================
 
 dropdownRef = tpplayer:Dropdown({
     Title = "Teleport Target",
-    Values = {},
+    Desc = "Click 'Refresh Player List' first!",
+    Values = {}, -- Empty at start
     Callback = function(value)
         selectedPlayerName = value
     end
 })
 
 -- ======================================================
--- REFRESH FUNCTION (SAFE)
+-- REFRESH FUNCTION
 -- ======================================================
 
 local function refreshDropdown()
     local players = getPlayerList()
-
-    -- Refresh values only
-    dropdownRef:Refresh(players, true)
-
-    -- Set default manually (NO :Set)
-    if #players > 0 then
-        selectedPlayerName = players[1]
-    else
-        selectedPlayerName = nil
+    
+    -- Update dropdown values
+    if dropdownRef then
+        dropdownRef:SetValues(players)
     end
+    
+    -- Update description
+    if dropdownRef.SetDesc then
+        if #players > 0 then
+            dropdownRef:SetDesc("Select player to teleport to (" .. #players .. " available)")
+            selectedPlayerName = players[1]
+        else
+            dropdownRef:SetDesc("No other players online")
+            selectedPlayerName = nil
+        end
+    end
+    
+    WindUI:Notify({
+        Title = "Player Teleport",
+        Content = "Refreshed player list (" .. #players .. " players)",
+        Duration = 2
+    })
 end
 
 -- ======================================================
@@ -2522,15 +2435,24 @@ end
 
 tpplayer:Button({
     Title = "Teleport to Player",
+    Desc = "Teleport to selected player",
     Callback = function()
         if not selectedPlayerName then
-            warn("[TP] No player selected")
+            WindUI:Notify({
+                Title = "Player Teleport",
+                Content = "No player selected!",
+                Duration = 2
+            })
             return
         end
 
         local target = Players:FindFirstChild(selectedPlayerName)
         if not target or not target.Character then
-            warn("[TP] Target not available")
+            WindUI:Notify({
+                Title = "Player Teleport",
+                Content = "Player not found or has no character!",
+                Duration = 2
+            })
             return
         end
 
@@ -2538,50 +2460,77 @@ tpplayer:Button({
         local myHRP = getHRP(Player.Character)
 
         if not targetHRP or not myHRP then
+            WindUI:Notify({
+                Title = "Player Teleport",
+                Content = "Cannot find HumanoidRootPart!",
+                Duration = 2
+            })
             return
         end
 
-        -- Teleport EXACT position (above target)
-        myHRP.CFrame = CFrame.new(
-            targetHRP.Position + Vector3.new(0, 3, 0)
-        )
+        -- Teleport 3 studs above target
+        myHRP.CFrame = CFrame.new(targetHRP.Position + Vector3.new(0, 3, 0))
+        
+        WindUI:Notify({
+            Title = "Player Teleport",
+            Content = "Teleported to " .. selectedPlayerName,
+            Duration = 2
+        })
     end
 })
 
 -- ======================================================
--- MANUAL REFRESH BUTTON
+-- REFRESH BUTTON
 -- ======================================================
 
 tpplayer:Button({
     Title = "Refresh Player List",
-    Callback = function()
-        refreshDropdown()
-    end
+    Desc = "Load current online players",
+    Callback = refreshDropdown
 })
 
 -- ======================================================
--- AUTO REFRESH ON JOIN / LEAVE
+-- AUTO-REFRESH SYSTEM (DISABLED BY DEFAULT)
 -- ======================================================
 
-Players.PlayerAdded:Connect(function(plr)
-    if plr ~= Player then
-        task.wait(0.5)
-        refreshDropdown()
+local autoRefreshEnabled = false
+local autoRefreshToggle = nil
+
+autoRefreshToggle = tpplayer:Toggle({
+    Title = "Auto-Refresh",
+    Desc = "Automatically refresh when players join/leave",
+    Value = false,
+    Callback = function(state)
+        autoRefreshEnabled = state
     end
-end)
+})
 
-Players.PlayerRemoving:Connect(function(plr)
-    if plr ~= Player then
-        task.wait(0.5)
-        refreshDropdown()
+-- Auto-refresh connections (only active when enabled)
+local function setupAutoRefresh()
+    local function handlePlayerChange()
+        if autoRefreshEnabled then
+            task.wait(0.5) -- Small delay for stability
+            refreshDropdown()
+        end
     end
-end)
+    
+    Players.PlayerAdded:Connect(handlePlayerChange)
+    Players.PlayerRemoving:Connect(handlePlayerChange)
+end
+
+-- Setup auto-refresh system
+setupAutoRefresh()
 
 -- ======================================================
--- INIT
+-- INITIAL NOTIFICATION
 -- ======================================================
 
-refreshDropdown()
+task.wait(1)
+WindUI:Notify({
+    Title = "Player Teleport",
+    Content = "Click 'Refresh Player List' to load players!",
+    Duration = 4
+})
 
 events = Tab6:Section({
     Title = "Event Teleporter",
