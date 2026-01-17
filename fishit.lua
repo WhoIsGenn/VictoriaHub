@@ -1725,11 +1725,10 @@ local function getTotemId(totemName)
     return nil
 end
 
--- ENHANCED: Check inventory with better matching
-local function hasTotemInInventory(totemId, totemName)
+-- FIXED: Check inventory by ID only (simple comparison)
+local function hasTotemInInventory(totemId)
     print("[AutoTotem] ========== INVENTORY CHECK ==========")
-    print("[AutoTotem] Looking for:", totemName)
-    print("[AutoTotem] Expected ID:", totemId, "| Type:", type(totemId))
+    print("[AutoTotem] Looking for ID:", totemId, "| Type:", type(totemId))
     
     if not DataService then 
         print("[AutoTotem] ✗ DataService not found")
@@ -1753,53 +1752,21 @@ local function hasTotemInInventory(totemId, totemName)
     print("[AutoTotem] Scanning inventory...")
     
     local itemCount = 0
-    local totemItems = {}
     
     for _, item in pairs(inventoryItems) do
         itemCount = itemCount + 1
         
-        -- Collect all items that have "Totem" in their name or ID
-        local itemIdStr = tostring(item.Id)
-        if itemIdStr:find("Totem") or (item.Name and item.Name:find("Totem")) then
-            table.insert(totemItems, {
-                Id = item.Id,
-                UUID = item.UUID,
-                Name = item.Name or "Unknown"
-            })
-            print(string.format("[AutoTotem] Found totem item - ID: %s | UUID: %s | Name: %s", 
-                tostring(item.Id), tostring(item.UUID), tostring(item.Name)))
-        end
-        
-        -- Try multiple comparison methods
-        if item.Id == totemId or 
-           tostring(item.Id) == tostring(totemId) or
-           item.Id == totemName or
-           tostring(item.Id) == totemName then
-            print("[AutoTotem] ✓ FOUND MATCH! UUID:", item.UUID)
+        -- Simple ID comparison
+        if item.Id == totemId then
+            print("[AutoTotem] ✓ FOUND TOTEM! UUID:", item.UUID, "| ID:", item.Id)
             return true, item.UUID
         end
     end
     
     print("[AutoTotem] ========== SUMMARY ==========")
     print("[AutoTotem] Total items scanned:", itemCount)
-    print("[AutoTotem] Total totem items found:", #totemItems)
-    
-    if #totemItems > 0 then
-        print("[AutoTotem] Available totems in inventory:")
-        for i, totem in ipairs(totemItems) do
-            print(string.format("  [%d] %s (ID: %s)", i, totem.Name, totem.Id))
-        end
-        
-        -- Try to find by name matching
-        for _, totem in ipairs(totemItems) do
-            if totem.Name == totemName or totem.Id == totemName then
-                print("[AutoTotem] ✓ FOUND BY NAME MATCH! UUID:", totem.UUID)
-                return true, totem.UUID
-            end
-        end
-    end
-    
     print("[AutoTotem] ✗ No matching totem found")
+    
     return false
 end
 
@@ -1824,13 +1791,18 @@ local function placeTotem()
     local totemId = getTotemId(selectedTotem)
     if not totemId then 
         print("[AutoTotem] ✗ Failed to get totem ID for:", selectedTotem)
-        -- Try using totem name as ID
-        totemId = selectedTotem
-        print("[AutoTotem] Trying with totem name as ID:", totemId)
+        WindUI:Notify({
+            Title = "Auto Totem",
+            Content = "Failed to get totem ID!",
+            Duration = 3
+        })
+        return false
     end
     
-    -- Check inventory (pass both ID and name)
-    local hasTotem, uuid = hasTotemInInventory(totemId, selectedTotem)
+    print("[AutoTotem] Totem ID:", totemId)
+    
+    -- Check inventory
+    local hasTotem, uuid = hasTotemInInventory(totemId)
     if not hasTotem then
         WindUI:Notify({
             Title = "Auto Totem",
@@ -1999,10 +1971,10 @@ else
         end
     })
     
-    -- DEBUG BUTTON
+    -- ENHANCED DEBUG BUTTON
     PlaceTotem:Button({
         Title = "Debug Inventory",
-        Desc = "Show all totems in inventory",
+        Desc = "Show first 10 items structure",
         Callback = function()
             if not DataService then 
                 print("[AutoTotem] DataService not found")
@@ -2014,16 +1986,33 @@ else
             end)
             
             if success and inventoryItems then
-                print("[AutoTotem] ========== ALL TOTEMS IN INVENTORY ==========")
+                print("[AutoTotem] ========== INVENTORY STRUCTURE DEBUG ==========")
+                local count = 0
                 for _, item in pairs(inventoryItems) do
-                    local itemIdStr = tostring(item.Id)
-                    if itemIdStr:find("Totem") or (item.Name and item.Name:find("Totem")) then
-                        print(string.format("Name: %s | ID: %s | UUID: %s", 
-                            tostring(item.Name or "N/A"), 
+                    count = count + 1
+                    if count <= 10 then
+                        print(string.format("[%d] ID: %s (type: %s) | UUID: %s", 
+                            count,
                             tostring(item.Id), 
+                            type(item.Id),
                             tostring(item.UUID)))
+                        
+                        -- Print all fields
+                        for key, value in pairs(item) do
+                            print(string.format("  -> %s: %s", tostring(key), tostring(value)))
+                        end
+                    end
+                    
+                    -- Look for items with ID = 2 (Mutation Totem)
+                    if item.Id == 2 then
+                        print("[AutoTotem] ✓✓✓ FOUND ITEM WITH ID = 2 ✓✓✓")
+                        print("Full item structure:")
+                        for key, value in pairs(item) do
+                            print(string.format("  %s: %s", tostring(key), tostring(value)))
+                        end
                     end
                 end
+                print("[AutoTotem] Total items:", count)
                 print("[AutoTotem] =============================================")
             end
         end
