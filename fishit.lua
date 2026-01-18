@@ -215,7 +215,7 @@ Window:EditOpenButton({
 })
 
 Window:Tag({
-    Title = "V0.0.9.2",
+    Title = "V0.0.9.4",
     Color = Color3.fromRGB(255, 255, 255),
     Radius = 17,
 })
@@ -1165,7 +1165,7 @@ blantantV1Section:Button({
 
 -- ========== UI SECTION ==========
 blatantV3Section = Tab3:Section({ 
-    Title = "Blatant V3",
+    Title = "Blatant V3 [TESTER]",
     Icon = "fish",
     TextTransparency = 0.05,
     TextXAlignment = "Left",
@@ -1748,6 +1748,503 @@ if fishDropdownInstance then
             print("  " .. k)
         end
     end
+end
+
+-- ============================================================================
+-- AUTO QUEST SYSTEM - REWRITTEN FOR FISHIT.LUA
+-- ============================================================================
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Player = Players.LocalPlayer
+
+-- Function untuk mendapatkan HRP
+local function getHRP()
+    if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+        return Player.Character.HumanoidRootPart
+    end
+    return nil
+end
+
+-- ========== TASK MAPPING & TELEPORT POSITIONS ==========
+_G.TaskMapping = {
+    ["Catch a SECRET Crystal Crab"] = "CRYSTAL CRAB",
+    ["Catch 100 Epic Fish"] = "CRYSTAL CRAB",
+    ["Catch 10,000 Fish"] = "CRYSTAL CRAB",
+    ["Catch 300 Rare/Epic fish"] = "RARE/EPIC FISH",
+    ["Earn 1M Coins"] = "FARMING COIN",
+    ["Catch 1 SECRET fish at Sisyphus"] = "SECRET SYPUSH",
+    ["Catch 3 Mythic fishes at Sisyphus"] = "SECRET SYPUSH",
+    ["Create 3 Transcended Stones"] = "CREATE STONE",
+    ["Catch 1 SECRET fish at Sacred Temple"] = "SECRET TEMPLE",
+    ["Catch 1 SECRET fish at Ancient Jungle"] = "SECRET JUNGLE"
+}
+
+_G.TeleportPositions = {
+    ["CRYSTAL CRAB"] = CFrame.new(40.0956, 1.7772, 2757.2583),
+    ["RARE/EPIC FISH"] = CFrame.new(-3596.9094, -281.1832, -1645.1220),
+    ["SECRET SYPUSH"] = CFrame.new(-3658.5747, -138.4813, -951.7969),
+    ["SECRET TEMPLE"] = CFrame.new(1451.4100, -22.1250, -635.6500),
+    ["SECRET JUNGLE"] = CFrame.new(1479.6647, 11.1430, -297.9549),
+    ["FARMING COIN"] = CFrame.new(-553.3464, 17.1376, 114.2622)
+}
+
+-- ========== QUEST STATE ==========
+_G.QuestState = {
+    Active = false,
+    CurrentQuest = nil,
+    SelectedTask = nil,
+    CurrentLocation = nil,
+    Teleported = false,
+    Fishing = false,
+    LastProgress = 0,
+    LastTaskIndex = nil
+}
+
+-- ========== HELPER FUNCTIONS ==========
+_G.getQuestTracker = function(questName)
+    local menu = Workspace:FindFirstChild("!!! MENU RINGS")
+    if not menu then return nil end
+    
+    for _, inst in ipairs(menu:GetChildren()) do
+        if inst.Name:find("Tracker") and inst.Name:lower():find(questName:lower()) then
+            return inst
+        end
+    end
+    
+    return nil
+end
+
+_G.getQuestProgress = function(questName)
+    local tracker = _G.getQuestTracker(questName)
+    if not tracker then return 0 end
+    
+    local label = tracker:FindFirstChild("Board") 
+        and tracker.Board:FindFirstChild("Gui") 
+        and tracker.Board.Gui:FindFirstChild("Content") 
+        and tracker.Board.Gui.Content:FindFirstChild("Progress") 
+        and tracker.Board.Gui.Content.Progress:FindFirstChild("ProgressLabel")
+    
+    if label and label:IsA("TextLabel") then
+        local percent = string.match(label.Text, "([%d%.]+)%%")
+        return tonumber(percent) or 0
+    end
+    
+    return 0
+end
+
+_G.getAllTasks = function(questName)
+    local tracker = _G.getQuestTracker(questName)
+    if not tracker then return {} end
+    
+    local content = tracker:FindFirstChild("Board") 
+        and tracker.Board:FindFirstChild("Gui") 
+        and tracker.Board.Gui:FindFirstChild("Content")
+    
+    if not content then return {} end
+    
+    local tasks = {}
+    for _, obj in ipairs(content:GetChildren()) do
+        if obj:IsA("TextLabel") and obj.Name:match("Label") and not obj.Name:find("Progress") then
+            local txt = obj.Text
+            local taskName = txt
+            local percent = 0
+            local done = false
+            
+            local percentMatch = string.match(txt, "([%d%.]+)%%")
+            if percentMatch then
+                percent = tonumber(percentMatch) or 0
+                taskName = string.gsub(txt, "%s*%d+%.?%d*%%%s*", "")
+            end
+            
+            if txt:find("✓") or txt:find("✔") or percent >= 100 then
+                done = true
+            end
+            
+            taskName = string.gsub(taskName, "^%s*(.-)%s*$", "%1")
+            
+            table.insert(tasks, {
+                name = taskName,
+                fullText = txt,
+                percent = percent,
+                completed = done
+            })
+        end
+    end
+    
+    return tasks
+end
+
+_G.getActiveTasks = function(questName)
+    local all = _G.getAllTasks(questName)
+    local active = {}
+    
+    for _, t in ipairs(all) do
+        if not t.completed then
+            table.insert(active, t)
+        end
+    end
+    
+    return active
+end
+
+_G.teleportTo = function(locName)
+    local cf = _G.TeleportPositions[locName]
+    local hrp = getHRP()
+    if cf and hrp then
+        pcall(function()
+            hrp.CFrame = cf
+        end)
+        return true
+    end
+    return false
+end
+
+_G.findLocationByTaskName = function(taskName)
+    for key, loc in pairs(_G.TaskMapping) do
+        if string.find(taskName, key, 1, true) then
+            return loc
+        end
+    end
+    return nil
+end
+
+_G.SendQuestNotification = function(questName, taskName, progress, notifType)
+    local title = ""
+    local content = ""
+    local icon = "info"
+    local duration = 5
+    
+    if notifType == "START" then
+        title = "🎯 Quest Started"
+        content = questName .. "\nTask: " .. (taskName or "Auto")
+        icon = "play"
+    elseif notifType == "TASK_SELECTED" then
+        title = "📋 Task Selected"
+        content = taskName
+        icon = "target"
+    elseif notifType == "TELEPORT" then
+        title = "🚀 Teleporting"
+        content = "Moving to " .. (_G.QuestState.CurrentLocation or "location")
+        icon = "map-pin"
+    elseif notifType == "FARMING" then
+        title = "🎣 Fishing Started"
+        content = taskName .. " - " .. progress .. "%"
+        icon = "fish"
+    elseif notifType == "TASK_COMPLETED" then
+        title = "✅ Task Complete"
+        content = taskName
+        icon = "check-circle"
+        duration = 3
+    elseif notifType == "QUEST_COMPLETED" then
+        title = "🎉 Quest Complete!"
+        content = questName .. " finished!"
+        icon = "trophy"
+        duration = 8
+    elseif notifType == "PROGRESS_UPDATE" then
+        title = "📊 Progress Update"
+        content = questName .. " - " .. progress .. "%"
+        icon = "trending-up"
+        duration = 3
+    end
+    
+    WindUI:Notify({
+        Title = title,
+        Content = content,
+        Duration = duration,
+        Icon = icon
+    })
+end
+
+-- ========== QUEST MONITOR LOOP ==========
+task.spawn(function()
+    while task.wait(1) do
+        if not _G.QuestState.Active then continue end
+        
+        local questProgress = _G.getQuestProgress(_G.QuestState.CurrentQuest)
+        local activeTasks = _G.getActiveTasks(_G.QuestState.CurrentQuest)
+        local allTasks = _G.getAllTasks(_G.QuestState.CurrentQuest)
+        
+        -- Check if all tasks completed
+        local allTasksCompleted = true
+        for _, task in ipairs(allTasks) do
+            if not task.completed and task.percent < 100 then
+                allTasksCompleted = false
+                break
+            end
+        end
+        
+        if allTasksCompleted and questProgress >= 100 then
+            _G.SendQuestNotification(_G.QuestState.CurrentQuest, nil, 100, "QUEST_COMPLETED")
+            _G.AutoFishing = false
+            _G.QuestState.Active = false
+            continue
+        end
+        
+        -- Progress update notification
+        if math.floor(questProgress / 10) > math.floor(_G.QuestState.LastProgress / 10) then
+            _G.SendQuestNotification(_G.QuestState.CurrentQuest, _G.QuestState.SelectedTask, questProgress, "PROGRESS_UPDATE")
+        end
+        _G.QuestState.LastProgress = questProgress
+        
+        if questProgress >= 100 then
+            _G.SendQuestNotification(_G.QuestState.CurrentQuest, nil, 100, "QUEST_COMPLETED")
+            _G.AutoFishing = false
+            _G.QuestState.Active = false
+            continue
+        end
+        
+        if #activeTasks == 0 then
+            _G.SendQuestNotification(_G.QuestState.CurrentQuest, nil, 100, "QUEST_COMPLETED")
+            _G.AutoFishing = false
+            _G.QuestState.Active = false
+            continue
+        end
+        
+        -- Select current task
+        local currentTask = nil
+        local currentTaskIndex = nil
+        
+        for i, t in ipairs(activeTasks) do
+            if _G.QuestState.SelectedTask and t.name == _G.QuestState.SelectedTask then
+                currentTask = t
+                currentTaskIndex = i
+                break
+            end
+        end
+        
+        if not currentTask then
+            if _G.QuestState.LastTaskIndex and _G.QuestState.LastTaskIndex <= #activeTasks then
+                currentTaskIndex = _G.QuestState.LastTaskIndex
+                currentTask = activeTasks[currentTaskIndex]
+            else
+                currentTaskIndex = 1
+                currentTask = activeTasks[1]
+            end
+            
+            if currentTask then
+                _G.QuestState.SelectedTask = currentTask.name
+                _G.QuestState.LastTaskIndex = currentTaskIndex
+                _G.SendQuestNotification(_G.QuestState.CurrentQuest, currentTask.name, currentTask.percent, "TASK_SELECTED")
+            end
+        end
+        
+        if not currentTask then
+            _G.QuestState.SelectedTask = nil
+            _G.QuestState.LastTaskIndex = nil
+            _G.QuestState.CurrentLocation = nil
+            _G.QuestState.Teleported = false
+            _G.QuestState.Fishing = false
+            _G.AutoFishing = false
+            continue
+        end
+        
+        -- Check if task completed
+        if currentTask.percent >= 100 and not _G.QuestState.Fishing then
+            _G.SendQuestNotification(_G.QuestState.CurrentQuest, currentTask.name, 100, "TASK_COMPLETED")
+            
+            if currentTaskIndex < #activeTasks then
+                _G.QuestState.LastTaskIndex = currentTaskIndex + 1
+            else
+                _G.QuestState.LastTaskIndex = 1
+            end
+            
+            _G.QuestState.SelectedTask = nil
+            _G.QuestState.CurrentLocation = nil
+            _G.QuestState.Teleported = false
+            _G.QuestState.Fishing = false
+            continue
+        end
+        
+        -- Find location for task
+        if not _G.QuestState.CurrentLocation then
+            _G.QuestState.CurrentLocation = _G.findLocationByTaskName(currentTask.name)
+            if not _G.QuestState.CurrentLocation then
+                _G.QuestState.SelectedTask = nil
+                continue
+            end
+        end
+        
+        -- Teleport to location
+        if not _G.QuestState.Teleported then
+            if _G.teleportTo(_G.QuestState.CurrentLocation) then
+                _G.SendQuestNotification(_G.QuestState.CurrentQuest, currentTask.name, questProgress, "TELEPORT")
+                _G.QuestState.Teleported = true
+                task.wait(2)
+            end
+            continue
+        end
+        
+        -- Start fishing
+        if not _G.QuestState.Fishing then
+            _G.AutoFishing = true
+            _G.QuestState.Fishing = true
+            _G.SendQuestNotification(_G.QuestState.CurrentQuest, currentTask.name, questProgress, "FARMING")
+        end
+    end
+end)
+
+-- ============================================================================
+-- QUEST TAB UI
+-- ============================================================================
+
+local Tab8 = Window:Tab({
+    Title = "Quest",
+    Icon = "target",
+})
+
+Tab8:Section({
+    Title = "Quest Control",
+    TextSize = 22,
+    TextXAlignment = "Center",
+    Opened = true
+})
+
+local Selected = {}
+local Quests = {
+    {Name = "Aura", Display = "Aura Boat Quest"},
+    {Name = "Deep Sea", Display = "Deep Sea Quest"},
+    {Name = "Element", Display = "Element Quest"},
+    {Name = "Mythical", Display = "Mythical Quest"},
+    {Name = "Fisch", Display = "Fisch Quest"},
+    {Name = "Aurora", Display = "Aurora Quest"},
+    {Name = "Destiny", Display = "Destiny Quest"},
+    {Name = "Sage", Display = "Sage Quest"},
+    {Name = "Ascension", Display = "Ascension Quest"},
+    {Name = "Sunken", Display = "Sunken Quest"},
+    {Name = "Tempest", Display = "Tempest Quest"}
+}
+
+for _, quest in ipairs(Quests) do
+    Tab8:Section({
+        Title = "QUEST: " .. quest.Display,
+        TextSize = 20,
+        TextXAlignment = "Center",
+        Opened = true
+    })
+    
+    local function build_dropdown_options()
+        local opts = {"Auto"}
+        local tasks = _G.getActiveTasks(quest.Name)
+        for _, t in ipairs(tasks) do
+            table.insert(opts, t.name)
+        end
+        return opts
+    end
+    
+    local dropdown = Tab8:Dropdown({
+        Title = "Select Task",
+        Desc = "Choose specific task or Auto",
+        Values = build_dropdown_options(),
+        Value = "Auto",
+        SearchBarEnabled = true,
+        Callback = function(selected)
+            Selected[quest.Name] = selected
+            WindUI:Notify({
+                Title = "Task Selected",
+                Content = selected .. " for " .. quest.Display,
+                Duration = 3,
+                Icon = "info"
+            })
+        end
+    })
+    
+    task.spawn(function()
+        while task.wait(10) do
+            pcall(function()
+                if dropdown and dropdown.Refresh then
+                    local newOpts = build_dropdown_options()
+                    dropdown:Refresh(newOpts)
+                end
+            end)
+        end
+    end)
+    
+    Tab8:Space()
+    
+    Tab8:Toggle({
+        Title = "Auto " .. quest.Display,
+        Desc = "Start automatic quest completion",
+        Value = false,
+        Callback = function(val)
+            if val then
+                if quest.Name == "Element" and _G.getQuestProgress("Deep Sea") < 100 then
+                    WindUI:Notify({
+                        Title = "⚠️ Warning",
+                        Content = "Complete Ghostfinn Rod quest first!",
+                        Duration = 5,
+                        Icon = "alert-triangle"
+                    })
+                    return
+                end
+                
+                local sel = Selected[quest.Name] or "Auto"
+                if sel == "Auto" then sel = nil end
+                
+                _G.QuestState.Active = true
+                _G.QuestState.CurrentQuest = quest.Name
+                _G.QuestState.SelectedTask = sel
+                _G.QuestState.CurrentLocation = nil
+                _G.QuestState.Teleported = false
+                _G.QuestState.Fishing = false
+                _G.QuestState.LastProgress = _G.getQuestProgress(quest.Name)
+                _G.QuestState.LastTaskIndex = nil
+                
+                _G.SendQuestNotification(quest.Display, sel or "Auto", _G.QuestState.LastProgress, "START")
+            else
+                _G.QuestState.Active = false
+                _G.AutoFishing = false
+                WindUI:Notify({
+                    Title = "Quest Stopped",
+                    Content = quest.Display .. " deactivated",
+                    Duration = 3,
+                    Icon = "info"
+                })
+            end
+        end
+    })
+    
+    Tab8:Space()
+    
+    Tab8:Button({
+        Title = "Check Progress",
+        Desc = "View current quest progress",
+        Justify = "Center",
+        Icon = "bar-chart",
+        Callback = function()
+            local all = _G.getAllTasks(quest.Name)
+            if #all == 0 then
+                WindUI:Notify({
+                    Title = "❌ No Tasks Found",
+                    Content = "Quest not available or not started",
+                    Duration = 5,
+                    Icon = "alert-circle"
+                })
+                return
+            end
+            
+            local progress = _G.getQuestProgress(quest.Name)
+            local msg = "📊 " .. quest.Display .. "\n\n"
+            
+            for i, t in ipairs(all) do
+                local icon = t.completed and "✅" or "⏳"
+                local status = t.completed and " (DONE)" or ""
+                msg = msg .. string.format("%s %s: %.1f%%%s", icon, t.name, t.percent, status)
+                if i < #all then msg = msg .. "\n\n" end
+            end
+            
+            msg = msg .. string.format("\n\n📈 TOTAL PROGRESS: %.1f%%", progress)
+            
+            WindUI:Notify({
+                Title = "📋 " .. quest.Display,
+                Content = msg,
+                Duration = 8,
+                Icon = "info"
+            })
+        end
+    })
+    
+    Tab8:Space()
 end
 
 -- ==================== TAB 5: WEBHOOK ====================
