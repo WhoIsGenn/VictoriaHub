@@ -3477,37 +3477,46 @@ script:Button({
     end
 })
 
--- SERVICES
+-- ===============================
+-- FLOATING ICON FIX (WINDUI SAFE)
+-- ===============================
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- STATE
-local dragging = false
-local dragStart, startPos, dragInput
-local didMove = false
+-- WAIT WINDOW & OPENBUTTON
+local Window
+repeat task.wait()
+    Window = rawget(getgenv(), "Window") or _G.Window
+until Window ~= nil
 
--- CLEANUP OLD GUI
-local old = PlayerGui:FindFirstChild("CustomFloatingIcon_RockHub")
+local OpenButton
+repeat task.wait()
+    OpenButton = Window.OpenButton
+until OpenButton ~= nil
+
+-- CLEAN OLD ICON
+local old = PlayerGui:FindFirstChild("Victoria_FloatingIcon")
 if old then old:Destroy() end
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CustomFloatingIcon_RockHub"
+ScreenGui.Name = "Victoria_FloatingIcon"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999
 ScreenGui.Parent = PlayerGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.fromOffset(65, 65)
-Frame.Position = UDim2.new(0, 80, 0.45, 0)
+Frame.Size = UDim2.fromOffset(64, 64)
+Frame.Position = UDim2.new(0, 90, 0.45, 0)
 Frame.AnchorPoint = Vector2.new(0.5, 0.5)
 Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 Frame.BorderSizePixel = 0
 Frame.Parent = ScreenGui
 
-Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 12)
+Instance.new("UICorner", Frame).CornerRadius = UDim.new(1, 0)
 
 local Stroke = Instance.new("UIStroke")
 Stroke.Color = Color3.fromHex("#80ccf2")
@@ -3517,16 +3526,21 @@ Stroke.Parent = Frame
 local Icon = Instance.new("ImageLabel")
 Icon.Image = "rbxassetid://134034549147826"
 Icon.BackgroundTransparency = 1
-Icon.Size = UDim2.new(1, -8, 1, -8)
+Icon.Size = UDim2.new(1, -10, 1, -10)
 Icon.Position = UDim2.fromScale(0.5, 0.5)
 Icon.AnchorPoint = Vector2.new(0.5, 0.5)
 Icon.Parent = Frame
 
-Instance.new("UICorner", Icon).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", Icon).CornerRadius = UDim.new(1, 0)
 
--- ======================
--- DRAG SYSTEM
--- ======================
+-- ===============================
+-- DRAG + CLICK SYSTEM
+-- ===============================
+
+local dragging = false
+local dragStart, startPos, dragInput
+local moved = false
+
 local function update(input)
     local delta = input.Position - dragStart
     Frame.Position = UDim2.new(
@@ -3542,16 +3556,16 @@ Frame.InputBegan:Connect(function(input)
     or input.UserInputType == Enum.UserInputType.Touch then
 
         dragging = true
-        didMove = false
+        moved = false
         dragStart = input.Position
         startPos = Frame.Position
 
         input.Changed:Once(function()
             dragging = false
 
-            -- CLICK (NOT DRAG) = TOGGLE UI
-            if not didMove and Window and Window.Toggle then
-                Window:Toggle()
+            -- CLICK (NOT DRAG) = OPEN / CLOSE
+            if not moved and OpenButton and OpenButton.Active then
+                OpenButton:Activate()
             end
         end)
     end
@@ -3567,11 +3581,12 @@ end)
 UserInputService.InputChanged:Connect(function(input)
     if input == dragInput and dragging then
         if (input.Position - dragStart).Magnitude > 6 then
-            didMove = true
+            moved = true
         end
         update(input)
     end
 end)
+
 
 
 -- ==================== FINAL CLEANUP ====================
