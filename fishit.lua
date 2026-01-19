@@ -3479,16 +3479,19 @@ script:Button({
 
 --OPEN/CLOSE WINDOWS UI
 
+-- SERVICES
 _G.UserInputService = game:GetService("UserInputService")
-_G.RunService = game:GetService("RunService")
 _G.PlayerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
+-- STATE
 _G.uisConnection = nil
 _G.dragging = false
 _G.dragInput = nil
 _G.dragStart = nil
 _G.startPos = nil
+_G.didMove = false
 
+-- CREATE ICON
 _G.CreateFloatingIcon = function()
     local existingGui = _G.PlayerGui:FindFirstChild("CustomFloatingIcon_RockHub")
     if existingGui then existingGui:Destroy() end
@@ -3500,31 +3503,37 @@ _G.CreateFloatingIcon = function()
 
     local FloatingFrame = Instance.new("Frame")
     FloatingFrame.Name = "FloatingFrame"
-    FloatingFrame.Position = UDim2.new(0, 50, 0.4, 0)
-    FloatingFrame.Size = UDim2.fromOffset(45, 45)
+    FloatingFrame.Size = UDim2.fromOffset(45, 45) -- HITBOX
+    FloatingFrame.Position = UDim2.new(0, 60, 0.45, 0)
     FloatingFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     FloatingFrame.BackgroundTransparency = 1
+    FloatingFrame.BorderSizePixel = 0
+
+    -- 🔑 KUNCI DRAG
+    FloatingFrame.Active = true
+    FloatingFrame.Selectable = false
+
     FloatingFrame.Parent = FloatingIconGui
 
-    Instance.new("UICorner", FloatingFrame).CornerRadius = UDim.new(0, 12)
-
     local IconImage = Instance.new("ImageLabel")
+    IconImage.Name = "Icon"
     IconImage.Image = "rbxassetid://134034549147826"
     IconImage.BackgroundTransparency = 1
-    IconImage.Size = UDim2.new(1, -4, 1, -4)
+    IconImage.Size = UDim2.fromOffset(65, 65)
     IconImage.Position = UDim2.fromScale(0.5, 0.5)
     IconImage.AnchorPoint = Vector2.new(0.5, 0.5)
-    IconImage.Parent = FloatingFrame
 
+    -- BIAR INPUT TEMBUS KE FRAME
     IconImage.Active = false
     IconImage.Selectable = false
 
-    Instance.new("UICorner", IconImage).CornerRadius = UDim.new(0, 10)
+    IconImage.Parent = FloatingFrame
 
     FloatingIconGui.Parent = _G.PlayerGui
     return FloatingIconGui, FloatingFrame
 end
 
+-- SETUP DRAG + CLICK
 _G.SetupFloatingIcon = function(FloatingIconGui, FloatingFrame)
     if _G.uisConnection then
         _G.uisConnection:Disconnect()
@@ -3546,9 +3555,9 @@ _G.SetupFloatingIcon = function(FloatingIconGui, FloatingFrame)
         or input.UserInputType == Enum.UserInputType.Touch then
 
             _G.dragging = true
+            _G.didMove = false
             _G.dragStart = input.Position
             _G.startPos = FloatingFrame.Position
-            _G.didMove = false
 
             input.Changed:Once(function()
                 _G.dragging = false
@@ -3572,7 +3581,7 @@ _G.SetupFloatingIcon = function(FloatingIconGui, FloatingFrame)
 
     _G.uisConnection = _G.UserInputService.InputChanged:Connect(function(input)
         if input == _G.dragInput and _G.dragging then
-            if (input.Position - _G.dragStart).Magnitude > 5 then
+            if (input.Position - _G.dragStart).Magnitude > 4 then
                 _G.didMove = true
             end
             update(input)
@@ -3580,6 +3589,7 @@ _G.SetupFloatingIcon = function(FloatingIconGui, FloatingFrame)
     end)
 end
 
+-- INIT
 _G.InitializeIcon = function()
     if not game.Players.LocalPlayer.Character then
         game.Players.LocalPlayer.CharacterAdded:Wait()
@@ -3595,6 +3605,7 @@ game.Players.LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 _G.InitializeIcon()
+
 
 -- ==================== FINAL CLEANUP ====================
 local function cleanup()
