@@ -1,5 +1,5 @@
 local games = {
-    [121864768012064] = "https://raw.githubusercontent.com/WhoIsGenn/VictoriaHub/refs/heads/main/loader/fishit.lua",
+    [121864768012064] = "https://raw.githubusercontent.com/WhoIsGenn/VictoriaHub/refs/heads/main/Loader/fishit.lua",
 }
 
 local currentID = game.PlaceId
